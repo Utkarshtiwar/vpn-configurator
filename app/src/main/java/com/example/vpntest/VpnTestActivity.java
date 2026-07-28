@@ -177,6 +177,7 @@ public class VpnTestActivity extends AppCompatActivity {
 
         updateStatus("VPN service starting. Loading " + targetUrl + " ...");
 
+        webView.clearCache(true);
         webView.loadUrl(targetUrl);
     }
 

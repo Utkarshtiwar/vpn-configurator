@@ -19,6 +19,7 @@ import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository; // [DASHBOARD]
 
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -32,6 +33,11 @@ public class MediatorVpnService extends VpnService {
     private final VpnEventRepository dashboard = VpnEventRepository.getInstance(); // [DASHBOARD]
 
     private ParcelFileDescriptor vpnInterface;
+    private FileOutputStream tunOut;
+    private final Object tunWriteLock = new Object();
+
+    private UdpForwarder udpForwarder;
+    private TcpForwarder tcpForwarder;
 
     private Thread packetReaderThread;
 
@@ -65,14 +71,17 @@ public class MediatorVpnService extends VpnService {
 
         builder.setSession("MediatorVpnService-POC");
 
-
         builder.addAddress("10.0.0.2", 24);
 
         builder.addRoute("0.0.0.0", 0);
         builder.addDnsServer("8.8.8.8");
         builder.setMtu(1500);
 
-
+        try {
+            builder.addDisallowedApplication(getPackageName());
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Could not exclude own package from VPN", e);
+        }
 
         vpnInterface = builder.establish();
 
@@ -83,18 +92,18 @@ public class MediatorVpnService extends VpnService {
             dashboard.setVpnStatus("Stopped"); // [DASHBOARD]
             dashboard.logEvent("VPN interface could not be established", // [DASHBOARD]
                     VpnEvent.Level.ERROR, VpnEvent.Category.ERROR); // [DASHBOARD]
-        } else {
-            Log.d(TAG, "VPN interface established successfully.");
-            dashboard.setInterfaceStatus("Established"); // [DASHBOARD]
-            dashboard.setVpnStatus("Running"); // [DASHBOARD]
-            dashboard.logEvent("VPN interface established", // [DASHBOARD]
-                    VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL); // [DASHBOARD]
+            return;
         }
-        try {
-            builder.addDisallowedApplication(getPackageName());
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "Could not exclude own package from VPN", e);
-        }
+
+        Log.d(TAG, "VPN interface established successfully.");
+        dashboard.setInterfaceStatus("Established"); // [DASHBOARD]
+        dashboard.setVpnStatus("Running"); // [DASHBOARD]
+        dashboard.logEvent("VPN interface established", // [DASHBOARD]
+                VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL); // [DASHBOARD]
+
+        tunOut = new FileOutputStream(vpnInterface.getFileDescriptor());
+        udpForwarder = new UdpForwarder(this, tunOut, tunWriteLock);
+        tcpForwarder = new TcpForwarder(this, tunOut, tunWriteLock);
     }
 
 
@@ -112,8 +121,6 @@ public class MediatorVpnService extends VpnService {
 
             try (FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor())) {
 
-
-                ByteBuffer packet = ByteBuffer.allocate(32767);
                 byte[] buffer = new byte[32767];
 
                 Log.d(TAG, "Packet reading loop started.");
@@ -126,10 +133,7 @@ public class MediatorVpnService extends VpnService {
                     int length = in.read(buffer);
 
                     if (length > 0) {
-                        packet.clear();
-                        packet.put(buffer, 0, length);
-                        packet.flip();
-                        logPacketHeader(buffer, length);
+                        handlePacket(buffer, length);
                     }
                 }
 
@@ -152,16 +156,14 @@ public class MediatorVpnService extends VpnService {
         packetReaderThread.start();
     }
 
-
-    private void logPacketHeader(byte[] packetBytes, int length) {
+    /** Logs + dashboards the packet (as before), then actually relays it. */
+    private void handlePacket(byte[] packetBytes, int length) {
         if (length < 20) {
-
             return;
         }
 
         int version = (packetBytes[0] >> 4) & 0xF;
         if (version != 4) {
-
             Log.d(TAG, "Skipped non-IPv4 packet (version=" + version + ")");
             dashboard.recordIpv6Skipped(); // [DASHBOARD]
             dashboard.logEvent("Skipped non-IPv4 packet (version=" + version + ")", // [DASHBOARD]
@@ -184,6 +186,11 @@ public class MediatorVpnService extends VpnService {
             default:
                 protocolName = "OTHER(" + protocol + ")";
         }
+
+        byte[] sourceIpBytes = new byte[4];
+        byte[] destIpBytes = new byte[4];
+        System.arraycopy(packetBytes, 12, sourceIpBytes, 0, 4);
+        System.arraycopy(packetBytes, 16, destIpBytes, 0, 4);
 
         String sourceIp = ipBytesToString(packetBytes, 12);
         String destIp = ipBytesToString(packetBytes, 16);
@@ -238,6 +245,25 @@ public class MediatorVpnService extends VpnService {
                         + ", Destination: " + destIp
                         + ", Size: " + length + " bytes",
                 VpnEvent.Level.INFO, category);
+
+        // ---- Actually relay the packet so the app/device gets a response ----
+        switch (protocol) {
+            case 6: // TCP
+                if (tcpForwarder != null) {
+                    tcpForwarder.handlePacket(packetBytes, length, ipHeaderLength,
+                            sourceIpBytes, destIpBytes, sourcePort, destinationPort);
+                }
+                break;
+            case 17: // UDP
+                if (udpForwarder != null) {
+                    udpForwarder.handlePacket(packetBytes, length, ipHeaderLength,
+                            sourceIpBytes, destIpBytes, sourcePort, destinationPort);
+                }
+                break;
+            default:
+                // ICMP and everything else: not relayed in this POC.
+                break;
+        }
     }
 
 
@@ -287,6 +313,22 @@ public class MediatorVpnService extends VpnService {
         if (packetReaderThread != null) {
             packetReaderThread.interrupt();
             packetReaderThread = null;
+        }
+
+        if (udpForwarder != null) {
+            udpForwarder.shutdown();
+            udpForwarder = null;
+        }
+        if (tcpForwarder != null) {
+            tcpForwarder.shutdown();
+            tcpForwarder = null;
+        }
+        if (tunOut != null) {
+            try {
+                tunOut.close();
+            } catch (IOException ignored) {
+            }
+            tunOut = null;
         }
 
         if (vpnInterface != null) {
