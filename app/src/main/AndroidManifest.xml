@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="VpnTestPOC"
+        android:theme="@style/Theme.AppCompat.DayNight"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name="com.example.vpntest.VpnTestActivity"
+            android:exported="true"
+            android:label="VPN Test">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            This <service> block is the most important manifest entry for
+            this whole POC. Three things make a service usable as a VPN:
+
+            1. android:name points to our class extending VpnService.
+
+            2. android:permission="android.permission.BIND_VPN_SERVICE"
+               This tells Android: "only the system is allowed to bind to
+               this service." Apps cannot bind to it directly — only the
+               OS VPN subsystem can, after the user has approved the VPN
+               permission dialog. This is a security requirement enforced
+               by the OS, not something we can skip.
+
+            3. The <intent-filter> with action "android.net.VpnService"
+               is what makes the system recognize this service as a valid
+               VPN implementation when we call VpnService.prepare() and
+               later start the service.
+
+            Without any one of these three, VpnService.prepare() or
+            establish() will fail or the service will never be
+            recognized as a VPN by the OS.
+        -->
+        <service
+            android:name="com.example.vpntest.MediatorVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

@@ -1,0 +1,7 @@
+R_DEF: Internal format may change without notice
+local
+id btnStartVpn
+id tvStatus
+id webView
+layout activity_vpn_test
+string app_name

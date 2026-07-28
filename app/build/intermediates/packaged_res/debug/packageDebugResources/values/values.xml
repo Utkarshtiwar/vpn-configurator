@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background_dark">#121212</color>
+    <color name="on_surface_primary">#FFFFFF</color>
+    <color name="on_surface_secondary">#B0B0B0</color>
+    <color name="status_error">#EF5350</color>
+    <color name="status_info">#42A5F5</color>
+    <color name="status_success">#66BB6A</color>
+    <color name="status_warning">#FFA726</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="surface_dark_elevated">#2A2A2A</color>
+    <string name="app_name">VpnTestPOC</string>
+    <style name="DashboardCard">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_margin">4dp</item>
+    </style>
+    <style name="DashboardCardContent">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">12dp</item>
+    </style>
+    <style name="DashboardCardLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+    </style>
+    <style name="DashboardCardSmall" parent="DashboardCard"/>
+    <style name="DashboardCardValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/on_surface_primary</item>
+    </style>
+</resources>

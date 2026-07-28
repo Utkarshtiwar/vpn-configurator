@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- Button that kicks off the whole VPN permission + start flow -->
+    <Button
+        android:id="@+id/btnStartVpn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start VPN" />
+
+    <!-- Shows current status: permission requested, service started, etc. -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:text="Status: idle" />
+
+    <!-- WebView that will load a page AFTER the VPN interface is established -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+</LinearLayout>

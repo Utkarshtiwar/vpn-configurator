@@ -1,0 +1,14 @@
+<resources>
+    <!-- Base dark theme surfaces -->
+    <color name="background_dark">#121212</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="surface_dark_elevated">#2A2A2A</color>
+    <color name="on_surface_primary">#FFFFFF</color>
+    <color name="on_surface_secondary">#B0B0B0</color>
+
+    <!-- Status colors -->
+    <color name="status_success">#66BB6A</color>
+    <color name="status_info">#42A5F5</color>
+    <color name="status_warning">#FFA726</color>
+    <color name="status_error">#EF5350</color>
+</resources>

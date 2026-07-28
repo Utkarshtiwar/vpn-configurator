@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background_dark">
+
+    <EditText
+        android:id="@+id/etTargetUrl"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:inputType="textUri"
+        android:singleLine="true"
+        android:hint="https://example.com"
+        android:text="https://www.google.com"
+        android:textColor="@color/on_surface_primary"
+        android:textColorHint="@color/on_surface_secondary" />
+    <Button
+        android:id="@+id/btnStartVpn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="8dp"
+        android:text="Start VPN"
+        style="@style/Widget.Material3.Button" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:textColor="@color/on_surface_secondary"
+        android:text="Status: idle" />
+
+    <!-- ===================== DASHBOARD (fixed, scrollable if it overflows) ===================== -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="360dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <!-- Row: VPN Status / Permission Status -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <androidx.cardview.widget.CardView
+                    style="@style/DashboardCard">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="VPN Status" />
+                        <TextView android:id="@+id/tvVpnStatus" style="@style/DashboardCardValue" android:text="Stopped" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    style="@style/DashboardCard">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="Permission" />
+                        <TextView android:id="@+id/tvPermissionStatus" style="@style/DashboardCardValue" android:text="Not requested" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+
+            <!-- Row: Interface Status / Reader Status -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <androidx.cardview.widget.CardView
+                    style="@style/DashboardCard">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="VPN Interface" />
+                        <TextView android:id="@+id/tvInterfaceStatus" style="@style/DashboardCardValue" android:text="Not established" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView
+                    style="@style/DashboardCard">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="Packet Reader" />
+                        <TextView android:id="@+id/tvReaderStatus" style="@style/DashboardCardValue" android:text="Stopped" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+
+            <!-- Row: packet counters -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <androidx.cardview.widget.CardView style="@style/DashboardCardSmall">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="Total" />
+                        <TextView android:id="@+id/tvTotalPackets" style="@style/DashboardCardValue" android:text="0" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView style="@style/DashboardCardSmall">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="TCP" />
+                        <TextView android:id="@+id/tvTcpCount" style="@style/DashboardCardValue"
+                            android:textColor="@color/status_success" android:text="0" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView style="@style/DashboardCardSmall">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="UDP" />
+                        <TextView android:id="@+id/tvUdpCount" style="@style/DashboardCardValue"
+                            android:textColor="@color/status_info" android:text="0" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <androidx.cardview.widget.CardView style="@style/DashboardCardSmall">
+                    <LinearLayout style="@style/DashboardCardContent">
+                        <TextView style="@style/DashboardCardLabel" android:text="IPv6 Skip" />
+                        <TextView android:id="@+id/tvIpv6Skipped" style="@style/DashboardCardValue"
+                            android:textColor="@color/status_warning" android:text="0" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+
+            <!-- Last packet info -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="4dp"
+                app:cardBackgroundColor="@color/surface_dark"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                xmlns:app="http://schemas.android.com/apk/res-auto">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView style="@style/DashboardCardLabel" android:text="Last Packet" />
+
+                    <TextView android:id="@+id/tvLastProtocol" style="@style/DashboardCardValue" android:textSize="14sp" tools:text="Protocol: -" xmlns:tools="http://schemas.android.com/tools" />
+                    <TextView android:id="@+id/tvLastSource" style="@style/DashboardCardValue" android:textSize="14sp" />
+                    <TextView android:id="@+id/tvLastDest" style="@style/DashboardCardValue" android:textSize="14sp" />
+                    <TextView android:id="@+id/tvLastSize" style="@style/DashboardCardValue" android:textSize="14sp" />
+                    <TextView android:id="@+id/tvLastTimestamp" style="@style/DashboardCardValue" android:textSize="14sp" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Compact WebView preview: original functionality preserved -->
+            <WebView
+                android:id="@+id/webView"
+                android:layout_width="match_parent"
+                android:layout_height="150dp"
+                android:layout_margin="4dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===================== LIVE EVENT CONSOLE ===================== -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="Live Event Console"
+        android:textStyle="bold"
+        android:textColor="@color/on_surface_primary" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvEventConsole"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/surface_dark"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp" />
+
+</LinearLayout>
