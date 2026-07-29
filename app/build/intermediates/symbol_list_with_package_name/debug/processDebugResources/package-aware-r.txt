@@ -3111,6 +3111,7 @@ id blocking
 id bottom
 id bounce
 id btnStartVpn
+id btnStopVpn
 id buttonPanel
 id cancel_button
 id center

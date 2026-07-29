@@ -30,6 +30,8 @@ public class VpnTestActivity extends AppCompatActivity {
 
     private TextView tvStatus;
     private WebView webView;
+    private Button btnStartVpn;
+    private Button btnStopVpn;
 
     // Dashboard views
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
@@ -75,7 +77,8 @@ public class VpnTestActivity extends AppCompatActivity {
         tvStatus = findViewById(R.id.tvStatus);
         webView = findViewById(R.id.webView);
         etTargetUrl = findViewById(R.id.etTargetUrl);
-        Button btnStartVpn = findViewById(R.id.btnStartVpn);
+        btnStartVpn = findViewById(R.id.btnStartVpn);
+        btnStopVpn = findViewById(R.id.btnStopVpn);
 
         bindDashboardViews();
         setupEventConsole();
@@ -84,6 +87,7 @@ public class VpnTestActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient());
 
         btnStartVpn.setOnClickListener(v -> onStartVpnClicked());
+        btnStopVpn.setOnClickListener(v -> onStopVpnClicked());
 
         viewModel = new ViewModelProvider(this).get(VpnDashboardViewModel.class);
 
@@ -177,8 +181,35 @@ public class VpnTestActivity extends AppCompatActivity {
 
         updateStatus("VPN service starting. Loading " + targetUrl + " ...");
 
-        webView.clearCache(true);
+        //webView.clearCache(true);
         webView.loadUrl(targetUrl);
+
+        btnStartVpn.setEnabled(false);
+        btnStopVpn.setEnabled(true);
+    }
+
+    private void onStopVpnClicked() {
+        updateStatus("Stopping VPN...");
+        dashboardRepo.logEvent("Stopping VPN (user requested)",
+                VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
+
+
+        Intent serviceIntent = new Intent(this, MediatorVpnService.class);
+        stopService(serviceIntent);
+
+        webView.stopLoading();
+        webView.loadUrl("about:blank");
+
+        dashboardRepo.setVpnStatus("Stopped");
+        dashboardRepo.setInterfaceStatus("Closed");
+        dashboardRepo.setReaderStatus("Stopped");
+        dashboardRepo.logEvent("VPN stopped by user",
+                VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
+
+        updateStatus("VPN stopped.");
+
+        btnStartVpn.setEnabled(true);
+        btnStopVpn.setEnabled(false);
     }
 
     private String resolveTargetUrl() {

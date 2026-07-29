@@ -7,12 +7,18 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.model.VpnStats;
 
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
+
 public final class VpnEventRepository {
 
     private static volatile VpnEventRepository instance;
 
     private final MutableLiveData<VpnEvent> latestEvent = new MutableLiveData<>();
     private final MutableLiveData<VpnStats> stats = new MutableLiveData<>(new VpnStats());
+
+
+    private final AtomicReference<VpnStats> currentStats = new AtomicReference<>(new VpnStats());
 
     private VpnEventRepository() { }
 
@@ -37,42 +43,36 @@ public final class VpnEventRepository {
         return stats;
     }
 
-
-
     public void logEvent(String message, VpnEvent.Level level, VpnEvent.Category category) {
         latestEvent.postValue(new VpnEvent(message, level, category, System.currentTimeMillis()));
     }
-
-
+    private void updateStats(UnaryOperator<VpnStats> transform) {
+        VpnStats updated = currentStats.updateAndGet(transform);
+        stats.postValue(updated);
+    }
 
     public void setVpnStatus(String status) {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats()).withVpnStatus(status));
+        updateStats(s -> s.withVpnStatus(status));
     }
 
     public void setPermissionStatus(String status) {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats()).withPermissionStatus(status));
+        updateStats(s -> s.withPermissionStatus(status));
     }
 
     public void setInterfaceStatus(String status) {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats()).withInterfaceStatus(status));
+        updateStats(s -> s.withInterfaceStatus(status));
     }
 
     public void setReaderStatus(String status) {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats()).withReaderStatus(status));
+        updateStats(s -> s.withReaderStatus(status));
     }
 
     public void recordPacket(String protocol, String srcIp, String dstIp, int size) {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats())
-                .withPacket(protocol, srcIp, dstIp, size, System.currentTimeMillis()));
+        long ts = System.currentTimeMillis();
+        updateStats(s -> s.withPacket(protocol, srcIp, dstIp, size, ts));
     }
 
     public void recordIpv6Skipped() {
-        VpnStats current = stats.getValue();
-        stats.postValue((current != null ? current : new VpnStats()).withIpv6Skipped());
+        updateStats(VpnStats::withIpv6Skipped);
     }
 }

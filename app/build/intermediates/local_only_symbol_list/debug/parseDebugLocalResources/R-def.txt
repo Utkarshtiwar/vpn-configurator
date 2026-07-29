@@ -18,6 +18,7 @@ drawable ic_tcp
 drawable ic_udp
 drawable ic_warning
 id btnStartVpn
+id btnStopVpn
 id etTargetUrl
 id ivEventIcon
 id rvEventConsole

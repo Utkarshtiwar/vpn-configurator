@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-59:12
-INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-59:12
-INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-59:12
-INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-59:12
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-63:12
+INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-63:12
+INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-63:12
+INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:2:1-63:12
 MERGED from [com.google.android.material:material:1.12.0] C:\Users\Asus\.gradle\caches\9.0.0\transforms\6e8ec27004fb97fe6c06c4dcaf84e034\transformed\material-1.12.0\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.appcompat:appcompat-resources:1.6.1] C:\Users\Asus\.gradle\caches\9.0.0\transforms\8cda36013ff6908e41fa145df06e55b2\transformed\appcompat-resources-1.6.1\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\Asus\.gradle\caches\9.0.0\transforms\a3fb3870f4465c8cfcd3d344af13e744\transformed\constraintlayout-2.0.1\AndroidManifest.xml:2:1-11:12
@@ -73,8 +73,8 @@ ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidMan
 	android:name
 		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:6:22-86
 application
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:8:5-57:19
-INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:8:5-57:19
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:8:5-61:19
+INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:8:5-61:19
 MERGED from [com.google.android.material:material:1.12.0] C:\Users\Asus\.gradle\caches\9.0.0\transforms\6e8ec27004fb97fe6c06c4dcaf84e034\transformed\material-1.12.0\AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.12.0] C:\Users\Asus\.gradle\caches\9.0.0\transforms\6e8ec27004fb97fe6c06c4dcaf84e034\transformed\material-1.12.0\AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\Asus\.gradle\caches\9.0.0\transforms\a3fb3870f4465c8cfcd3d344af13e744\transformed\constraintlayout-2.0.1\AndroidManifest.xml:9:5-20
@@ -106,7 +106,7 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\As
 	android:usesCleartextTraffic
 		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:13:9-45
 activity#com.example.vpntest.VpnTestActivity
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:15:9-23:20
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:15:9-24:20
 	android:label
 		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:18:13-37
 	android:exported
@@ -114,31 +114,37 @@ ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidMan
 	android:name
 		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:16:13-63
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:19:13-22:29
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:19:13-23:29
 action#android.intent.action.MAIN
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:20:17-69
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:21:17-69
 	android:name
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:20:25-66
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:21:25-66
 category#android.intent.category.LAUNCHER
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:21:17-77
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:22:17-77
 	android:name
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:21:27-74
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:22:27-74
 service#com.example.vpntest.MediatorVpnService
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:47:9-55:19
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:48:9-59:19
 	android:exported
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:50:13-36
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:51:13-36
 	android:permission
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:49:13-69
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:50:13-69
 	android:foregroundServiceType
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:51:13-55
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:52:13-55
 	android:name
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:48:13-66
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:49:13-66
 intent-filter#action:name:android.net.VpnService
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:52:13-54:29
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:53:13-55:29
 action#android.net.VpnService
-ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:53:17-65
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:54:17-65
 	android:name
-		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:53:25-62
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:54:25-62
+property#android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE
+ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:56:13-58:39
+	android:value
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:58:17-36
+	android:name
+		ADDED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml:57:17-76
 uses-sdk
 INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\src\main\AndroidManifest.xml

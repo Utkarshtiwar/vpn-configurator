@@ -329,7 +329,7 @@ public class MediatorVpnService extends VpnService {
             } catch (IOException ignored) {
             }
             tunOut = null;
-        }
+        }   
 
         if (vpnInterface != null) {
             try {
