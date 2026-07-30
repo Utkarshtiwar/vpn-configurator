@@ -27,6 +27,7 @@ class UdpForwarder {
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
     private final ScheduledExecutorService cleanupExecutor =
             Executors.newSingleThreadScheduledExecutor();
+    private volatile boolean shutdown = false;
 
     UdpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock) {
         this.vpnService = vpnService;
@@ -42,6 +43,8 @@ class UdpForwarder {
      */
     void handlePacket(byte[] packet, int length, int ipHeaderLen,
                       byte[] srcIp, byte[] dstIp, int srcPort, int dstPort) {
+        if (shutdown) return;
+
         int udpPayloadOffset = ipHeaderLen + 8; // 8-byte UDP header
         int udpPayloadLen = length - udpPayloadOffset;
         if (udpPayloadLen < 0) return;
@@ -140,6 +143,7 @@ class UdpForwarder {
     }
 
     void shutdown() {
+        shutdown = true;
         cleanupExecutor.shutdownNow();
         for (Session s : sessions.values()) {
             s.socket.close();

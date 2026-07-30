@@ -1,73 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:fillViewport="true"
     android:background="@color/background_dark">
 
-    <EditText
-        android:id="@+id/etTargetUrl"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="8dp"
-        android:inputType="textUri"
-        android:singleLine="true"
-        android:hint="https://example.com"
-        android:text="https://www.google.com"
-        android:textColor="@color/on_surface_primary"
-        android:textColorHint="@color/on_surface_secondary" />
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_margin="8dp"
-        android:weightSum="2">
+        android:orientation="vertical">
 
-        <Button
-            android:id="@+id/btnStartVpn"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="64dp"
-            android:layout_marginEnd="4dp"
-            android:text="Start VPN"
-            android:textSize="18sp"
-            android:textAllCaps="false"
-            style="@style/Widget.Material3.Button" />
-
-        <Button
-            android:id="@+id/btnStopVpn"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="64dp"
-            android:layout_marginStart="4dp"
-            android:text="Stop VPN"
-            android:textSize="18sp"
-            android:textAllCaps="false"
-            android:enabled="false"
-            android:backgroundTint="@color/status_error"
-            style="@style/Widget.Material3.Button" />
-
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/tvStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
-        android:textColor="@color/on_surface_secondary"
-        android:text="Status: idle" />
-
-    <!-- ===================== DASHBOARD (fixed, scrollable if it overflows) ===================== -->
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:maxHeight="360dp">
+        <EditText
+            android:id="@+id/etTargetUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:inputType="textUri"
+            android:singleLine="true"
+            android:hint="https://example.com"
+            android:text="https://www.google.com"
+            android:textColor="@color/on_surface_primary"
+            android:textColorHint="@color/on_surface_secondary" />
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_margin="8dp"
+            android:weightSum="2">
+
+            <Button
+                android:id="@+id/btnStartVpn"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="64dp"
+                android:layout_marginEnd="4dp"
+                android:text="Start VPN"
+                android:textSize="18sp"
+                android:textAllCaps="false"
+                style="@style/Widget.Material3.Button" />
+
+            <Button
+                android:id="@+id/btnStopVpn"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="64dp"
+                android:layout_marginStart="4dp"
+                android:text="Stop VPN"
+                android:textSize="18sp"
+                android:textAllCaps="false"
+                android:enabled="false"
+                android:backgroundTint="@color/status_error"
+                style="@style/Widget.Material3.Button" />
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/on_surface_secondary"
+            android:text="Status: idle" />
+
+        <!-- ===================== DASHBOARD ===================== -->
+        <!-- No longer its own ScrollView - it just flows inside the outer NestedScrollView now -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="8dp">
 
@@ -162,8 +165,7 @@
                 android:layout_margin="4dp"
                 app:cardBackgroundColor="@color/surface_dark"
                 app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                xmlns:app="http://schemas.android.com/apk/res-auto">
+                app:cardElevation="2dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -171,17 +173,66 @@
                     android:orientation="vertical"
                     android:padding="12dp">
 
-                    <TextView style="@style/DashboardCardLabel" android:text="Last Packet" />
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Last Packet"
+                        android:padding="8dp"
+                        />
 
-                    <TextView android:id="@+id/tvLastProtocol" style="@style/DashboardCardValue" android:textSize="14sp" tools:text="Protocol: -" xmlns:tools="http://schemas.android.com/tools" />
-                    <TextView android:id="@+id/tvLastSource" style="@style/DashboardCardValue" android:textSize="14sp" />
-                    <TextView android:id="@+id/tvLastDest" style="@style/DashboardCardValue" android:textSize="14sp" />
-                    <TextView android:id="@+id/tvLastSize" style="@style/DashboardCardValue" android:textSize="14sp" />
-                    <TextView android:id="@+id/tvLastTimestamp" style="@style/DashboardCardValue" android:textSize="14sp" />
+                    <!-- Protocol -->
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Protocol" />
+
+                    <TextView
+                        android:id="@+id/tvLastProtocol"
+                        style="@style/DashboardCardValue"
+                        android:textSize="14sp" />
+
+                    <!-- Source -->
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Source IP" />
+
+                    <TextView
+                        android:id="@+id/tvLastSource"
+                        style="@style/DashboardCardValue"
+                        android:textSize="14sp" />
+
+                    <!-- Destination -->
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Destination IP" />
+
+                    <TextView
+                        android:id="@+id/tvLastDest"
+                        style="@style/DashboardCardValue"
+                        android:textSize="14sp" />
+
+                    <!-- Size -->
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Packet Size" />
+
+                    <TextView
+                        android:id="@+id/tvLastSize"
+                        style="@style/DashboardCardValue"
+                        android:textSize="14sp" />
+
+                    <!-- Timestamp -->
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Timestamp" />
+
+                    <TextView
+                        android:id="@+id/tvLastTimestamp"
+                        style="@style/DashboardCardValue"
+                        android:textSize="14sp" />
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Compact WebView preview: original functionality preserved -->
+            <!-- Compact WebView preview -->
             <WebView
                 android:id="@+id/webView"
                 android:layout_width="match_parent"
@@ -189,24 +240,25 @@
                 android:layout_margin="4dp" />
 
         </LinearLayout>
-    </ScrollView>
 
-    <!-- ===================== LIVE EVENT CONSOLE ===================== -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:text="Live Event Console"
-        android:textStyle="bold"
-        android:textColor="@color/on_surface_primary" />
+        <!-- ===================== LIVE EVENT CONSOLE ===================== -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="Live Event Console"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface_primary" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvEventConsole"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="@color/surface_dark"
-        android:clipToPadding="false"
-        android:paddingBottom="8dp" />
 
-</LinearLayout>
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvEventConsole"
+            android:layout_width="match_parent"
+            android:layout_height="450dp"
+            android:background="@color/surface_dark"
+            android:clipToPadding="false"
+            android:paddingBottom="8dp" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

@@ -7,7 +7,9 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.VpnService;
+import android.os.Binder;
 import android.os.Build;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
@@ -18,6 +20,7 @@ import com.example.vpntest.model.ConnectionInfo;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository; // [DASHBOARD]
 
+import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -34,6 +37,8 @@ public class MediatorVpnService extends VpnService {
 
     private ParcelFileDescriptor vpnInterface;
     private FileOutputStream tunOut;
+
+    private volatile FileInputStream tunIn;
     private final Object tunWriteLock = new Object();
 
     private UdpForwarder udpForwarder;
@@ -44,6 +49,19 @@ public class MediatorVpnService extends VpnService {
     private volatile boolean isRunning = false;
     private final Map<String, ConnectionInfo> activeConnections =
             new ConcurrentHashMap<>();
+    private final IBinder binder = new LocalBinder();
+
+    public class LocalBinder extends Binder {
+        MediatorVpnService getService() {
+            return MediatorVpnService.this;
+        }
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
 
     @Override
     public void onCreate() {
@@ -119,7 +137,8 @@ public class MediatorVpnService extends VpnService {
 
         packetReaderThread = new Thread(() -> {
 
-            try (FileInputStream in = new FileInputStream(vpnInterface.getFileDescriptor())) {
+            try {
+                tunIn = new FileInputStream(vpnInterface.getFileDescriptor());
 
                 byte[] buffer = new byte[32767];
 
@@ -130,20 +149,22 @@ public class MediatorVpnService extends VpnService {
 
                 while (isRunning) {
 
-                    int length = in.read(buffer);
+                    int length;
+                    try {
+                        length = tunIn.read(buffer);
+                    } catch (IOException e) {
+                        break; // tunIn was closed by stopVpn() — exit immediately
+                    }
 
-                    if (length > 0) {
+                    if (length > 0 && isRunning) {
                         handlePacket(buffer, length);
                     }
                 }
 
-            } catch (IOException e) {
-                if (isRunning) {
+            } finally {
 
-                    Log.e(TAG, "Error reading from VPN interface", e);
-                    dashboard.logEvent("Error reading from VPN interface: " + e.getMessage(), // [DASHBOARD]
-                            VpnEvent.Level.ERROR, VpnEvent.Category.ERROR); // [DASHBOARD]
-                }
+                closeQuietly(tunIn);
+                tunIn = null;
             }
 
             Log.d(TAG, "Packet reading loop stopped.");
@@ -173,8 +194,12 @@ public class MediatorVpnService extends VpnService {
 
         int protocol = packetBytes[9] & 0xFF;
         String protocolName;
+
+        if (!isRunning) {
+            return; // shutdown in progress — do not start new forwarding work
+        }
         switch (protocol) {
-            case 6:
+            case 6: // TCP
                 protocolName = "TCP";
                 break;
             case 17:
@@ -306,12 +331,22 @@ public class MediatorVpnService extends VpnService {
         stopVpn();
         super.onDestroy();
     }
-    private void stopVpn() {
+    public void stopVpn() {
 
         isRunning = false;
+        closeQuietly(tunIn);
+        tunIn = null;
 
         if (packetReaderThread != null) {
-            packetReaderThread.interrupt();
+            try {
+
+                packetReaderThread.join(2000);
+                if (packetReaderThread.isAlive()) {
+                    Log.e(TAG, "packetReaderThread did not terminate within timeout!");
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
             packetReaderThread = null;
         }
 
@@ -323,24 +358,24 @@ public class MediatorVpnService extends VpnService {
             tcpForwarder.shutdown();
             tcpForwarder = null;
         }
-        if (tunOut != null) {
-            try {
-                tunOut.close();
-            } catch (IOException ignored) {
-            }
-            tunOut = null;
-        }   
 
-        if (vpnInterface != null) {
-            try {
-                vpnInterface.close();
-            } catch (IOException ignored) {
-            }
-            vpnInterface = null;
-        }
+        closeQuietly(tunOut);
+        tunOut = null;
+
+        closeQuietly(vpnInterface);
+        vpnInterface = null;
 
         dashboard.setVpnStatus("Stopped");
         dashboard.setInterfaceStatus("Closed");
+    }
+
+    private void closeQuietly(Closeable c) {
+        if (c != null) {
+            try {
+                c.close();
+            } catch (IOException ignored) {
+            }
+        }
     }
 
 

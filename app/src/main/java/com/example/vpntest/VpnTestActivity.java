@@ -1,9 +1,13 @@
 package com.example.vpntest;
 
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -37,6 +41,23 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
     private TextView tvTotalPackets, tvTcpCount, tvUdpCount, tvIpv6Skipped;
     private TextView tvLastProtocol, tvLastSource, tvLastDest, tvLastSize, tvLastTimestamp;
+
+    private MediatorVpnService mediatorVpnService;
+    private boolean isServiceBound = false;
+
+    private final ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mediatorVpnService = ((MediatorVpnService.LocalBinder) service).getService();
+            isServiceBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mediatorVpnService = null;
+            isServiceBound = false;
+        }
+    };
 
     private EditText etTargetUrl;
     private RecyclerView rvEventConsole;
@@ -178,6 +199,7 @@ public class VpnTestActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
         }
+        bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
 
         updateStatus("VPN service starting. Loading " + targetUrl + " ...");
 
@@ -193,6 +215,12 @@ public class VpnTestActivity extends AppCompatActivity {
         dashboardRepo.logEvent("Stopping VPN (user requested)",
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
+        if (isServiceBound && mediatorVpnService != null) {
+            mediatorVpnService.stopVpn();   // synchronous, real teardown, happens now
+            unbindService(connection);
+            isServiceBound = false;
+            mediatorVpnService = null;
+        }
 
         Intent serviceIntent = new Intent(this, MediatorVpnService.class);
         stopService(serviceIntent);

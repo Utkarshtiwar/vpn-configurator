@@ -24,6 +24,7 @@ class TcpForwarder {
     private final Random random = new Random();
 
     private final Map<String, TcpSession> sessions = new ConcurrentHashMap<>();
+    private volatile boolean shutdown = false;
 
     TcpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock) {
         this.vpnService = vpnService;
@@ -33,6 +34,8 @@ class TcpForwarder {
 
     void handlePacket(byte[] packet, int length, int ipHeaderLen,
                       byte[] srcIp, byte[] dstIp, int srcPort, int dstPort) {
+        if (shutdown) return;
+
         int tcpHeaderOffset = ipHeaderLen;
         if (length < tcpHeaderOffset + 20) return;
 
@@ -206,6 +209,7 @@ class TcpForwarder {
     }
 
     void shutdown() {
+        shutdown = true;
         for (Map.Entry<String, TcpSession> e : sessions.entrySet()) {
             closeSession(e.getKey(), e.getValue());
         }
