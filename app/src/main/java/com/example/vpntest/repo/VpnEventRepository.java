@@ -75,4 +75,10 @@ public final class VpnEventRepository {
     public void recordIpv6Skipped() {
         updateStats(VpnStats::withIpv6Skipped);
     }
+    public void recordTtfb(long ttfbMs) {
+        updateStats(s -> s.withTtfb(ttfbMs));
+    }
+    public void resetTtfb() {
+        updateStats(s -> s.withTtfb(-1L));
+    }
 }

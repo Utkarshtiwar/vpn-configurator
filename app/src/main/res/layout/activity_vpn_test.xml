@@ -209,6 +209,17 @@
                         style="@style/DashboardCardValue"
                         android:textSize="14sp" />
 
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Time To First Byte" />
+
+                    <TextView
+                        android:id="@+id/tvLastTtfb"
+                        style="@style/DashboardCardValue"
+                        android:textColor="@color/status_success"
+                        android:textSize="14sp"
+                        android:text="-" />
+
                     <!-- Size -->
                     <TextView
                         style="@style/DashboardCardLabel"

@@ -18,15 +18,16 @@ public final class VpnStats {
     public final int lastPacketSize;
     public final long lastPacketTimestamp;
 
+    public final long lastTtfbMs;
     public VpnStats() {
         this("Stopped", "Not requested", "Not established", "Stopped",
-                0, 0, 0, 0, "-", "-", "-", 0, 0L);
+                0, 0, 0, 0, "-", "-", "-", 0, 0L, -1L);
     }
 
     private VpnStats(String vpnStatus, String permissionStatus, String interfaceStatus,
                      String readerStatus, int totalPackets, int tcpCount, int udpCount,
                      int ipv6SkippedCount, String lastProtocol, String lastSourceIp,
-                     String lastDestIp, int lastPacketSize, long lastPacketTimestamp) {
+                     String lastDestIp, int lastPacketSize, long lastPacketTimestamp,long lastTtfbMs) {
         this.vpnStatus = vpnStatus;
         this.permissionStatus = permissionStatus;
         this.interfaceStatus = interfaceStatus;
@@ -40,30 +41,31 @@ public final class VpnStats {
         this.lastDestIp = lastDestIp;
         this.lastPacketSize = lastPacketSize;
         this.lastPacketTimestamp = lastPacketTimestamp;
+        this.lastTtfbMs = lastTtfbMs;
     }
 
     public VpnStats withVpnStatus(String v) {
         return new VpnStats(v, permissionStatus, interfaceStatus, readerStatus, totalPackets,
                 tcpCount, udpCount, ipv6SkippedCount, lastProtocol, lastSourceIp, lastDestIp,
-                lastPacketSize, lastPacketTimestamp);
+                lastPacketSize, lastPacketTimestamp, lastTtfbMs);
     }
 
     public VpnStats withPermissionStatus(String v) {
         return new VpnStats(vpnStatus, v, interfaceStatus, readerStatus, totalPackets,
                 tcpCount, udpCount, ipv6SkippedCount, lastProtocol, lastSourceIp, lastDestIp,
-                lastPacketSize, lastPacketTimestamp);
+                lastPacketSize, lastPacketTimestamp, lastTtfbMs);
     }
 
     public VpnStats withInterfaceStatus(String v) {
         return new VpnStats(vpnStatus, permissionStatus, v, readerStatus, totalPackets,
                 tcpCount, udpCount, ipv6SkippedCount, lastProtocol, lastSourceIp, lastDestIp,
-                lastPacketSize, lastPacketTimestamp);
+                lastPacketSize, lastPacketTimestamp, lastTtfbMs);
     }
 
     public VpnStats withReaderStatus(String v) {
         return new VpnStats(vpnStatus, permissionStatus, interfaceStatus, v, totalPackets,
                 tcpCount, udpCount, ipv6SkippedCount, lastProtocol, lastSourceIp, lastDestIp,
-                lastPacketSize, lastPacketTimestamp);
+                lastPacketSize, lastPacketTimestamp, lastTtfbMs);
     }
 
 
@@ -72,12 +74,22 @@ public final class VpnStats {
         int newUdp = udpCount + ("UDP".equals(protocol) ? 1 : 0);
         return new VpnStats(vpnStatus, permissionStatus, interfaceStatus, readerStatus,
                 totalPackets + 1, newTcp, newUdp, ipv6SkippedCount,
-                protocol, srcIp, dstIp, size, ts);
+                protocol, srcIp, dstIp, size, ts, lastTtfbMs);
     }
 
     public VpnStats withIpv6Skipped() {
         return new VpnStats(vpnStatus, permissionStatus, interfaceStatus, readerStatus,
                 totalPackets, tcpCount, udpCount, ipv6SkippedCount + 1,
-                lastProtocol, lastSourceIp, lastDestIp, lastPacketSize, lastPacketTimestamp);
+                lastProtocol, lastSourceIp, lastDestIp, lastPacketSize, lastPacketTimestamp,
+                lastTtfbMs);
     }
+
+    // TTFB START
+    public VpnStats withTtfb(long ttfbMs) {
+        return new VpnStats(vpnStatus, permissionStatus, interfaceStatus, readerStatus,
+                totalPackets, tcpCount, udpCount, ipv6SkippedCount,
+                lastProtocol, lastSourceIp, lastDestIp, lastPacketSize, lastPacketTimestamp,
+                ttfbMs);
+    }
+    // TTFB END
 }

@@ -119,9 +119,23 @@ public class MediatorVpnService extends VpnService {
         dashboard.logEvent("VPN interface established", // [DASHBOARD]
                 VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL); // [DASHBOARD]
 
+        // TTFB START
+        // New VPN session (possibly a new target URL) is starting — clear any
+        // TTFB value left over from a previous run so the dashboard never
+        // shows stale/misleading data for the new site.
+        dashboard.resetTtfb();
+        // TTFB END
+
         tunOut = new FileOutputStream(vpnInterface.getFileDescriptor());
         udpForwarder = new UdpForwarder(this, tunOut, tunWriteLock);
         tcpForwarder = new TcpForwarder(this, tunOut, tunWriteLock);
+        // TTFB START
+        // tcpForwarder is a brand-new object here, so its globalTtfbCaptured
+        // field is already false by construction — this line is just an
+        // explicit, self-documenting guarantee that TTFB will be recalculated
+        // for this session, even if that field initialization logic ever changes.
+        tcpForwarder.resetGlobalTtfb();
+        // TTFB END
     }
 
 

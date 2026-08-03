@@ -3474,6 +3474,7 @@ id tvLastProtocol
 id tvLastSize
 id tvLastSource
 id tvLastTimestamp
+id tvLastTtfb
 id tvPermissionStatus
 id tvReaderStatus
 id tvStatus

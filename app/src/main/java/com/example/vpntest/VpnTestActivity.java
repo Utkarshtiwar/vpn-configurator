@@ -41,6 +41,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
     private TextView tvTotalPackets, tvTcpCount, tvUdpCount, tvIpv6Skipped;
     private TextView tvLastProtocol, tvLastSource, tvLastDest, tvLastSize, tvLastTimestamp;
+    private TextView tvLastTtfb;
 
     private MediatorVpnService mediatorVpnService;
     private boolean isServiceBound = false;
@@ -101,6 +102,7 @@ public class VpnTestActivity extends AppCompatActivity {
         btnStartVpn = findViewById(R.id.btnStartVpn);
         btnStopVpn = findViewById(R.id.btnStopVpn);
 
+
         bindDashboardViews();
         setupEventConsole();
 
@@ -132,6 +134,7 @@ public class VpnTestActivity extends AppCompatActivity {
             tvLastTimestamp.setText(stats.lastPacketTimestamp > 0
                     ? android.text.format.DateFormat.format("HH:mm:ss", stats.lastPacketTimestamp)
                     : "-");
+            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
         });
     }
 
@@ -151,6 +154,7 @@ public class VpnTestActivity extends AppCompatActivity {
         tvLastDest = findViewById(R.id.tvLastDest);
         tvLastSize = findViewById(R.id.tvLastSize);
         tvLastTimestamp = findViewById(R.id.tvLastTimestamp);
+        tvLastTtfb = findViewById(R.id.tvLastTtfb); // TTFB
     }
 
     private void setupEventConsole() {

@@ -13,6 +13,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import com.example.vpntest.model.VpnEvent;
+import com.example.vpntest.repo.VpnEventRepository;
 
 
 class TcpForwarder {
@@ -25,6 +27,10 @@ class TcpForwarder {
 
     private final Map<String, TcpSession> sessions = new ConcurrentHashMap<>();
     private volatile boolean shutdown = false;
+    private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
+
+    private final java.util.concurrent.atomic.AtomicBoolean globalTtfbCaptured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     TcpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock) {
         this.vpnService = vpnService;
@@ -81,6 +87,12 @@ class TcpForwarder {
             byte[] data = new byte[payloadLen];
             System.arraycopy(packet, payloadOffset, data, 0, payloadLen);
             try {
+                // TTFB START
+                if (session.requestSentCaptured.compareAndSet(false, true)) {
+                    session.requestSentTime = System.currentTimeMillis();
+                    Log.i(TAG, "Request Sent : " + session.requestSentTime);
+                }
+                // TTFB END
                 session.realOut.write(data);
                 session.realOut.flush();
             } catch (IOException e) {
@@ -170,6 +182,16 @@ class TcpForwarder {
         s.deviceSeq += 1;
     }
 
+
+    void reportTtfb(TcpSession s, long ttfbMs, String key) {
+        dashboard.logEvent(
+                "TTFB : " + ttfbMs + " ms  (" + key + ")",
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.TCP);
+        dashboard.recordTtfb(ttfbMs); // drives tvLastTtfb on the dashboard card
+    }
+
+
     private void sendRst(byte[] fromIp, int fromPort, byte[] toIp, int toPort,
                          long seq, long ack) {
         writeTcpPacket(fromIp, fromPort, toIp, toPort, seq, ack, PacketUtils.TCP_RST, null, 0);
@@ -213,7 +235,14 @@ class TcpForwarder {
         for (Map.Entry<String, TcpSession> e : sessions.entrySet()) {
             closeSession(e.getKey(), e.getValue());
         }
+        globalTtfbCaptured.set(false);
     }
+
+
+    void resetGlobalTtfb() {
+        globalTtfbCaptured.set(false);
+    }
+
 
     private static long readUnsignedInt(byte[] b, int off) {
         return ((long) (b[off] & 0xFF) << 24) | ((b[off + 1] & 0xFF) << 16)
@@ -241,12 +270,36 @@ class TcpForwarder {
         OutputStream realOut;
         InputStream realIn;
 
+
+
+        final java.util.concurrent.atomic.AtomicBoolean requestSentCaptured =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+        final java.util.concurrent.atomic.AtomicBoolean firstByteCaptured =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        volatile long requestSentTime = 0L;
+        volatile long firstByteReceivedTime = 0L;
+        volatile long ttfbMs = -1L;
+
+
         void startRealSocketReaderThread(TcpForwarder forwarder, String key) {
             Thread t = new Thread(() -> {
                 byte[] buf = new byte[16384];
                 try {
                     int n;
                     while ((n = realIn.read(buf)) != -1) {
+                        // TTFB START
+                        if (n > 0 && firstByteCaptured.compareAndSet(false, true)) {
+                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
+                                firstByteReceivedTime = System.currentTimeMillis();
+                                ttfbMs = firstByteReceivedTime - requestSentTime;
+                                Log.i(TAG, "First Byte Received : " + firstByteReceivedTime);
+                                Log.i(TAG, "TTFB : " + ttfbMs + " ms");
+                                forwarder.reportTtfb(this, ttfbMs, key);
+                            }
+                            // TTFB GLOBAL END
+                        }
+                        // TTFB END
                         forwarder.sendDataToClient(this, buf, n);
                     }
                 } catch (IOException ignored) {
