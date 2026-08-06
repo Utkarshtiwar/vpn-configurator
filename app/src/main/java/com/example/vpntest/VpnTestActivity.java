@@ -15,18 +15,22 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import androidx.appcompat.app.AlertDialog;
+import java.io.File;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import androidx.core.content.FileProvider;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
 import com.example.vpntest.ui.VpnEventAdapter;
+import com.example.vpntest.utils.VpnLogFileManager;
 
 public class VpnTestActivity extends AppCompatActivity {
 
@@ -44,6 +48,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvLastTtfb;
 
     private MediatorVpnService mediatorVpnService;
+    private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
 
     private final ServiceConnection connection = new ServiceConnection() {
@@ -240,6 +245,16 @@ public class VpnTestActivity extends AppCompatActivity {
 
         updateStatus("VPN stopped.");
 
+        VpnLogFileManager
+                .getInstance()
+                .endSession();
+
+        File logFile = VpnLogFileManager
+                .getInstance()
+                .getCurrentLogFile();
+
+        showShareLogDialog(logFile);
+
         btnStartVpn.setEnabled(true);
         btnStopVpn.setEnabled(false);
     }
@@ -264,6 +279,97 @@ public class VpnTestActivity extends AppCompatActivity {
         Log.d(TAG, message);
         if (tvStatus != null) {
             tvStatus.setText("Status: " + message);
+        }
+    }
+    private void showShareLogDialog(File logFile) {
+
+        if (logFile == null || !logFile.exists()) {
+            Toast.makeText(this, "Log file not found.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Share Log")
+                .setMessage("Do you want to share the VPN log file?")
+                .setCancelable(false)
+                .setPositiveButton("Yes", (dialog, which) -> {
+
+                    // Next step
+                    shareLogFile(logFile);
+
+                })
+                .setNegativeButton("No", (dialog, which) -> {
+
+                    VpnLogFileManager.getInstance().deleteCurrentLogFile();
+
+                    Toast.makeText(
+                            this,
+                            "Log file deleted.",
+                            Toast.LENGTH_SHORT
+                    ).show();
+
+                })
+                .show();
+    }
+    private void shareLogFile(File file) {
+
+        Uri uri = FileProvider.getUriForFile(
+                this,
+                getPackageName() + ".fileprovider",
+                file
+        );
+
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        PackageManager pm = getPackageManager();
+
+        try {
+
+            // Try WhatsApp Business first
+            pm.getPackageInfo("com.whatsapp.w4b", 0);
+
+            shareIntent.setPackage("com.whatsapp.w4b");
+            startActivity(shareIntent);
+
+        } catch (PackageManager.NameNotFoundException e1) {
+
+            try {
+
+                // Fall back to regular WhatsApp
+                pm.getPackageInfo("com.whatsapp", 0);
+
+                shareIntent.setPackage("com.whatsapp");
+
+                deleteLogAfterShare = true;
+                startActivity(shareIntent);
+            } catch (PackageManager.NameNotFoundException e2) {
+
+                // Final fallback
+                startActivity(Intent.createChooser(
+                        shareIntent,
+                        "Share VPN Log"));
+
+            }
+        }
+    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (deleteLogAfterShare) {
+
+            deleteLogAfterShare = false;
+
+            VpnLogFileManager.getInstance().deleteCurrentLogFile();
+
+            Toast.makeText(
+                    this,
+                    "VPN log deleted.",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     }
 }

@@ -50,3 +50,4 @@ style DashboardCardContent
 style DashboardCardLabel
 style DashboardCardSmall
 style DashboardCardValue
+xml file_paths

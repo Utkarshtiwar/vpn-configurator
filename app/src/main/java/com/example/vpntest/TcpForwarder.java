@@ -45,13 +45,97 @@ class TcpForwarder {
         int tcpHeaderOffset = ipHeaderLen;
         if (length < tcpHeaderOffset + 20) return;
 
+        // -------------------- IPv4 Header --------------------
+
+        int version = (packet[0] >> 4) & 0xF;
+
+        int ipHeaderLength = (packet[0] & 0x0F) * 4;
+
+        int dscp = (packet[1] >> 2) & 0x3F;
+
+        int ecn = packet[1] & 0x03;
+
+        int totalLength =
+                ((packet[2] & 0xFF) << 8)
+                        | (packet[3] & 0xFF);
+
+        int identification =
+                ((packet[4] & 0xFF) << 8)
+                        | (packet[5] & 0xFF);
+
+        int flagsAndOffset =
+                ((packet[6] & 0xFF) << 8)
+                        | (packet[7] & 0xFF);
+
+        int ipFlags = (flagsAndOffset >> 13) & 0x07;
+
+        int fragmentOffset = flagsAndOffset & 0x1FFF;
+
+        int ttl = packet[8] & 0xFF;
+
+
+// -------------------- TCP Header --------------------
+
         long seq = readUnsignedInt(packet, tcpHeaderOffset + 4);
+
         long ack = readUnsignedInt(packet, tcpHeaderOffset + 8);
-        int dataOffsetBytes = ((packet[tcpHeaderOffset + 12] >> 4) & 0xF) * 4;
+
+        int dataOffsetBytes =
+                ((packet[tcpHeaderOffset + 12] >> 4) & 0x0F) * 4;
+
         int flags = packet[tcpHeaderOffset + 13] & 0xFF;
+
+        int windowSize =
+                ((packet[tcpHeaderOffset + 14] & 0xFF) << 8)
+                        | (packet[tcpHeaderOffset + 15] & 0xFF);
+
+        int checksum =
+                ((packet[tcpHeaderOffset + 16] & 0xFF) << 8)
+                        | (packet[tcpHeaderOffset + 17] & 0xFF);
+
+        int urgentPointer =
+                ((packet[tcpHeaderOffset + 18] & 0xFF) << 8)
+                        | (packet[tcpHeaderOffset + 19] & 0xFF);
+
         int payloadOffset = tcpHeaderOffset + dataOffsetBytes;
+
         int payloadLen = length - payloadOffset;
-        if (payloadLen < 0) payloadLen = 0;
+
+        if (payloadLen < 0)
+            payloadLen = 0;
+
+        String tcpHeaderLog =
+                "========== [TX] TCP/IP HEADER ==========\n" +
+                        "Source IP          : " + ipStr(srcIp) + "\n" +
+                        "Destination IP     : " + ipStr(dstIp) + "\n" +
+                        "Source Port        : " + srcPort + "\n" +
+                        "Destination Port   : " + dstPort + "\n" +
+                        "Version            : IPv" + version + "\n" +
+                        "TTL                : " + ttl + "\n" +
+                        "DSCP               : " + dscp + "\n" +
+                        "ECN                : " + ecn + "\n" +
+                        "IP Header Length   : " + ipHeaderLength + "\n" +
+                        "TCP Header Length  : " + dataOffsetBytes + "\n" +
+                        "Packet Length      : " + totalLength + "\n" +
+                        "Identification     : " + identification + "\n" +
+                        "IP Flags           : " + ipFlags + "\n" +
+                        "Fragment Offset    : " + fragmentOffset + "\n" +
+                        "Sequence Number    : " + seq + "\n" +
+                        "ACK Number         : " + ack + "\n" +
+                        "TCP Flags          : 0x" + Integer.toHexString(flags) + "\n" +
+                        "Window Size        : " + windowSize + "\n" +
+                        "Checksum           : 0x" + Integer.toHexString(checksum) + "\n" +
+                        "Urgent Pointer     : " + urgentPointer + "\n" +
+                        "Payload Length     : " + payloadLen + "\n" +
+                        "===================================";
+
+        Log.d(TAG, tcpHeaderLog);
+
+        dashboard.logEvent(
+                tcpHeaderLog,
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.TCP
+        );
 
         String key = ipStr(srcIp) + ":" + srcPort + "->" + ipStr(dstIp) + ":" + dstPort;
         boolean isSyn = (flags & PacketUtils.TCP_SYN) != 0;
@@ -135,7 +219,29 @@ class TcpForwarder {
                 Socket socket = new Socket();
                 vpnService.protect(socket); // CRITICAL: avoid routing this back into the tunnel
                 socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
+
                 session.realSocket = socket;
+
+                String serverIp =
+                        socket.getInetAddress().getHostAddress();
+
+                String serverName;
+
+                try {
+                    serverName = socket.getInetAddress().getCanonicalHostName();
+                } catch (Exception e) {
+                    serverName = "Unknown";
+                }
+
+                dashboard.logEvent(
+                        "========== SERVER ==========\n" +
+                                "Server IP      : " + serverIp + "\n" +
+                                "Server Name    : " + serverName + "\n" +
+                                "============================",
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
+
                 session.realOut = socket.getOutputStream();
                 session.realIn = socket.getInputStream();
 
@@ -299,7 +405,27 @@ class TcpForwarder {
                             }
                             // TTFB GLOBAL END
                         }
-                        // TTFB END
+
+                        if (n > 0) {
+
+                            String rxHeaderLog =
+                                    "========== [RX] TCP HEADER ==========\n" +
+                                            "Source IP          : " + TcpForwarder.ipStr(dstIp) + "\n" +
+                                            "Destination IP     : " + TcpForwarder.ipStr(srcIp) + "\n" +
+                                            "Source Port        : " + dstPort + "\n" +
+                                            "Destination Port   : " + srcPort + "\n" +
+                                            "Payload Length     : " + n + "\n" +
+                                            "Sequence Number    : " + deviceSeq + "\n" +
+                                            "ACK Number         : " + clientNextSeq + "\n" +
+                                            "=====================================";
+
+                            forwarder.dashboard.logEvent(
+                                    rxHeaderLog,
+                                    VpnEvent.Level.INFO,
+                                    VpnEvent.Category.TCP
+                            );
+                        }
+
                         forwarder.sendDataToClient(this, buf, n);
                     }
                 } catch (IOException ignored) {

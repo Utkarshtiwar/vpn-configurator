@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.vpntest"
     android:versionCode="1"
-    android:versionName="1.0" >
+    android:versionName="1.0.2" >
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -26,7 +26,6 @@
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_launcher"
         android:label="VpnTestPOC"
-        android:testOnly="true"
         android:theme="@style/Theme.AppCompat.DayNight"
         android:usesCleartextTraffic="false" >
         <activity
@@ -76,6 +75,15 @@
                 android:value="vpn" />
         </service>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.example.vpntest.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="com.example.vpntest.androidx-startup"

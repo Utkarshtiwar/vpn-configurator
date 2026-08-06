@@ -1,3 +1,4 @@
+com.example.vpntest:xml/file_paths = 0x7f120000
 com.example.vpntest:styleable/ViewStubCompat = 0x7f110091
 com.example.vpntest:styleable/ViewBackgroundHelper = 0x7f11008f
 com.example.vpntest:styleable/View = 0x7f11008e

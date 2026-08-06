@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.example.vpntest.model.VpnEvent;
+import com.example.vpntest.repo.VpnEventRepository;
 
 
 class UdpForwarder {
@@ -29,6 +31,7 @@ class UdpForwarder {
             Executors.newSingleThreadScheduledExecutor();
     private volatile boolean shutdown = false;
 
+    private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
     UdpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock) {
         this.vpnService = vpnService;
         this.tunOut = tunOut;
@@ -63,8 +66,27 @@ class UdpForwarder {
         try {
             DatagramPacket out = new DatagramPacket(
                     payload, payload.length, session.destAddress, dstPort);
+            if (dstPort == 53) {
+                session.dnsRequestTime = System.currentTimeMillis();
+            }
+
             session.socket.send(out);
             session.touch();
+
+            String udpTxLog =
+                    "========== [TX] UDP ==========\n" +
+                            "Source IP          : " + ipToString(srcIp) + "\n" +
+                            "Destination IP     : " + ipToString(dstIp) + "\n" +
+                            "Source Port        : " + srcPort + "\n" +
+                            "Destination Port   : " + dstPort + "\n" +
+                            "Packet Length      : " + payload.length + "\n" +
+                            "==============================";
+
+            dashboard.logEvent(
+                    udpTxLog,
+                    VpnEvent.Level.INFO,
+                    VpnEvent.Category.UDP
+            );
         } catch (IOException e) {
             Log.w(TAG, "UDP send failed for " + key + ": " + e.getMessage());
             closeSession(key, session);
@@ -119,6 +141,21 @@ class UdpForwarder {
                 udpHeaderLen + dataLength);
         packet.put(data, 0, dataLength);
 
+        String udpRxLog =
+                "========== [RX] UDP ==========\n" +
+                        "Source IP          : " + ipToString(session.dstIp) + "\n" +
+                        "Destination IP     : " + ipToString(session.srcIp) + "\n" +
+                        "Source Port        : " + session.dstPort + "\n" +
+                        "Destination Port   : " + session.srcPort + "\n" +
+                        "Packet Length      : " + dataLength + "\n" +
+                        "==============================";
+
+        dashboard.logEvent(
+                udpRxLog,
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.UDP
+        );
+
         synchronized (tunWriteLock) {
             try {
                 tunOut.write(packet.array(), 0, totalLen);
@@ -163,6 +200,9 @@ class UdpForwarder {
         final byte[] dstIp;
         final int dstPort;
         volatile long lastActivity;
+
+        // DNS lookup measurement
+        long dnsRequestTime;
 
         Session(DatagramSocket socket, InetAddress destAddress,
                 byte[] srcIp, int srcPort, byte[] dstIp, int dstPort) {

@@ -43,8 +43,21 @@ public final class VpnEventRepository {
         return stats;
     }
 
-    public void logEvent(String message, VpnEvent.Level level, VpnEvent.Category category) {
-        latestEvent.postValue(new VpnEvent(message, level, category, System.currentTimeMillis()));
+    public void logEvent(String message,
+                         VpnEvent.Level level,
+                         VpnEvent.Category category) {
+
+        latestEvent.postValue(
+                new VpnEvent(
+                        message,
+                        level,
+                        category,
+                        System.currentTimeMillis()));
+
+        // Save every UI log into the session log file.
+        com.example.vpntest.utils.VpnLogFileManager
+                .getInstance()
+                .log(message);
     }
     private void updateStats(UnaryOperator<VpnStats> transform) {
         VpnStats updated = currentStats.updateAndGet(transform);

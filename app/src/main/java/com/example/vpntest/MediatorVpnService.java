@@ -19,6 +19,7 @@ import androidx.core.app.NotificationCompat;
 import com.example.vpntest.model.ConnectionInfo;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository; // [DASHBOARD]
+import com.example.vpntest.utils.VpnLogFileManager;
 
 import java.io.Closeable;
 import java.io.FileInputStream;
@@ -73,7 +74,14 @@ public class MediatorVpnService extends VpnService {
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand: starting VPN setup.");
         dashboard.setVpnStatus("Starting");
-        dashboard.logEvent("Starting VPN Service", VpnEvent.Level.INFO, VpnEvent.Category.GENERAL); // [DASHBOARD]
+        VpnLogFileManager.getInstance().startSession(this);
+
+        dashboard.logEvent("Starting VPN Service",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL);
+
+
+
 
         startForeground(NOTIFICATION_ID, buildNotification());
 
@@ -93,6 +101,14 @@ public class MediatorVpnService extends VpnService {
 
         builder.addRoute("0.0.0.0", 0);
         builder.addDnsServer("8.8.8.8");
+        dashboard.logEvent(
+                "========== DNS SERVER ==========\n" +
+                        "DNS Server IP : 8.8.8.8\n" +
+                        "Provider      : Google Public DNS\n" +
+                        "===============================",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.UDP
+        );
         builder.setMtu(1500);
 
         try {
@@ -117,7 +133,8 @@ public class MediatorVpnService extends VpnService {
         dashboard.setInterfaceStatus("Established"); // [DASHBOARD]
         dashboard.setVpnStatus("Running"); // [DASHBOARD]
         dashboard.logEvent("VPN interface established", // [DASHBOARD]
-                VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL); // [DASHBOARD]
+                VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);// [DASHBOARD]
+        VpnLogFileManager.getInstance().log("VPN interface established");
 
         // TTFB START
         // New VPN session (possibly a new target URL) is starting — clear any
@@ -160,6 +177,8 @@ public class MediatorVpnService extends VpnService {
                 dashboard.setReaderStatus("Running"); // [DASHBOARD]
                 dashboard.logEvent("Packet reading loop started", // [DASHBOARD]
                         VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL); // [DASHBOARD]
+                VpnLogFileManager.getInstance().log(
+                        "Packet reading loop started");
 
                 while (isRunning) {
 
@@ -185,6 +204,8 @@ public class MediatorVpnService extends VpnService {
             dashboard.setReaderStatus("Stopped"); // [DASHBOARD]
             dashboard.logEvent("Packet reading loop stopped", // [DASHBOARD]
                     VpnEvent.Level.INFO, VpnEvent.Category.GENERAL); // [DASHBOARD]
+            VpnLogFileManager.getInstance().log(
+                    "Packet reading loop stopped");
         });
 
         packetReaderThread.setName("VpnPacketReaderThread");
