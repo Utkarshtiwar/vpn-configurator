@@ -13,6 +13,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 
@@ -41,6 +43,12 @@ class TcpForwarder {
     void handlePacket(byte[] packet, int length, int ipHeaderLen,
                       byte[] srcIp, byte[] dstIp, int srcPort, int dstPort) {
         if (shutdown) return;
+
+        Log.d(TAG, "========== TCP HANDLE PACKET ==========");
+        Log.d(TAG, "Src: " + ipStr(srcIp) + ":" + srcPort);
+        Log.d(TAG, "Dst: " + ipStr(dstIp) + ":" + dstPort);
+        Log.d(TAG, "Length: " + length);
+        Log.d(TAG, "=======================================");
 
         int tcpHeaderOffset = ipHeaderLen;
         if (length < tcpHeaderOffset + 20) return;
@@ -129,6 +137,7 @@ class TcpForwarder {
                         "Payload Length     : " + payloadLen + "\n" +
                         "===================================";
 
+
         Log.d(TAG, tcpHeaderLog);
 
         dashboard.logEvent(
@@ -142,18 +151,38 @@ class TcpForwarder {
         boolean isAck = (flags & PacketUtils.TCP_ACK) != 0;
         boolean isFin = (flags & PacketUtils.TCP_FIN) != 0;
         boolean isRst = (flags & PacketUtils.TCP_RST) != 0;
+        Log.d(TAG,
+                "Flags: SYN=" + isSyn
+                        + " ACK=" + isAck
+                        + " FIN=" + isFin
+                        + " RST=" + isRst);
 
         TcpSession session = sessions.get(key);
 
         if (isSyn && !isAck) {
-            if (session != null) closeSession(key, session);
+            if (session != null) {
+                if (session.state == TcpSession.State.SYN_RCVD
+                        || session.state == TcpSession.State.ESTABLISHED) {
+                    // Retransmitted SYN for a connection we're already
+                    // handling (or have already established) — don't tear
+                    // down the in-flight session and lose the handshake;
+                    // just re-send the SYN-ACK if we've already sent one.
+                    if (session.synAckSent.get()) {
+                        Log.d(TAG, "Retransmitted SYN for existing session " + key
+                                + ", re-sending SYN-ACK.");
+                        sendSynAck(session);
+                    }
+                    return;
+                }
+                closeSession(key, session);
+            }
             startNewSession(key, srcIp, srcPort, dstIp, dstPort, seq);
             return;
         }
 
         if (session == null) {
-            // Unknown connection (e.g. we missed the SYN, or it's stale) - reset it.
-            if (!isRst) sendRst(srcIp, srcPort, dstIp, dstPort, ack, seq + payloadLen);
+
+            if (!isRst) sendRst(dstIp, dstPort, srcIp, srcPort, ack, seq + payloadLen);
             return;
         }
 
@@ -163,22 +192,30 @@ class TcpForwarder {
         }
 
         if (session.state == TcpSession.State.SYN_RCVD && isAck) {
+            Log.d(TAG, "TCP Handshake completed.");
             session.state = TcpSession.State.ESTABLISHED;
             session.startRealSocketReaderThread(this, key);
         }
 
+
+        Log.d(TAG,"payload len and sessionstate : "+payloadLen +" "+session.state);
         if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
             byte[] data = new byte[payloadLen];
             System.arraycopy(packet, payloadOffset, data, 0, payloadLen);
             try {
                 // TTFB START
-                if (session.requestSentCaptured.compareAndSet(false, true)) {
-                    session.requestSentTime = System.currentTimeMillis();
-                    Log.i(TAG, "Request Sent : " + session.requestSentTime);
-                }
+
+//                Log.d(TAG, "Writing HTTP payload.");
+
                 // TTFB END
                 session.realOut.write(data);
                 session.realOut.flush();
+                Log.d(TAG, "Payload written successfully.");
+                if (session.requestSentCaptured.compareAndSet(false, true)) {
+                    session.requestSentTime = System.nanoTime();
+                    Log.i(TAG, "Request Sent : " + session.requestSentTime);
+                }
+                Log.d(TAG, "Payload Length = " + payloadLen);
             } catch (IOException e) {
                 Log.w(TAG, "TCP write to real socket failed for " + key, e);
                 sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, seq + payloadLen);
@@ -216,10 +253,29 @@ class TcpForwarder {
 
         new Thread(() -> {
             try {
+                Log.d(TAG, "Creating new TCP session...");
+                dashboard.logEvent("Creating new TCP session ..",
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                        );
+                Log.d(TAG, "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
+                dashboard.logEvent("Destination = "+ intToInetName(dstIp).getHostAddress() + ":" + dstPort,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
                 Socket socket = new Socket();
-                vpnService.protect(socket); // CRITICAL: avoid routing this back into the tunnel
+                boolean protectvalue = vpnService.protect(socket); // CRITICAL: avoid routing this back into the tunnel
+                dashboard.logEvent("Protect value : "+protectvalue,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                        );
                 socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
 
+                Log.d(TAG, "Socket connected successfully.");
+                dashboard.logEvent("Socket connected successfully.",
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
                 session.realSocket = socket;
 
                 String serverIp =
@@ -231,7 +287,20 @@ class TcpForwarder {
                     serverName = socket.getInetAddress().getCanonicalHostName();
                 } catch (Exception e) {
                     serverName = "Unknown";
+                    Log.e(TAG,
+                            "Exception while rsolving host name  : "
+                                    + intToInetName(dstIp).getHostAddress()
+                                    + ":" + dstPort,
+                            e);
+                    dashboard.logEvent("Exception while rsolving host name  : "
+                            + intToInetName(dstIp).getHostAddress()
+                            + ":" + dstPort+"exception is : "+e.getMessage(),
+                            VpnEvent.Level.INFO,
+                            VpnEvent.Category.TCP
+                            );
                 }
+
+                Log.d(TAG, "Creating TCP session");
 
                 dashboard.logEvent(
                         "========== SERVER ==========\n" +
@@ -248,7 +317,11 @@ class TcpForwarder {
                 // Handshake: send SYN-ACK
                 sendSynAck(session);
             } catch (IOException e) {
+
+                e.printStackTrace();
                 Log.w(TAG, "TCP connect failed for " + key + ": " + e.getMessage());
+                dashboard.logEvent("TCP socket exception "+e.getMessage(),VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP);
                 sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
                 sessions.remove(key);
             }
@@ -260,10 +333,13 @@ class TcpForwarder {
     }
 
     private void sendSynAck(TcpSession s) {
+        boolean firstSend = s.synAckSent.compareAndSet(false, true);
         writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort,
                 s.deviceSeq, s.clientNextSeq,
                 PacketUtils.TCP_SYN | PacketUtils.TCP_ACK, null, 0);
-        s.deviceSeq += 1; // SYN consumes a sequence number
+        if (firstSend) {
+            s.deviceSeq += 1; // SYN consumes a sequence number, only once
+        }
     }
 
     private void sendAck(TcpSession s, boolean pshFlag) {
@@ -290,11 +366,16 @@ class TcpForwarder {
 
 
     void reportTtfb(TcpSession s, long ttfbMs, String key) {
+        Log.d(TAG,
+                "Reporting TTFB = "
+                        + ttfbMs + " ms");
         dashboard.logEvent(
                 "TTFB : " + ttfbMs + " ms  (" + key + ")",
                 VpnEvent.Level.SUCCESS,
                 VpnEvent.Category.TCP);
         dashboard.recordTtfb(ttfbMs); // drives tvLastTtfb on the dashboard card
+        Log.d(TAG,
+                "Dashboard updated with TTFB.");
     }
 
 
@@ -382,6 +463,8 @@ class TcpForwarder {
                 new java.util.concurrent.atomic.AtomicBoolean(false);
         final java.util.concurrent.atomic.AtomicBoolean firstByteCaptured =
                 new java.util.concurrent.atomic.AtomicBoolean(false);
+        final java.util.concurrent.atomic.AtomicBoolean synAckSent =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
 
         volatile long requestSentTime = 0L;
         volatile long firstByteReceivedTime = 0L;
@@ -389,21 +472,48 @@ class TcpForwarder {
 
 
         void startRealSocketReaderThread(TcpForwarder forwarder, String key) {
+            Log.d(TAG, "Starting TCP Reader Thread...");
             Thread t = new Thread(() -> {
                 byte[] buf = new byte[16384];
                 try {
                     int n;
                     while ((n = realIn.read(buf)) != -1) {
                         // TTFB START
+                        Log.d(TAG, "Received " + n + " bytes from server.");
+                        Log.d(TAG, "realIn.read() = " + n);
+                        Log.d(TAG,
+                                "First byte condition checking");
                         if (n > 0 && firstByteCaptured.compareAndSet(false, true)) {
-                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
-                                firstByteReceivedTime = System.currentTimeMillis();
-                                ttfbMs = firstByteReceivedTime - requestSentTime;
-                                Log.i(TAG, "First Byte Received : " + firstByteReceivedTime);
-                                Log.i(TAG, "TTFB : " + ttfbMs + " ms");
+
+                            firstByteReceivedTime = System.nanoTime();
+
+                            if (requestSentTime > 0) {
+
+                                ttfbMs = TimeUnit.NANOSECONDS.toMillis(
+                                        firstByteReceivedTime - requestSentTime);
+
+                                String ttfbLog =
+                                        "========== TTFB ==========\n" +
+                                                "Request Sent      : " + requestSentTime + "\n" +
+                                                "First Byte        : " + firstByteReceivedTime + "\n" +
+                                                "TTFB              : " + ttfbMs + " ms\n" +
+                                                "==========================";
+
+                                Log.i(TAG, ttfbLog);
+
+                                forwarder.dashboard.logEvent(
+                                        ttfbLog,
+                                        VpnEvent.Level.INFO,
+                                        VpnEvent.Category.TCP
+                                );
+
+
                                 forwarder.reportTtfb(this, ttfbMs, key);
+
+                            } else {
+
+                                Log.w(TAG, "Request time not available.");
                             }
-                            // TTFB GLOBAL END
                         }
 
                         if (n > 0) {
@@ -436,6 +546,7 @@ class TcpForwarder {
             }, "TcpRead-" + key);
             t.setDaemon(true);
             t.start();
+            Log.d(TAG, "TCP Reader Thread Started.");
         }
     }
 }

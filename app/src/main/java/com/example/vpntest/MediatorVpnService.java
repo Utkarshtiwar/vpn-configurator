@@ -4,8 +4,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
 import android.net.VpnService;
 import android.os.Binder;
 import android.os.Build;
@@ -25,6 +29,7 @@ import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -100,25 +105,54 @@ public class MediatorVpnService extends VpnService {
         builder.addAddress("10.0.0.2", 24);
 
         builder.addRoute("0.0.0.0", 0);
-        builder.addDnsServer("8.8.8.8");
-        dashboard.logEvent(
-                "========== DNS SERVER ==========\n" +
-                        "DNS Server IP : 8.8.8.8\n" +
-                        "Provider      : Google Public DNS\n" +
-                        "===============================",
-                VpnEvent.Level.INFO,
-                VpnEvent.Category.UDP
-        );
-        builder.setMtu(1500);
+        ConnectivityManager cm =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
-        try {
-            builder.addDisallowedApplication(getPackageName());
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "Could not exclude own package from VPN", e);
+        Network activeNetwork = cm.getActiveNetwork();
+
+        if (activeNetwork != null) {
+            LinkProperties linkProperties = cm.getLinkProperties(activeNetwork);
+
+            if (linkProperties != null) {
+                Log.d(TAG, "========== SYSTEM DNS SERVERS ==========");
+
+                for (InetAddress dnsServer : linkProperties.getDnsServers()) {
+
+                    String dnsIp = dnsServer.getHostAddress();
+
+                    dashboard.logEvent(
+                            "========== DNS SERVER ==========\n" +
+                                    "DNS Server IP : " +dnsIp+
+                                    "===============================",
+                            VpnEvent.Level.INFO,
+                            VpnEvent.Category.UDP
+                    );
+
+                    // Add the same DNS server to VPN
+                    builder.addDnsServer(dnsServer);
+                }
+
+                Log.d(TAG, "========================================");
+            }
         }
 
+        builder.setMtu(1500);
+
+//        try {
+//            builder.addDisallowedApplication(getPackageName());
+//        } catch (PackageManager.NameNotFoundException e) {
+//            Log.e(TAG, "Could not exclude own package from VPN", e);
+//        }
+
+//        try {
+//            builder.addAllowedApplication(getPackageName());
+//        } catch (PackageManager.NameNotFoundException e) {
+//            Log.e(TAG, "Failed to add allowed application", e);
+//        }
         vpnInterface = builder.establish();
 
+        Log.e("VPN_TEST", "vpnInterface = " + vpnInterface);
+        Log.e("VPN_TEST", "Packet reader starting");
         if (vpnInterface == null) {
             Log.e(TAG, "establish() returned null — VPN could not be started. "
                     + "Check that VpnService.prepare() consent was actually granted.");
@@ -152,6 +186,7 @@ public class MediatorVpnService extends VpnService {
         // explicit, self-documenting guarantee that TTFB will be recalculated
         // for this session, even if that field initialization logic ever changes.
         tcpForwarder.resetGlobalTtfb();
+        Log.e("VPN_TEST", "Package = " + getPackageName());
         // TTFB END
     }
 
@@ -190,6 +225,7 @@ public class MediatorVpnService extends VpnService {
                     }
 
                     if (length > 0 && isRunning) {
+                        Log.d(TAG, "TCP packet intercepted");
                         handlePacket(buffer, length);
                     }
                 }

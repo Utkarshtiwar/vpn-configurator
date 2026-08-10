@@ -4,16 +4,16 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "com.example.vpntest",
-  "variantName": "debug",
+  "applicationId": "com.example.vpntest.test",
+  "variantName": "debugAndroidTest",
   "elements": [
     {
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 1,
-      "versionName": "1.0.2",
-      "outputFile": "app-debug.apk"
+      "versionCode": 0,
+      "versionName": "",
+      "outputFile": "app-debug-androidTest.apk"
     }
   ],
   "elementType": "File",

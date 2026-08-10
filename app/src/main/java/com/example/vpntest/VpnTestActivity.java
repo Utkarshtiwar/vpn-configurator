@@ -51,6 +51,16 @@ public class VpnTestActivity extends AppCompatActivity {
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
 
+    // TTFB START
+    // The WebView must not start loading until the tunnel is actually
+    // capturing packets — otherwise its TCP handshake happens outside
+    // the tun (before per-UID VPN routing is active) and TcpForwarder
+    // never sees the SYN, so TTFB can never be measured.
+    private boolean pendingUrlLoad = false;
+    private String pendingTargetUrl = null;
+    private static final String READER_STATUS_RUNNING = "Running";
+    // TTFB END
+
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -140,6 +150,21 @@ public class VpnTestActivity extends AppCompatActivity {
                     ? android.text.format.DateFormat.format("HH:mm:ss", stats.lastPacketTimestamp)
                     : "-");
             tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
+
+            // TTFB START
+            // Only now do we know the tun is actually up and the packet
+            // reader thread is running. Loading any earlier risks the
+            // WebView's TCP handshake happening outside the tunnel,
+            // which means TcpForwarder never sees the SYN and TTFB is
+            // never captured.
+            if (pendingUrlLoad && READER_STATUS_RUNNING.equals(stats.readerStatus)) {
+                pendingUrlLoad = false;
+                String urlToLoad = pendingTargetUrl;
+                pendingTargetUrl = null;
+                updateStatus("Tunnel ready. Loading " + urlToLoad + " ...");
+                webView.loadUrl(urlToLoad);
+            }
+            // TTFB END
         });
     }
 
@@ -210,10 +235,21 @@ public class VpnTestActivity extends AppCompatActivity {
         }
         bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
 
-        updateStatus("VPN service starting. Loading " + targetUrl + " ...");
+        // TTFB START
+        // Do NOT call webView.loadUrl() here. Starting/binding the service
+        // only schedules its onCreate/onStartCommand — it does not mean the
+        // tun interface exists or the packet-reader thread is running yet.
+        // Loading now risks the WebView completing its TCP handshake before
+        // per-UID VPN routing is active, so TcpForwarder would never see
+        // the SYN and TTFB would never be captured. Instead, defer the load
+        // until the dashboard reports the reader thread is actually running
+        // (see the stats observer in onCreate()).
+        pendingTargetUrl = targetUrl;
+        pendingUrlLoad = true;
+        updateStatus("VPN service starting. Waiting for tunnel before loading " + targetUrl + " ...");
+        // TTFB END
 
         //webView.clearCache(true);
-        webView.loadUrl(targetUrl);
 
         btnStartVpn.setEnabled(false);
         btnStopVpn.setEnabled(true);
@@ -223,6 +259,13 @@ public class VpnTestActivity extends AppCompatActivity {
         updateStatus("Stopping VPN...");
         dashboardRepo.logEvent("Stopping VPN (user requested)",
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
+
+        // TTFB START
+        // Cancel any deferred load — the tunnel is going away, so there's
+        // nothing left to wait for and we must not load into a torn-down session.
+        pendingUrlLoad = false;
+        pendingTargetUrl = null;
+        // TTFB END
 
         if (isServiceBound && mediatorVpnService != null) {
             mediatorVpnService.stopVpn();   // synchronous, real teardown, happens now
