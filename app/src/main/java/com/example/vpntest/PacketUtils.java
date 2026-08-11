@@ -46,12 +46,32 @@ final class PacketUtils {
         buf.putShort(checksumPos, (short) checksum);
     }
 
-    /** Builds an 8-byte UDP header (checksum optional -> set to 0 for IPv4). */
+    /**
+     * Builds a 40-byte IPv6 fixed header (no extension headers).
+     *
+     * @param payloadLength length of everything AFTER this 40-byte header
+     *                      (i.e. the transport segment length, not including this header)
+     * @param nextHeader    transport protocol number (e.g. PROTO_TCP / PROTO_UDP)
+     * @param srcIp         16-byte source address
+     * @param dstIp         16-byte destination address
+     */
+    static void writeIPv6Header(ByteBuffer buf, int payloadLength, int nextHeader,
+                                byte[] srcIp, byte[] dstIp) {
+        // Version=6, Traffic Class=0, Flow Label=0 -> first 4 bytes are 0x60000000.
+        buf.putInt(0x60000000);
+        buf.putShort((short) payloadLength);
+        buf.put((byte) nextHeader);
+        buf.put((byte) 64); // Hop Limit
+        buf.put(srcIp);
+        buf.put(dstIp);
+    }
+
+    /** Builds an 8-byte UDP header. Checksum is left as a placeholder (0); patch it afterwards if needed. */
     static void writeUdpHeader(ByteBuffer buf, int srcPort, int dstPort, int udpLength) {
         buf.putShort((short) srcPort);
         buf.putShort((short) dstPort);
         buf.putShort((short) udpLength);
-        buf.putShort((short) 0); // checksum optional for IPv4, skip computing it
+        buf.putShort((short) 0); // checksum placeholder
     }
 
     /**
@@ -71,21 +91,57 @@ final class PacketUtils {
         buf.putShort((short) 0);        // urgent pointer
     }
 
-    /** Computes TCP/UDP checksum over the pseudo header + segment and patches it in. */
-    static void fixTcpChecksum(ByteBuffer packet, int ipHeaderStart, int tcpHeaderStart,
-                               int tcpSegmentLength, byte[] srcIp, byte[] dstIp) {
-        ByteBuffer pseudo = ByteBuffer.allocate(12 + tcpSegmentLength);
+    /**
+     * Computes the pseudo-header + segment internet checksum for TCP/UDP,
+     * for either a 4-byte (IPv4) or 16-byte (IPv6) address pair.
+     */
+    private static int transportChecksum(byte[] srcIp, byte[] dstIp, int protocol,
+                                         byte[] segment, int segmentOffset, int segmentLength) {
+        boolean ipv6 = srcIp.length == 16;
+        int pseudoHeaderLen = ipv6 ? 40 : 12;
+
+        ByteBuffer pseudo = ByteBuffer.allocate(pseudoHeaderLen + segmentLength);
         pseudo.put(srcIp);
         pseudo.put(dstIp);
-        pseudo.put((byte) 0);
-        pseudo.put((byte) 6); // TCP protocol number
-        pseudo.putShort((short) tcpSegmentLength);
 
-        // packet must be array-backed (allocate(), not allocateDirect()).
-        pseudo.put(packet.array(), packet.arrayOffset() + tcpHeaderStart, tcpSegmentLength);
+        if (ipv6) {
+            pseudo.putInt(segmentLength);   // Upper-Layer Packet Length (4 bytes)
+            pseudo.put((byte) 0);
+            pseudo.put((byte) 0);
+            pseudo.put((byte) 0);
+            pseudo.put((byte) protocol);    // Next Header (1 byte, zero-padded above)
+        } else {
+            pseudo.put((byte) 0);
+            pseudo.put((byte) protocol);
+            pseudo.putShort((short) segmentLength);
+        }
 
-        int checksum = checksum(pseudo.array(), 0, pseudo.capacity());
+        pseudo.put(segment, segmentOffset, segmentLength);
+
+        return checksum(pseudo.array(), 0, pseudo.capacity());
+    }
+
+    /** Computes TCP checksum over the pseudo header + segment and patches it in. Works for IPv4 or IPv6 addresses. */
+    static void fixTcpChecksum(ByteBuffer packet, int ipHeaderStart, int tcpHeaderStart,
+                               int tcpSegmentLength, byte[] srcIp, byte[] dstIp) {
+        int checksum = transportChecksum(srcIp, dstIp, PROTO_TCP,
+                packet.array(), packet.arrayOffset() + tcpHeaderStart, tcpSegmentLength);
         packet.putShort(tcpHeaderStart + 16, (short) checksum);
+    }
+
+    /**
+     * Computes UDP checksum over the pseudo header + segment and patches it in.
+     * Mandatory for IPv6 (a computed value of 0 is stored as 0xFFFF per RFC 2460 8.1);
+     * for IPv4 the caller may skip calling this since UDP checksum is optional there.
+     */
+    static void fixUdpChecksum(ByteBuffer packet, int udpHeaderStart,
+                               int udpSegmentLength, byte[] srcIp, byte[] dstIp) {
+        int checksum = transportChecksum(srcIp, dstIp, PROTO_UDP,
+                packet.array(), packet.arrayOffset() + udpHeaderStart, udpSegmentLength);
+        if (checksum == 0) {
+            checksum = 0xFFFF;
+        }
+        packet.putShort(udpHeaderStart + 6, (short) checksum);
     }
 
     // TCP flag bits
@@ -97,4 +153,6 @@ final class PacketUtils {
 
     static final int PROTO_TCP = 6;
     static final int PROTO_UDP = 17;
+    static final int PROTO_ICMPV4 = 1;
+    static final int PROTO_ICMPV6 = 58;
 }

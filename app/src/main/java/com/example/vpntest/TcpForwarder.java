@@ -8,8 +8,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
@@ -33,17 +35,13 @@ class TcpForwarder {
      */
     private final Network underlyingNetwork;
 
-    private final Random random =
-            new Random();
+    private final Random random = new Random();
 
-    private final Map<String, TcpSession> sessions =
-            new ConcurrentHashMap<>();
+    private final Map<String, TcpSession> sessions = new ConcurrentHashMap<>();
 
-    private volatile boolean shutdown =
-            false;
+    private volatile boolean shutdown = false;
 
-    private final VpnEventRepository dashboard =
-            VpnEventRepository.getInstance();
+    private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
 
     /*
      * ============================================================
@@ -73,441 +71,167 @@ class TcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean globalRequestCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
-    private volatile long globalRequestSentTime =
-            0L;
+    private volatile long globalRequestSentTime = 0L;
 
-    private volatile long globalFirstByteReceivedTime =
-            0L;
+    private volatile long globalFirstByteReceivedTime = 0L;
 
-    private volatile long globalTtfbMs =
-            -1L;
+    private volatile long globalTtfbMs = -1L;
 
 
-    TcpForwarder(
-            VpnService vpnService,
-            FileOutputStream tunOut,
-            Object tunWriteLock,
-            Network underlyingNetwork
-    ) {
+    TcpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock,
+                 Network underlyingNetwork) {
+        this.vpnService = vpnService;
+        this.tunOut = tunOut;
+        this.tunWriteLock = tunWriteLock;
+        this.underlyingNetwork = underlyingNetwork;
 
-        this.vpnService =
-                vpnService;
-
-        this.tunOut =
-                tunOut;
-
-        this.tunWriteLock =
-                tunWriteLock;
-
-        this.underlyingNetwork =
-                underlyingNetwork;
-
-        Log.d(
-                TAG,
-                "TcpForwarder underlyingNetwork = "
-                        + underlyingNetwork
-        );
+        Log.d(TAG, "TcpForwarder underlyingNetwork = " + underlyingNetwork);
     }
 
 
-    void handlePacket(
-            byte[] packet,
-            int length,
-            int ipHeaderLen,
-            byte[] srcIp,
-            byte[] dstIp,
-            int srcPort,
-            int dstPort
-    ) {
+    /**
+     * @param packet full packet bytes as read from the TUN
+     * @param length total valid length of packet
+     * @param parsed pre-parsed IPv4/IPv6 header info (addresses, ports, transport header offset)
+     */
+    void handlePacket(byte[] packet, int length, ParsedPacket parsed) {
 
-        if (shutdown)
-            return;
+        if (shutdown) return;
 
+        byte[] srcIp = parsed.sourceIpBytes;
+        byte[] dstIp = parsed.destinationIpBytes;
+        int srcPort = parsed.sourcePort;
+        int dstPort = parsed.destinationPort;
 
-        Log.d(
-                TAG,
-                "========== TCP HANDLE PACKET =========="
-        );
+        Log.d(TAG, "========== TCP HANDLE PACKET ==========");
+        Log.d(TAG, "Src: " + ipStr(srcIp) + ":" + srcPort);
+        Log.d(TAG, "Dst: " + ipStr(dstIp) + ":" + dstPort);
+        Log.d(TAG, "Length: " + length);
+        Log.d(TAG, "=======================================");
 
-        Log.d(
-                TAG,
-                "Src: "
-                        + ipStr(srcIp)
-                        + ":"
-                        + srcPort
-        );
+        int tcpHeaderOffset = parsed.transportHeaderOffset;
 
-        Log.d(
-                TAG,
-                "Dst: "
-                        + ipStr(dstIp)
-                        + ":"
-                        + dstPort
-        );
+        if (length < tcpHeaderOffset + 20) return;
 
-        Log.d(
-                TAG,
-                "Length: "
-                        + length
-        );
-
-        Log.d(
-                TAG,
-                "======================================="
-        );
-
-
-        int tcpHeaderOffset =
-                ipHeaderLen;
-
-        if (length <
-                tcpHeaderOffset + 20)
-            return;
-
-
-        // -------------------- IPv4 Header --------------------
-
-        int version =
-                (packet[0] >> 4) & 0xF;
-
-        int ipHeaderLength =
-                (packet[0] & 0x0F) * 4;
-
-        int dscp =
-                (packet[1] >> 2) & 0x3F;
-
-        int ecn =
-                packet[1] & 0x03;
-
-        int totalLength =
-                ((packet[2] & 0xFF) << 8)
-                        |
-                        (packet[3] & 0xFF);
-
-        int identification =
-                ((packet[4] & 0xFF) << 8)
-                        |
-                        (packet[5] & 0xFF);
-
-        int flagsAndOffset =
-                ((packet[6] & 0xFF) << 8)
-                        |
-                        (packet[7] & 0xFF);
-
-        int ipFlags =
-                (flagsAndOffset >> 13) & 0x07;
-
-        int fragmentOffset =
-                flagsAndOffset & 0x1FFF;
-
-        int ttl =
-                packet[8] & 0xFF;
-
+        int version = parsed.ipVersion;
+        int ttl = parsed.ttlOrHopLimit;
 
         // -------------------- TCP Header --------------------
 
-        long seq =
-                readUnsignedInt(
-                        packet,
-                        tcpHeaderOffset + 4
-                );
+        long seq = readUnsignedInt(packet, tcpHeaderOffset + 4);
+        long ack = readUnsignedInt(packet, tcpHeaderOffset + 8);
 
-        long ack =
-                readUnsignedInt(
-                        packet,
-                        tcpHeaderOffset + 8
-                );
+        int dataOffsetBytes = ((packet[tcpHeaderOffset + 12] >> 4) & 0x0F) * 4;
 
-        int dataOffsetBytes =
-                ((packet[tcpHeaderOffset + 12] >> 4)
-                        & 0x0F) * 4;
+        int flags = packet[tcpHeaderOffset + 13] & 0xFF;
 
-        int flags =
-                packet[tcpHeaderOffset + 13]
-                        & 0xFF;
+        int windowSize = ((packet[tcpHeaderOffset + 14] & 0xFF) << 8)
+                | (packet[tcpHeaderOffset + 15] & 0xFF);
 
-        int windowSize =
-                ((packet[tcpHeaderOffset + 14] & 0xFF) << 8)
-                        |
-                        (packet[tcpHeaderOffset + 15] & 0xFF);
+        int checksum = ((packet[tcpHeaderOffset + 16] & 0xFF) << 8)
+                | (packet[tcpHeaderOffset + 17] & 0xFF);
 
-        int checksum =
-                ((packet[tcpHeaderOffset + 16] & 0xFF) << 8)
-                        |
-                        (packet[tcpHeaderOffset + 17] & 0xFF);
+        int urgentPointer = ((packet[tcpHeaderOffset + 18] & 0xFF) << 8)
+                | (packet[tcpHeaderOffset + 19] & 0xFF);
 
-        int urgentPointer =
-                ((packet[tcpHeaderOffset + 18] & 0xFF) << 8)
-                        |
-                        (packet[tcpHeaderOffset + 19] & 0xFF);
+        int payloadOffset = tcpHeaderOffset + dataOffsetBytes;
+        int payloadLen = length - payloadOffset;
+        if (payloadLen < 0) payloadLen = 0;
 
-        int payloadOffset =
-                tcpHeaderOffset
-                        + dataOffsetBytes;
+        StringBuilder tcpHeaderLog = new StringBuilder();
+        tcpHeaderLog.append("========== [TX] TCP/IP HEADER ==========\n")
+                .append("IP Version         : IPv").append(version).append("\n")
+                .append("Source IP          : ").append(ipStr(srcIp)).append("\n")
+                .append("Destination IP     : ").append(ipStr(dstIp)).append("\n")
+                .append("Source Port        : ").append(srcPort).append("\n")
+                .append("Destination Port   : ").append(dstPort).append("\n");
 
-        int payloadLen =
-                length
-                        - payloadOffset;
+        if (version == 4) {
+            tcpHeaderLog.append("TTL                : ").append(ttl).append("\n")
+                    .append("IP Header Length   : ").append(parsed.ipHeaderLength).append("\n");
+        } else {
+            tcpHeaderLog.append("Hop Limit          : ").append(ttl).append("\n")
+                    .append("IPv6 Header Length : ").append(parsed.ipHeaderLength).append("\n")
+                    .append("Transport Offset   : ").append(tcpHeaderOffset).append("\n")
+                    .append("IPv6 Payload Length: ").append(parsed.payloadLength).append("\n");
+        }
 
-        if (payloadLen < 0)
-            payloadLen = 0;
+        tcpHeaderLog.append("TCP Header Length  : ").append(dataOffsetBytes).append("\n")
+                .append("Sequence Number    : ").append(seq).append("\n")
+                .append("ACK Number         : ").append(ack).append("\n")
+                .append("TCP Flags          : 0x").append(Integer.toHexString(flags)).append("\n")
+                .append("Window Size        : ").append(windowSize).append("\n")
+                .append("Checksum           : 0x").append(Integer.toHexString(checksum)).append("\n")
+                .append("Urgent Pointer     : ").append(urgentPointer).append("\n")
+                .append("Payload Length     : ").append(payloadLen).append("\n")
+                .append("===================================");
 
+        Log.d(TAG, tcpHeaderLog.toString());
+        dashboard.logEvent(tcpHeaderLog.toString(), VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
-        String tcpHeaderLog =
-                "========== [TX] TCP/IP HEADER ==========\n"
-                        + "Source IP          : "
-                        + ipStr(srcIp)
-                        + "\n"
-                        + "Destination IP     : "
-                        + ipStr(dstIp)
-                        + "\n"
-                        + "Source Port        : "
-                        + srcPort
-                        + "\n"
-                        + "Destination Port   : "
-                        + dstPort
-                        + "\n"
-                        + "Version            : IPv"
-                        + version
-                        + "\n"
-                        + "TTL                : "
-                        + ttl
-                        + "\n"
-                        + "DSCP               : "
-                        + dscp
-                        + "\n"
-                        + "ECN                : "
-                        + ecn
-                        + "\n"
-                        + "IP Header Length   : "
-                        + ipHeaderLength
-                        + "\n"
-                        + "TCP Header Length  : "
-                        + dataOffsetBytes
-                        + "\n"
-                        + "Packet Length      : "
-                        + totalLength
-                        + "\n"
-                        + "Identification     : "
-                        + identification
-                        + "\n"
-                        + "IP Flags           : "
-                        + ipFlags
-                        + "\n"
-                        + "Fragment Offset    : "
-                        + fragmentOffset
-                        + "\n"
-                        + "Sequence Number    : "
-                        + seq
-                        + "\n"
-                        + "ACK Number         : "
-                        + ack
-                        + "\n"
-                        + "TCP Flags          : 0x"
-                        + Integer.toHexString(flags)
-                        + "\n"
-                        + "Window Size        : "
-                        + windowSize
-                        + "\n"
-                        + "Checksum           : 0x"
-                        + Integer.toHexString(checksum)
-                        + "\n"
-                        + "Urgent Pointer     : "
-                        + urgentPointer
-                        + "\n"
-                        + "Payload Length     : "
-                        + payloadLen
-                        + "\n"
-                        + "===================================";
+        String key = parsed.connectionKey();
 
+        boolean isSyn = (flags & PacketUtils.TCP_SYN) != 0;
+        boolean isAck = (flags & PacketUtils.TCP_ACK) != 0;
+        boolean isFin = (flags & PacketUtils.TCP_FIN) != 0;
+        boolean isRst = (flags & PacketUtils.TCP_RST) != 0;
 
-        Log.d(
-                TAG,
-                tcpHeaderLog
-        );
+        Log.d(TAG, "Flags: SYN=" + isSyn + " ACK=" + isAck + " FIN=" + isFin + " RST=" + isRst);
 
-        dashboard.logEvent(
-                tcpHeaderLog,
-                VpnEvent.Level.INFO,
-                VpnEvent.Category.TCP
-        );
-
-
-        String key =
-                ipStr(srcIp)
-                        + ":"
-                        + srcPort
-                        + "->"
-                        + ipStr(dstIp)
-                        + ":"
-                        + dstPort;
-
-
-        boolean isSyn =
-                (flags & PacketUtils.TCP_SYN)
-                        != 0;
-
-        boolean isAck =
-                (flags & PacketUtils.TCP_ACK)
-                        != 0;
-
-        boolean isFin =
-                (flags & PacketUtils.TCP_FIN)
-                        != 0;
-
-        boolean isRst =
-                (flags & PacketUtils.TCP_RST)
-                        != 0;
-
-
-        Log.d(
-                TAG,
-                "Flags: SYN="
-                        + isSyn
-                        + " ACK="
-                        + isAck
-                        + " FIN="
-                        + isFin
-                        + " RST="
-                        + isRst
-        );
-
-
-        TcpSession session =
-                sessions.get(key);
-
+        TcpSession session = sessions.get(key);
 
         if (isSyn && !isAck) {
 
             if (session != null) {
 
-                if (session.state ==
-                        TcpSession.State.SYN_RCVD
-                        ||
-                        session.state ==
-                                TcpSession.State.ESTABLISHED) {
+                if (session.state == TcpSession.State.SYN_RCVD
+                        || session.state == TcpSession.State.ESTABLISHED) {
 
                     if (session.synAckSent.get()) {
-
-                        Log.d(
-                                TAG,
-                                "Retransmitted SYN for existing session "
-                                        + key
-                                        + ", re-sending SYN-ACK."
-                        );
-
-                        sendSynAck(
-                                session
-                        );
+                        Log.d(TAG, "Retransmitted SYN for existing session " + key + ", re-sending SYN-ACK.");
+                        sendSynAck(session);
                     }
 
                     return;
                 }
 
-                closeSession(
-                        key,
-                        session
-                );
+                closeSession(key, session);
             }
 
-            startNewSession(
-                    key,
-                    srcIp,
-                    srcPort,
-                    dstIp,
-                    dstPort,
-                    seq
-            );
-
+            startNewSession(key, srcIp, srcPort, dstIp, dstPort, seq);
             return;
         }
-
 
         if (session == null) {
-
             if (!isRst) {
-
-                sendRst(
-                        dstIp,
-                        dstPort,
-                        srcIp,
-                        srcPort,
-                        ack,
-                        seq + payloadLen
-                );
+                sendRst(dstIp, dstPort, srcIp, srcPort, ack, seq + payloadLen);
             }
-
             return;
         }
-
 
         if (isRst) {
-
-            closeSession(
-                    key,
-                    session
-            );
-
+            closeSession(key, session);
             return;
         }
 
-
-        if (session.state ==
-                TcpSession.State.SYN_RCVD
-                && isAck) {
-
-            Log.d(
-                    TAG,
-                    "TCP Handshake completed."
-            );
-
-            session.state =
-                    TcpSession.State.ESTABLISHED;
-
-            session.startRealSocketReaderThread(
-                    this,
-                    key
-            );
+        if (session.state == TcpSession.State.SYN_RCVD && isAck) {
+            Log.d(TAG, "TCP Handshake completed.");
+            session.state = TcpSession.State.ESTABLISHED;
+            session.startRealSocketReaderThread(this, key);
         }
 
+        Log.d(TAG, "payload len and sessionstate : " + payloadLen + " " + session.state);
 
-        Log.d(
-                TAG,
-                "payload len and sessionstate : "
-                        + payloadLen
-                        + " "
-                        + session.state
-        );
+        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
 
-
-        if (payloadLen > 0
-                &&
-                session.state ==
-                        TcpSession.State.ESTABLISHED) {
-
-            byte[] data =
-                    new byte[payloadLen];
-
-            System.arraycopy(
-                    packet,
-                    payloadOffset,
-                    data,
-                    0,
-                    payloadLen
-            );
+            byte[] data = new byte[payloadLen];
+            System.arraycopy(packet, payloadOffset, data, 0, payloadLen);
 
             try {
-
-                session.realOut.write(
-                        data
-                );
-
+                session.realOut.write(data);
                 session.realOut.flush();
 
-                Log.d(
-                        TAG,
-                        "Payload written successfully."
-                );
+                Log.d(TAG, "Payload written successfully.");
 
                 /*
                  * ====================================================
@@ -519,731 +243,282 @@ class TcpForwarder {
                  *
                  * This is intentionally NOT stored in TcpSession.
                  */
-                if (globalRequestCaptured
-                        .compareAndSet(
-                                false,
-                                true
-                        )) {
-
-                    globalRequestSentTime =
-                            System.nanoTime();
-
-                    Log.i(
-                            TAG,
-                            "GLOBAL TTFB Request Sent : "
-                                    + globalRequestSentTime
-                    );
+                if (globalRequestCaptured.compareAndSet(false, true)) {
+                    globalRequestSentTime = System.nanoTime();
+                    Log.i(TAG, "GLOBAL TTFB Request Sent : " + globalRequestSentTime);
                 }
 
-                Log.d(
-                        TAG,
-                        "Payload Length = "
-                                + payloadLen
-                );
+                Log.d(TAG, "Payload Length = " + payloadLen);
 
             } catch (IOException e) {
+                Log.w(TAG, "TCP write to real socket failed for " + key, e);
 
-                Log.w(
-                        TAG,
-                        "TCP write to real socket failed for "
-                                + key,
-                        e
-                );
-
-                sendRst(
-                        srcIp,
-                        srcPort,
-                        dstIp,
-                        dstPort,
-                        session.deviceSeq,
-                        seq + payloadLen
-                );
-
-                closeSession(
-                        key,
-                        session
-                );
-
+                sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, seq + payloadLen);
+                closeSession(key, session);
                 return;
             }
 
-            session.clientNextSeq =
-                    seq + payloadLen;
-
-            sendAck(
-                    session,
-                    false
-            );
+            session.clientNextSeq = seq + payloadLen;
+            sendAck(session, false);
         }
 
-
         if (isFin) {
-
-            session.clientNextSeq =
-                    seq + 1;
-
-            sendAck(
-                    session,
-                    false
-            );
+            session.clientNextSeq = seq + 1;
+            sendAck(session, false);
 
             try {
-
-                session.realSocket
-                        .shutdownOutput();
-
+                session.realSocket.shutdownOutput();
             } catch (IOException ignored) {
             }
 
-            if (session.state !=
-                    TcpSession.State.CLOSED) {
-
-                session.state =
-                        TcpSession.State.CLOSING;
+            if (session.state != TcpSession.State.CLOSED) {
+                session.state = TcpSession.State.CLOSING;
             }
         }
     }
 
 
-    private void startNewSession(
-            String key,
-            byte[] srcIp,
-            int srcPort,
-            byte[] dstIp,
-            int dstPort,
-            long clientIsn
-    ) {
+    private void startNewSession(String key, byte[] srcIp, int srcPort,
+                                 byte[] dstIp, int dstPort, long clientIsn) {
 
-        TcpSession session =
-                new TcpSession();
+        TcpSession session = new TcpSession();
+        session.srcIp = srcIp;
+        session.srcPort = srcPort;
+        session.dstIp = dstIp;
+        session.dstPort = dstPort;
+        session.clientNextSeq = clientIsn + 1;
+        session.deviceSeq = random.nextInt(Integer.MAX_VALUE);
+        session.state = TcpSession.State.SYN_RCVD;
 
-        session.srcIp =
-                srcIp;
+        sessions.put(key, session);
 
-        session.srcPort =
-                srcPort;
+        new Thread(() -> {
 
-        session.dstIp =
-                dstIp;
+            try {
+                Log.d(TAG, "Creating new TCP session...");
+                dashboard.logEvent("Creating new TCP session ..", VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
-        session.dstPort =
-                dstPort;
-
-        session.clientNextSeq =
-                clientIsn + 1;
-
-        session.deviceSeq =
-                random.nextInt(
-                        Integer.MAX_VALUE
+                Log.d(TAG, "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
+                dashboard.logEvent(
+                        "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
                 );
 
-        session.state =
-                TcpSession.State.SYN_RCVD;
+                /*
+                 * IMPORTANT:
+                 *
+                 * Do NOT call vpnService.protect(socket)
+                 * here.
+                 *
+                 * protect() was consistently returning false
+                 * on the device.
+                 *
+                 * Instead explicitly bind this socket to the
+                 * active physical Network.
+                 */
 
-        sessions.put(
-                key,
-                session
-        );
+                if (underlyingNetwork == null) {
+                    Log.e(TAG, "No underlying Network available for " + key);
+                    dashboard.logEvent("No underlying Network available for " + key,
+                            VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
 
+                    sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
+                    sessions.remove(key);
+                    return;
+                }
 
-        new Thread(
-                () -> {
+                Socket socket = new Socket();
+                Log.d(TAG, "Created forwarding socket for " + key);
+
+                try {
+                    underlyingNetwork.bindSocket(socket);
+                    Log.d(TAG, "Underlying Network bindSocket SUCCESS for " + key);
+                    dashboard.logEvent("Underlying Network bindSocket SUCCESS for " + key,
+                            VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
+                } catch (IOException e) {
+                    Log.e(TAG, "Underlying Network bindSocket FAILED for " + key, e);
+                    dashboard.logEvent("Underlying Network bindSocket FAILED for " + key + " : " + e.getMessage(),
+                            VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
 
                     try {
-
-                        Log.d(
-                                TAG,
-                                "Creating new TCP session..."
-                        );
-
-                        dashboard.logEvent(
-                                "Creating new TCP session ..",
-                                VpnEvent.Level.INFO,
-                                VpnEvent.Category.TCP
-                        );
-
-                        Log.d(
-                                TAG,
-                                "Destination = "
-                                        + intToInetName(
-                                        dstIp
-                                ).getHostAddress()
-                                        + ":"
-                                        + dstPort
-                        );
-
-                        dashboard.logEvent(
-                                "Destination = "
-                                        + intToInetName(
-                                        dstIp
-                                ).getHostAddress()
-                                        + ":"
-                                        + dstPort,
-                                VpnEvent.Level.INFO,
-                                VpnEvent.Category.TCP
-                        );
-
-
-                        /*
-                         * IMPORTANT:
-                         *
-                         * Do NOT call vpnService.protect(socket)
-                         * here.
-                         *
-                         * protect() was consistently returning false
-                         * on the device.
-                         *
-                         * Instead explicitly bind this socket to the
-                         * active physical Network.
-                         */
-
-                        if (underlyingNetwork == null) {
-
-                            Log.e(
-                                    TAG,
-                                    "No underlying Network available for "
-                                            + key
-                            );
-
-                            dashboard.logEvent(
-                                    "No underlying Network available for "
-                                            + key,
-                                    VpnEvent.Level.ERROR,
-                                    VpnEvent.Category.TCP
-                            );
-
-                            sendRst(
-                                    srcIp,
-                                    srcPort,
-                                    dstIp,
-                                    dstPort,
-                                    session.deviceSeq,
-                                    session.clientNextSeq
-                            );
-
-                            sessions.remove(
-                                    key
-                            );
-
-                            return;
-                        }
-
-
-                        Socket socket =
-                                new Socket();
-
-
-                        Log.d(
-                                TAG,
-                                "Created forwarding socket for "
-                                        + key
-                        );
-
-
-                        try {
-
-                            underlyingNetwork.bindSocket(
-                                    socket
-                            );
-
-                            Log.d(
-                                    TAG,
-                                    "Underlying Network bindSocket SUCCESS for "
-                                            + key
-                            );
-
-                            dashboard.logEvent(
-                                    "Underlying Network bindSocket SUCCESS for "
-                                            + key,
-                                    VpnEvent.Level.SUCCESS,
-                                    VpnEvent.Category.TCP
-                            );
-
-                        } catch (IOException e) {
-
-                            Log.e(
-                                    TAG,
-                                    "Underlying Network bindSocket FAILED for "
-                                            + key,
-                                    e
-                            );
-
-                            dashboard.logEvent(
-                                    "Underlying Network bindSocket FAILED for "
-                                            + key
-                                            + " : "
-                                            + e.getMessage(),
-                                    VpnEvent.Level.ERROR,
-                                    VpnEvent.Category.TCP
-                            );
-
-                            try {
-
-                                socket.close();
-
-                            } catch (IOException ignored) {
-                            }
-
-                            sendRst(
-                                    srcIp,
-                                    srcPort,
-                                    dstIp,
-                                    dstPort,
-                                    session.deviceSeq,
-                                    session.clientNextSeq
-                            );
-
-                            sessions.remove(
-                                    key
-                            );
-
-                            return;
-                        }
-
-
-                        Log.d(
-                                TAG,
-                                "Connecting socket to "
-                                        + intToInetName(
-                                        dstIp
-                                ).getHostAddress()
-                                        + ":"
-                                        + dstPort
-                        );
-
-
-                        //underlyingNetwork.bindSocket(socket);
-
-                        socket.connect(
-                                new InetSocketAddress(
-                                        intToInetName(dstIp),
-                                        dstPort
-                                ),
-                                8000
-                        );
-
-
-                        Log.d(
-                                TAG,
-                                "Socket connected successfully."
-                        );
-
-                        dashboard.logEvent(
-                                "Socket connected successfully.",
-                                VpnEvent.Level.SUCCESS,
-                                VpnEvent.Category.TCP
-                        );
-
-
-                        session.realSocket =
-                                socket;
-
-
-                        String serverIp =
-                                socket.getInetAddress()
-                                        .getHostAddress();
-
-
-                        String serverName;
-
-                        try {
-
-                            serverName =
-                                    socket.getInetAddress()
-                                            .getCanonicalHostName();
-
-                        } catch (Exception e) {
-
-                            serverName =
-                                    "Unknown";
-
-                            Log.e(
-                                    TAG,
-                                    "Exception while rsolving host name : "
-                                            + intToInetName(
-                                            dstIp
-                                    ).getHostAddress()
-                                            + ":"
-                                            + dstPort,
-                                    e
-                            );
-
-                            dashboard.logEvent(
-                                    "Exception while rsolving host name : "
-                                            + intToInetName(
-                                            dstIp
-                                    ).getHostAddress()
-                                            + ":"
-                                            + dstPort
-                                            + " exception is : "
-                                            + e.getMessage(),
-                                    VpnEvent.Level.INFO,
-                                    VpnEvent.Category.TCP
-                            );
-                        }
-
-
-                        Log.d(
-                                TAG,
-                                "Creating TCP session"
-                        );
-
-
-                        dashboard.logEvent(
-                                "========== SERVER ==========\n"
-                                        + "Server IP      : "
-                                        + serverIp
-                                        + "\n"
-                                        + "Server Name    : "
-                                        + serverName
-                                        + "\n"
-                                        + "============================",
-                                VpnEvent.Level.INFO,
-                                VpnEvent.Category.TCP
-                        );
-
-
-                        session.realOut =
-                                socket.getOutputStream();
-
-                        session.realIn =
-                                socket.getInputStream();
-
-
-                        /*
-                         * Send SYN-ACK only after the real server
-                         * connection is established.
-                         */
-                        sendSynAck(
-                                session
-                        );
-
-
-                    } catch (IOException e) {
-
-                        Log.e(
-                                TAG,
-                                "TCP connect failed for "
-                                        + key
-                                        + ": "
-                                        + e.getMessage(),
-                                e
-                        );
-
-                        dashboard.logEvent(
-                                "TCP socket exception "
-                                        + e.getMessage(),
-                                VpnEvent.Level.ERROR,
-                                VpnEvent.Category.TCP
-                        );
-
-                        sendRst(
-                                srcIp,
-                                srcPort,
-                                dstIp,
-                                dstPort,
-                                session.deviceSeq,
-                                session.clientNextSeq
-                        );
-
-                        sessions.remove(
-                                key
-                        );
+                        socket.close();
+                    } catch (IOException ignored) {
                     }
 
-                },
-                "TcpConnect-" + key
-        ).start();
-    }
+                    sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
+                    sessions.remove(key);
+                    return;
+                }
 
+                Log.d(TAG, "Connecting socket to " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
 
-    private java.net.InetAddress intToInetName(
-            byte[] ip
-    ) throws IOException {
+                socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
 
-        return java.net.InetAddress.getByAddress(
-                ip
-        );
-    }
+                Log.d(TAG, "Socket connected successfully.");
+                dashboard.logEvent("Socket connected successfully.", VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
 
+                session.realSocket = socket;
 
-    private void sendSynAck(
-            TcpSession s
-    ) {
+                String serverIp = socket.getInetAddress().getHostAddress();
+                String serverName;
 
-        boolean firstSend =
-                s.synAckSent.compareAndSet(
-                        false,
-                        true
+                try {
+                    serverName = socket.getInetAddress().getCanonicalHostName();
+                } catch (Exception e) {
+                    serverName = "Unknown";
+                    Log.e(TAG, "Exception while rsolving host name : "
+                            + intToInetName(dstIp).getHostAddress() + ":" + dstPort, e);
+                    dashboard.logEvent(
+                            "Exception while rsolving host name : "
+                                    + intToInetName(dstIp).getHostAddress() + ":" + dstPort
+                                    + " exception is : " + e.getMessage(),
+                            VpnEvent.Level.INFO, VpnEvent.Category.TCP
+                    );
+                }
+
+                Log.d(TAG, "Creating TCP session");
+                dashboard.logEvent(
+                        "========== SERVER ==========\n"
+                                + "Server IP      : " + serverIp + "\n"
+                                + "Server Name    : " + serverName + "\n"
+                                + "============================",
+                        VpnEvent.Level.INFO, VpnEvent.Category.TCP
                 );
 
-        writeTcpPacket(
-                s.dstIp,
-                s.dstPort,
-                s.srcIp,
-                s.srcPort,
-                s.deviceSeq,
-                s.clientNextSeq,
-                PacketUtils.TCP_SYN
-                        |
-                        PacketUtils.TCP_ACK,
-                null,
-                0
-        );
+                session.realOut = socket.getOutputStream();
+                session.realIn = socket.getInputStream();
+
+                /*
+                 * Send SYN-ACK only after the real server
+                 * connection is established.
+                 */
+                sendSynAck(session);
+
+            } catch (IOException e) {
+                Log.e(TAG, "TCP connect failed for " + key + ": " + e.getMessage(), e);
+                dashboard.logEvent("TCP socket exception " + e.getMessage(),
+                        VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
+
+                sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
+                sessions.remove(key);
+            }
+
+        }, "TcpConnect-" + key).start();
+    }
+
+
+    private InetAddress intToInetName(byte[] ip) throws IOException {
+        return InetAddress.getByAddress(ip);
+    }
+
+
+    private void sendSynAck(TcpSession s) {
+
+        boolean firstSend = s.synAckSent.compareAndSet(false, true);
+
+        writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort, s.deviceSeq, s.clientNextSeq,
+                PacketUtils.TCP_SYN | PacketUtils.TCP_ACK, null, 0);
 
         if (firstSend) {
-
             s.deviceSeq += 1;
         }
     }
 
 
-    private void sendAck(
-            TcpSession s,
-            boolean pshFlag
-    ) {
+    private void sendAck(TcpSession s, boolean pshFlag) {
 
-        int flags =
-                PacketUtils.TCP_ACK
-                        |
-                        (
-                                pshFlag
-                                        ? PacketUtils.TCP_PSH
-                                        : 0
-                        );
+        int flags = PacketUtils.TCP_ACK | (pshFlag ? PacketUtils.TCP_PSH : 0);
 
-        writeTcpPacket(
-                s.dstIp,
-                s.dstPort,
-                s.srcIp,
-                s.srcPort,
-                s.deviceSeq,
-                s.clientNextSeq,
-                flags,
-                null,
-                0
-        );
+        writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort, s.deviceSeq, s.clientNextSeq,
+                flags, null, 0);
     }
 
 
-    void sendDataToClient(
-            TcpSession s,
-            byte[] data,
-            int len
-    ) {
+    void sendDataToClient(TcpSession s, byte[] data, int len) {
 
-        writeTcpPacket(
-                s.dstIp,
-                s.dstPort,
-                s.srcIp,
-                s.srcPort,
-                s.deviceSeq,
-                s.clientNextSeq,
-                PacketUtils.TCP_ACK
-                        |
-                        PacketUtils.TCP_PSH,
-                data,
-                len
-        );
+        writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort, s.deviceSeq, s.clientNextSeq,
+                PacketUtils.TCP_ACK | PacketUtils.TCP_PSH, data, len);
 
         s.deviceSeq += len;
     }
 
 
-    void sendFinToClient(
-            TcpSession s
-    ) {
+    void sendFinToClient(TcpSession s) {
 
-        writeTcpPacket(
-                s.dstIp,
-                s.dstPort,
-                s.srcIp,
-                s.srcPort,
-                s.deviceSeq,
-                s.clientNextSeq,
-                PacketUtils.TCP_ACK
-                        |
-                        PacketUtils.TCP_FIN,
-                null,
-                0
-        );
+        writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort, s.deviceSeq, s.clientNextSeq,
+                PacketUtils.TCP_ACK | PacketUtils.TCP_FIN, null, 0);
 
         s.deviceSeq += 1;
     }
 
 
-    void reportTtfb(
-            TcpSession s,
-            long ttfbMs,
-            String key
-    ) {
+    void reportTtfb(TcpSession s, long ttfbMs, String key) {
 
-        Log.d(
-                TAG,
-                "Reporting TTFB = "
-                        + ttfbMs
-                        + " ms"
-        );
+        Log.d(TAG, "Reporting TTFB = " + ttfbMs + " ms");
 
-        dashboard.logEvent(
-                "TTFB : "
-                        + ttfbMs
-                        + " ms  ("
-                        + key
-                        + ")",
-                VpnEvent.Level.SUCCESS,
-                VpnEvent.Category.TCP
-        );
+        dashboard.logEvent("TTFB : " + ttfbMs + " ms  (" + key + ")",
+                VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
 
-        dashboard.recordTtfb(
-                ttfbMs
-        );
+        dashboard.recordTtfb(ttfbMs);
 
-        Log.d(
-                TAG,
-                "Dashboard updated with TTFB."
-        );
+        Log.d(TAG, "Dashboard updated with TTFB.");
     }
 
 
-    private void sendRst(
-            byte[] fromIp,
-            int fromPort,
-            byte[] toIp,
-            int toPort,
-            long seq,
-            long ack
-    ) {
+    private void sendRst(byte[] fromIp, int fromPort, byte[] toIp, int toPort, long seq, long ack) {
 
-        writeTcpPacket(
-                fromIp,
-                fromPort,
-                toIp,
-                toPort,
-                seq,
-                ack,
-                PacketUtils.TCP_RST,
-                null,
-                0
-        );
+        writeTcpPacket(fromIp, fromPort, toIp, toPort, seq, ack, PacketUtils.TCP_RST, null, 0);
     }
 
 
-    private void writeTcpPacket(
-            byte[] fromIp,
-            int fromPort,
-            byte[] toIp,
-            int toPort,
-            long seq,
-            long ack,
-            int flags,
-            byte[] payload,
-            int payloadLen
-    ) {
+    /** Builds and writes a TCP/IP packet back into the TUN. Supports IPv4 and IPv6 based on fromIp.length. */
+    private void writeTcpPacket(byte[] fromIp, int fromPort, byte[] toIp, int toPort,
+                                long seq, long ack, int flags, byte[] payload, int payloadLen) {
 
-        int ipHeaderLen =
-                20;
+        boolean ipv6 = fromIp.length == 16;
+        int ipHeaderLen = ipv6 ? 40 : 20;
+        int tcpHeaderLen = 20;
+        int tcpSegmentLen = tcpHeaderLen + payloadLen;
+        int total = ipHeaderLen + tcpSegmentLen;
 
-        int tcpHeaderLen =
-                20;
+        ByteBuffer buf = ByteBuffer.allocate(total);
 
-        int total =
-                ipHeaderLen
-                        + tcpHeaderLen
-                        + payloadLen;
-
-        ByteBuffer buf =
-                ByteBuffer.allocate(
-                        total
-                );
-
-
-        PacketUtils.writeIPv4Header(
-                buf,
-                total,
-                PacketUtils.PROTO_TCP,
-                fromIp,
-                toIp
-        );
-
-
-        int tcpStart =
-                buf.position();
-
-
-        PacketUtils.writeTcpHeader(
-                buf,
-                fromPort,
-                toPort,
-                seq,
-                ack,
-                flags,
-                65535
-        );
-
-
-        if (payload != null &&
-                payloadLen > 0) {
-
-            buf.put(
-                    payload,
-                    0,
-                    payloadLen
-            );
+        if (ipv6) {
+            PacketUtils.writeIPv6Header(buf, tcpSegmentLen, PacketUtils.PROTO_TCP, fromIp, toIp);
+        } else {
+            PacketUtils.writeIPv4Header(buf, total, PacketUtils.PROTO_TCP, fromIp, toIp);
         }
 
+        int tcpStart = buf.position();
 
-        PacketUtils.fixTcpChecksum(
-                buf,
-                0,
-                tcpStart,
-                tcpHeaderLen + payloadLen,
-                fromIp,
-                toIp
-        );
+        PacketUtils.writeTcpHeader(buf, fromPort, toPort, seq, ack, flags, 65535);
 
+        if (payload != null && payloadLen > 0) {
+            buf.put(payload, 0, payloadLen);
+        }
+
+        PacketUtils.fixTcpChecksum(buf, 0, tcpStart, tcpSegmentLen, fromIp, toIp);
 
         synchronized (tunWriteLock) {
-
             try {
-
-                tunOut.write(
-                        buf.array(),
-                        0,
-                        total
-                );
-
+                tunOut.write(buf.array(), 0, total);
             } catch (IOException e) {
-
-                Log.w(
-                        TAG,
-                        "Failed writing TCP packet back to TUN",
-                        e
-                );
+                Log.w(TAG, "Failed writing TCP packet back to TUN", e);
             }
         }
     }
 
 
-    private void closeSession(
-            String key,
-            TcpSession session
-    ) {
+    private void closeSession(String key, TcpSession session) {
 
-        sessions.remove(
-                key
-        );
-
-        session.state =
-                TcpSession.State.CLOSED;
+        sessions.remove(key);
+        session.state = TcpSession.State.CLOSED;
 
         try {
-
             if (session.realSocket != null) {
-
                 session.realSocket.close();
             }
-
         } catch (IOException ignored) {
         }
     }
@@ -1251,39 +526,20 @@ class TcpForwarder {
 
     void shutdown() {
 
-        shutdown =
-                true;
+        shutdown = true;
 
-        for (
-                Map.Entry<String, TcpSession> e :
-                sessions.entrySet()
-        ) {
-
-            closeSession(
-                    e.getKey(),
-                    e.getValue()
-            );
+        for (Map.Entry<String, TcpSession> e : sessions.entrySet()) {
+            closeSession(e.getKey(), e.getValue());
         }
 
         /*
          * Reset complete TTFB state when VPN session stops.
          */
-        globalTtfbCaptured.set(
-                false
-        );
-
-        globalRequestCaptured.set(
-                false
-        );
-
-        globalRequestSentTime =
-                0L;
-
-        globalFirstByteReceivedTime =
-                0L;
-
-        globalTtfbMs =
-                -1L;
+        globalTtfbCaptured.set(false);
+        globalRequestCaptured.set(false);
+        globalRequestSentTime = 0L;
+        globalFirstByteReceivedTime = 0L;
+        globalTtfbMs = -1L;
     }
 
 
@@ -1293,67 +549,31 @@ class TcpForwarder {
          * Reset complete TTFB state when START is pressed
          * / a new VPN session begins.
          */
-        globalTtfbCaptured.set(
-                false
-        );
+        globalTtfbCaptured.set(false);
+        globalRequestCaptured.set(false);
+        globalRequestSentTime = 0L;
+        globalFirstByteReceivedTime = 0L;
+        globalTtfbMs = -1L;
 
-        globalRequestCaptured.set(
-                false
-        );
-
-        globalRequestSentTime =
-                0L;
-
-        globalFirstByteReceivedTime =
-                0L;
-
-        globalTtfbMs =
-                -1L;
-
-        Log.d(
-                TAG,
-                "GLOBAL TTFB state RESET"
-        );
+        Log.d(TAG, "GLOBAL TTFB state RESET");
     }
 
 
-    private static long readUnsignedInt(
-            byte[] b,
-            int off
-    ) {
-
-        return (
-                (long) (b[off] & 0xFF)
-                        << 24
-        )
-                |
-                (
-                        (long) (b[off + 1] & 0xFF)
-                                << 16
-                )
-                |
-                (
-                        (long) (b[off + 2] & 0xFF)
-                                << 8
-                )
-                |
-                (
-                        (long) (b[off + 3] & 0xFF)
-                );
+    private static long readUnsignedInt(byte[] b, int off) {
+        return ((long) (b[off] & 0xFF) << 24)
+                | ((long) (b[off + 1] & 0xFF) << 16)
+                | ((long) (b[off + 2] & 0xFF) << 8)
+                | ((long) (b[off + 3] & 0xFF));
     }
 
 
-    private static String ipStr(
-            byte[] ip
-    ) {
-
-        return (ip[0] & 0xFF)
-                + "."
-                + (ip[1] & 0xFF)
-                + "."
-                + (ip[2] & 0xFF)
-                + "."
-                + (ip[3] & 0xFF);
+    /** Works for both 4-byte (IPv4) and 16-byte (IPv6) address arrays. */
+    static String ipStr(byte[] ip) {
+        try {
+            return InetAddress.getByAddress(ip).getHostAddress();
+        } catch (UnknownHostException e) {
+            return "invalid-ip";
+        }
     }
 
 
@@ -1403,211 +623,98 @@ class TcpForwarder {
                 new java.util.concurrent.atomic.AtomicBoolean(false);
 
 
-        volatile long requestSentTime =
-                0L;
+        volatile long requestSentTime = 0L;
 
-        volatile long firstByteReceivedTime =
-                0L;
+        volatile long firstByteReceivedTime = 0L;
 
-        volatile long ttfbMs =
-                -1L;
+        volatile long ttfbMs = -1L;
 
 
-        void startRealSocketReaderThread(
-                TcpForwarder forwarder,
-                String key
-        ) {
+        void startRealSocketReaderThread(TcpForwarder forwarder, String key) {
 
-            Log.d(
-                    TAG,
-                    "Starting TCP Reader Thread..."
-            );
+            Log.d(TAG, "Starting TCP Reader Thread...");
 
-            Thread t =
-                    new Thread(
-                            () -> {
+            Thread t = new Thread(() -> {
 
-                                byte[] buf =
-                                        new byte[16384];
+                byte[] buf = new byte[16384];
 
-                                try {
+                try {
+                    int n;
 
-                                    int n;
+                    while ((n = realIn.read(buf)) != -1) {
 
-                                    while (
-                                            (n = realIn.read(buf))
-                                                    != -1
-                                    ) {
+                        Log.d(TAG, "Received " + n + " bytes from server.");
+                        Log.d(TAG, "realIn.read() = " + n);
+                        Log.d(TAG, "First byte condition checking");
 
-                                        Log.d(
-                                                TAG,
-                                                "Received "
-                                                        + n
-                                                        + " bytes from server."
-                                        );
+                        /*
+                         * ====================================================
+                         * GLOBAL TTFB FIRST-BYTE CAPTURE
+                         * ====================================================
+                         *
+                         * Only the FIRST server response byte of the
+                         * complete VPN START -> STOP session is used.
+                         *
+                         * Any later TCP connection is ignored.
+                         */
+                        if (n > 0
+                                && !forwarder.globalTtfbCaptured.get()
+                                && forwarder.globalRequestCaptured.get()
+                                && forwarder.globalRequestSentTime > 0) {
 
-                                        Log.d(
-                                                TAG,
-                                                "realIn.read() = "
-                                                        + n
-                                        );
+                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
 
-                                        Log.d(
-                                                TAG,
-                                                "First byte condition checking"
-                                        );
+                                forwarder.globalFirstByteReceivedTime = System.nanoTime();
 
+                                forwarder.globalTtfbMs = TimeUnit.NANOSECONDS.toMillis(
+                                        forwarder.globalFirstByteReceivedTime - forwarder.globalRequestSentTime);
 
-                                        /*
-                                         * ====================================================
-                                         * GLOBAL TTFB FIRST-BYTE CAPTURE
-                                         * ====================================================
-                                         *
-                                         * Only the FIRST server response byte of the
-                                         * complete VPN START -> STOP session is used.
-                                         *
-                                         * Any later TCP connection is ignored.
-                                         */
-                                        if (
-                                                n > 0
-                                                        &&
-                                                        !forwarder.globalTtfbCaptured.get()
-                                                        &&
-                                                        forwarder.globalRequestCaptured.get()
-                                                        &&
-                                                        forwarder.globalRequestSentTime > 0
-                                        ) {
+                                String ttfbLog =
+                                        "========== TTFB ==========\n"
+                                                + "Request Sent      : " + forwarder.globalRequestSentTime + "\n"
+                                                + "First Byte        : " + forwarder.globalFirstByteReceivedTime + "\n"
+                                                + "TTFB              : " + forwarder.globalTtfbMs + " ms\n"
+                                                + "==========================";
 
-                                            if (
-                                                    forwarder.globalTtfbCaptured
-                                                            .compareAndSet(
-                                                                    false,
-                                                                    true
-                                                            )
-                                            ) {
+                                Log.i(TAG, ttfbLog);
 
-                                                forwarder.globalFirstByteReceivedTime =
-                                                        System.nanoTime();
+                                forwarder.dashboard.logEvent(ttfbLog, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
-                                                forwarder.globalTtfbMs =
-                                                        TimeUnit.NANOSECONDS
-                                                                .toMillis(
-                                                                        forwarder.globalFirstByteReceivedTime
-                                                                                - forwarder.globalRequestSentTime
-                                                                );
+                                forwarder.reportTtfb(this, forwarder.globalTtfbMs, key);
+                            }
+                        }
 
+                        if (n > 0) {
 
-                                                String ttfbLog =
-                                                        "========== TTFB ==========\n"
-                                                                + "Request Sent      : "
-                                                                + forwarder.globalRequestSentTime
-                                                                + "\n"
-                                                                + "First Byte        : "
-                                                                + forwarder.globalFirstByteReceivedTime
-                                                                + "\n"
-                                                                + "TTFB              : "
-                                                                + forwarder.globalTtfbMs
-                                                                + " ms\n"
-                                                                + "==========================";
+                            String rxHeaderLog =
+                                    "========== [RX] TCP HEADER ==========\n"
+                                            + "Source IP          : " + TcpForwarder.ipStr(dstIp) + "\n"
+                                            + "Destination IP     : " + TcpForwarder.ipStr(srcIp) + "\n"
+                                            + "Source Port        : " + dstPort + "\n"
+                                            + "Destination Port   : " + srcPort + "\n"
+                                            + "Payload Length     : " + n + "\n"
+                                            + "Sequence Number    : " + deviceSeq + "\n"
+                                            + "ACK Number         : " + clientNextSeq + "\n"
+                                            + "=====================================";
 
+                            forwarder.dashboard.logEvent(rxHeaderLog, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+                        }
 
-                                                Log.i(
-                                                        TAG,
-                                                        ttfbLog
-                                                );
+                        forwarder.sendDataToClient(this, buf, n);
+                    }
 
+                } catch (IOException ignored) {
+                    // socket closed/reset
+                } finally {
+                    forwarder.sendFinToClient(this);
+                }
 
-                                                forwarder.dashboard.logEvent(
-                                                        ttfbLog,
-                                                        VpnEvent.Level.INFO,
-                                                        VpnEvent.Category.TCP
-                                                );
+            }, "TcpRead-" + key);
 
-
-                                                forwarder.reportTtfb(
-                                                        this,
-                                                        forwarder.globalTtfbMs,
-                                                        key
-                                                );
-
-                                            }
-
-                                        }
-
-
-                                        if (n > 0) {
-
-                                            String rxHeaderLog =
-                                                    "========== [RX] TCP HEADER ==========\n"
-                                                            + "Source IP          : "
-                                                            + TcpForwarder.ipStr(
-                                                            dstIp
-                                                    )
-                                                            + "\n"
-                                                            + "Destination IP     : "
-                                                            + TcpForwarder.ipStr(
-                                                            srcIp
-                                                    )
-                                                            + "\n"
-                                                            + "Source Port        : "
-                                                            + dstPort
-                                                            + "\n"
-                                                            + "Destination Port   : "
-                                                            + srcPort
-                                                            + "\n"
-                                                            + "Payload Length     : "
-                                                            + n
-                                                            + "\n"
-                                                            + "Sequence Number    : "
-                                                            + deviceSeq
-                                                            + "\n"
-                                                            + "ACK Number         : "
-                                                            + clientNextSeq
-                                                            + "\n"
-                                                            + "=====================================";
-
-
-                                            forwarder.dashboard.logEvent(
-                                                    rxHeaderLog,
-                                                    VpnEvent.Level.INFO,
-                                                    VpnEvent.Category.TCP
-                                            );
-                                        }
-
-
-                                        forwarder.sendDataToClient(
-                                                this,
-                                                buf,
-                                                n
-                                        );
-                                    }
-
-                                } catch (IOException ignored) {
-
-                                    // socket closed/reset
-
-                                } finally {
-
-                                    forwarder.sendFinToClient(
-                                            this
-                                    );
-                                }
-
-                            },
-                            "TcpRead-" + key
-                    );
-
-
-            t.setDaemon(
-                    true
-            );
-
+            t.setDaemon(true);
             t.start();
 
-            Log.d(
-                    TAG,
-                    "TCP Reader Thread Started."
-            );
+            Log.d(TAG, "TCP Reader Thread Started.");
         }
     }
 }

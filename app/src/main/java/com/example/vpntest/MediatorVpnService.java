@@ -215,6 +215,43 @@ public class MediatorVpnService extends VpnService {
                 0
         );
 
+        /*
+         * IPv6 VPN/TUN address (ULA prefix, private to this VPN) and
+         * default IPv6 route, so IPv6 packets actually reach the TUN
+         * interface instead of bypassing it. Kept separate from the
+         * IPv4 configuration above; IPv4 behavior is unchanged.
+         */
+        try {
+            builder.addAddress(
+                    "fd00:1:fd00::2",
+                    64
+            );
+
+            builder.addRoute(
+                    "::",
+                    0
+            );
+
+            Log.d(
+                    TAG,
+                    "IPv6 VPN address/route configured (fd00:1:fd00::2/64, ::/0)"
+            );
+
+        } catch (IllegalArgumentException e) {
+
+            Log.e(
+                    TAG,
+                    "Failed to configure IPv6 VPN address/route; continuing IPv4-only",
+                    e
+            );
+
+            dashboard.logEvent(
+                    "Failed to configure IPv6 VPN address/route; continuing IPv4-only: " + e.getMessage(),
+                    VpnEvent.Level.WARNING,
+                    VpnEvent.Category.GENERAL
+            );
+        }
+
         ConnectivityManager cm =
                 (ConnectivityManager)
                         getSystemService(
@@ -606,28 +643,34 @@ public class MediatorVpnService extends VpnService {
             int length
     ) {
 
-        if (length < 20) {
+        if (!isRunning) {
             return;
         }
 
-        int version =
-                (packetBytes[0] >> 4) & 0xF;
+        if (length < 1) {
+            return;
+        }
 
-        if (version != 4) {
+        ParsedPacket parsed = PacketParser.parse(packetBytes, length);
 
-            Log.d(
+        if (parsed.status == ParsedPacket.Status.MALFORMED) {
+
+            Log.w(
                     TAG,
-                    "Skipped non-IPv4 packet (version="
-                            + version
-                            + ")"
+                    "Malformed packet dropped: " + parsed.reason
             );
 
+            /*
+             * Reused as a general "packet could not be processed" counter.
+             * It previously only counted skipped IPv6 packets; IPv6 is now
+             * actually forwarded, so this now tracks malformed/unsupported
+             * packets of either IP version. tvIpv6Skipped in the UI is kept
+             * as-is (see VpnTestActivity) to avoid unrelated UI changes.
+             */
             dashboard.recordIpv6Skipped();
 
             dashboard.logEvent(
-                    "Skipped non-IPv4 packet (version="
-                            + version
-                            + ")",
+                    "Malformed packet dropped: " + parsed.reason,
                     VpnEvent.Level.WARNING,
                     VpnEvent.Category.IPV6_SKIPPED
             );
@@ -635,96 +678,36 @@ public class MediatorVpnService extends VpnService {
             return;
         }
 
-        int protocol =
-                packetBytes[9] & 0xFF;
+        if (parsed.status == ParsedPacket.Status.NON_FIRST_FRAGMENT) {
 
-        String protocolName;
+            Log.d(
+                    TAG,
+                    "Non-first fragment (IPv" + parsed.ipVersion + ") from "
+                            + parsed.sourceIp + " to " + parsed.destinationIp
+                            + " - transport header unavailable, skipping port extraction."
+            );
 
-        if (!isRunning) {
+            dashboard.logEvent(
+                    "Non-first fragment (IPv" + parsed.ipVersion + ") from "
+                            + parsed.sourceIp + " to " + parsed.destinationIp
+                            + " - transport header unavailable",
+                    VpnEvent.Level.INFO,
+                    VpnEvent.Category.OTHER
+            );
+
             return;
         }
 
-        switch (protocol) {
+        int protocol = parsed.transportProtocol;
+        String protocolName = PacketParser.protocolName(protocol);
 
-            case 6:
-                protocolName = "TCP";
-                break;
+        String sourceIp = parsed.sourceIp;
+        String destIp = parsed.destinationIp;
 
-            case 17:
-                protocolName = "UDP";
-                break;
+        int sourcePort = parsed.sourcePort;
+        int destinationPort = parsed.destinationPort;
 
-            case 1:
-                protocolName = "ICMP";
-                break;
-
-            default:
-                protocolName =
-                        "OTHER(" + protocol + ")";
-        }
-
-        byte[] sourceIpBytes =
-                new byte[4];
-
-        byte[] destIpBytes =
-                new byte[4];
-
-        System.arraycopy(
-                packetBytes,
-                12,
-                sourceIpBytes,
-                0,
-                4
-        );
-
-        System.arraycopy(
-                packetBytes,
-                16,
-                destIpBytes,
-                0,
-                4
-        );
-
-        String sourceIp =
-                ipBytesToString(
-                        packetBytes,
-                        12
-                );
-
-        String destIp =
-                ipBytesToString(
-                        packetBytes,
-                        16
-                );
-
-        int ipHeaderLength =
-                (packetBytes[0] & 0x0F) * 4;
-
-        int sourcePort = -1;
-        int destinationPort = -1;
-
-        if (protocol == 6 ||
-                protocol == 17) {
-
-            sourcePort =
-                    ((packetBytes[ipHeaderLength] & 0xFF) << 8)
-                            |
-                            (packetBytes[ipHeaderLength + 1] & 0xFF);
-
-            destinationPort =
-                    ((packetBytes[ipHeaderLength + 2] & 0xFF) << 8)
-                            |
-                            (packetBytes[ipHeaderLength + 3] & 0xFF);
-        }
-
-        String key =
-                sourceIp
-                        + ":"
-                        + sourcePort
-                        + "->"
-                        + destIp
-                        + ":"
-                        + destinationPort;
+        String key = parsed.connectionKey();
 
         ConnectionInfo info =
                 activeConnections.get(
@@ -774,18 +757,30 @@ public class MediatorVpnService extends VpnService {
             );
         }
 
+        StringBuilder captureLog = new StringBuilder();
+
+        captureLog.append("Packet captured -> IP Version: IPv")
+                .append(parsed.ipVersion)
+                .append(", Protocol: ").append(protocolName)
+                .append(", Source: ").append(sourceIp)
+                .append(", Destination: ").append(destIp)
+                .append(", Size: ").append(length).append(" bytes");
+
+        if (parsed.ipVersion == 6) {
+            captureLog.append(", Next Header: ").append(protocol)
+                    .append(", Hop Limit: ").append(parsed.ttlOrHopLimit)
+                    .append(", IPv6 Header Length: ").append(parsed.ipHeaderLength)
+                    .append(", Transport Offset: ").append(parsed.transportHeaderOffset)
+                    .append(", Payload Length: ").append(parsed.payloadLength);
+            if (sourcePort >= 0) {
+                captureLog.append(", Source Port: ").append(sourcePort)
+                        .append(", Destination Port: ").append(destinationPort);
+            }
+        }
+
         Log.i(
                 TAG,
-                "Packet captured -> "
-                        + "Protocol: "
-                        + protocolName
-                        + ", Source: "
-                        + sourceIp
-                        + ", Destination: "
-                        + destIp
-                        + ", Size: "
-                        + length
-                        + " bytes"
+                captureLog.toString()
         );
 
         dashboard.recordPacket(
@@ -799,17 +794,18 @@ public class MediatorVpnService extends VpnService {
 
         switch (protocol) {
 
-            case 6:
+            case PacketParser.PROTO_TCP:
                 category =
                         VpnEvent.Category.TCP;
                 break;
 
-            case 17:
+            case PacketParser.PROTO_UDP:
                 category =
                         VpnEvent.Category.UDP;
                 break;
 
-            case 1:
+            case PacketParser.PROTO_ICMPV4:
+            case PacketParser.PROTO_ICMPV6:
                 category =
                         VpnEvent.Category.ICMP;
                 break;
@@ -820,50 +816,34 @@ public class MediatorVpnService extends VpnService {
         }
 
         dashboard.logEvent(
-                "Packet captured -> Protocol: "
-                        + protocolName
-                        + ", Source: "
-                        + sourceIp
-                        + ", Destination: "
-                        + destIp
-                        + ", Size: "
-                        + length
-                        + " bytes",
+                captureLog.toString(),
                 VpnEvent.Level.INFO,
                 category
         );
 
         switch (protocol) {
 
-            case 6:
+            case PacketParser.PROTO_TCP:
 
                 if (tcpForwarder != null) {
 
                     tcpForwarder.handlePacket(
                             packetBytes,
                             length,
-                            ipHeaderLength,
-                            sourceIpBytes,
-                            destIpBytes,
-                            sourcePort,
-                            destinationPort
+                            parsed
                     );
                 }
 
                 break;
 
-            case 17:
+            case PacketParser.PROTO_UDP:
 
                 if (udpForwarder != null) {
 
                     udpForwarder.handlePacket(
                             packetBytes,
                             length,
-                            ipHeaderLength,
-                            sourceIpBytes,
-                            destIpBytes,
-                            sourcePort,
-                            destinationPort
+                            parsed
                     );
                 }
 
@@ -872,20 +852,6 @@ public class MediatorVpnService extends VpnService {
             default:
                 break;
         }
-    }
-
-    private String ipBytesToString(
-            byte[] bytes,
-            int offset
-    ) {
-
-        return (bytes[offset] & 0xFF)
-                + "."
-                + (bytes[offset + 1] & 0xFF)
-                + "."
-                + (bytes[offset + 2] & 0xFF)
-                + "."
-                + (bytes[offset + 3] & 0xFF);
     }
 
     private Notification buildNotification() {

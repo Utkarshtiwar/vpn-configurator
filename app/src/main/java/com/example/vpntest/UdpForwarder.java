@@ -40,19 +40,23 @@ class UdpForwarder {
     }
 
     /**
-     * @param ipHeaderLen  length of the IPv4 header (usually 20)
-     * @param packet       full packet bytes as read from the TUN
-     * @param length       total valid length of packet
+     * @param packet full packet bytes as read from the TUN
+     * @param length total valid length of packet
+     * @param parsed pre-parsed IPv4/IPv6 header info (addresses, ports, transport header offset)
      */
-    void handlePacket(byte[] packet, int length, int ipHeaderLen,
-                      byte[] srcIp, byte[] dstIp, int srcPort, int dstPort) {
+    void handlePacket(byte[] packet, int length, ParsedPacket parsed) {
         if (shutdown) return;
 
-        int udpPayloadOffset = ipHeaderLen + 8; // 8-byte UDP header
+        int udpPayloadOffset = parsed.transportHeaderOffset + 8; // 8-byte UDP header
         int udpPayloadLen = length - udpPayloadOffset;
         if (udpPayloadLen < 0) return;
 
-        String key = ipToString(srcIp) + ":" + srcPort + "->" + ipToString(dstIp) + ":" + dstPort;
+        byte[] srcIp = parsed.sourceIpBytes;
+        byte[] dstIp = parsed.destinationIpBytes;
+        int srcPort = parsed.sourcePort;
+        int dstPort = parsed.destinationPort;
+
+        String key = parsed.connectionKey();
         Session session = sessions.get(key);
         if (session == null) {
             session = createSession(key, srcIp, srcPort, dstIp, dstPort);
@@ -75,8 +79,9 @@ class UdpForwarder {
 
             String udpTxLog =
                     "========== [TX] UDP ==========\n" +
-                            "Source IP          : " + ipToString(srcIp) + "\n" +
-                            "Destination IP     : " + ipToString(dstIp) + "\n" +
+                            "IP Version          : IPv" + parsed.ipVersion + "\n" +
+                            "Source IP          : " + ipStr(srcIp) + "\n" +
+                            "Destination IP     : " + ipStr(dstIp) + "\n" +
                             "Source Port        : " + srcPort + "\n" +
                             "Destination Port   : " + dstPort + "\n" +
                             "Packet Length      : " + payload.length + "\n" +
@@ -128,23 +133,38 @@ class UdpForwarder {
     }
 
     private void writeUdpReplyToTun(Session session, byte[] data, int dataLength) {
-        int ipHeaderLen = 20;
+        boolean ipv6 = session.dstIp.length == 16;
+        int ipHeaderLen = ipv6 ? 40 : 20;
         int udpHeaderLen = 8;
-        int totalLen = ipHeaderLen + udpHeaderLen + dataLength;
+        int udpSegmentLen = udpHeaderLen + dataLength;
+        int totalLen = ipHeaderLen + udpSegmentLen;
 
         ByteBuffer packet = ByteBuffer.allocate(totalLen);
 
         // Response is from the ORIGINAL destination back to the ORIGINAL source.
-        PacketUtils.writeIPv4Header(packet, totalLen, PacketUtils.PROTO_UDP,
-                session.dstIp, session.srcIp);
-        PacketUtils.writeUdpHeader(packet, session.dstPort, session.srcPort,
-                udpHeaderLen + dataLength);
+        if (ipv6) {
+            PacketUtils.writeIPv6Header(packet, udpSegmentLen, PacketUtils.PROTO_UDP,
+                    session.dstIp, session.srcIp);
+        } else {
+            PacketUtils.writeIPv4Header(packet, totalLen, PacketUtils.PROTO_UDP,
+                    session.dstIp, session.srcIp);
+        }
+
+        int udpHeaderStart = packet.position();
+        PacketUtils.writeUdpHeader(packet, session.dstPort, session.srcPort, udpSegmentLen);
         packet.put(data, 0, dataLength);
+
+        if (ipv6) {
+            // UDP checksum is mandatory for IPv6.
+            PacketUtils.fixUdpChecksum(packet, udpHeaderStart, udpSegmentLen, session.dstIp, session.srcIp);
+        }
+        // IPv4 UDP checksum remains optional and is left as 0, matching prior behavior.
 
         String udpRxLog =
                 "========== [RX] UDP ==========\n" +
-                        "Source IP          : " + ipToString(session.dstIp) + "\n" +
-                        "Destination IP     : " + ipToString(session.srcIp) + "\n" +
+                        "IP Version          : IPv" + (ipv6 ? 6 : 4) + "\n" +
+                        "Source IP          : " + ipStr(session.dstIp) + "\n" +
+                        "Destination IP     : " + ipStr(session.srcIp) + "\n" +
                         "Source Port        : " + session.dstPort + "\n" +
                         "Destination Port   : " + session.srcPort + "\n" +
                         "Packet Length      : " + dataLength + "\n" +
@@ -188,8 +208,13 @@ class UdpForwarder {
         sessions.clear();
     }
 
-    private static String ipToString(byte[] ip) {
-        return (ip[0] & 0xFF) + "." + (ip[1] & 0xFF) + "." + (ip[2] & 0xFF) + "." + (ip[3] & 0xFF);
+    /** Works for both 4-byte (IPv4) and 16-byte (IPv6) address arrays. */
+    private static String ipStr(byte[] ip) {
+        try {
+            return InetAddress.getByAddress(ip).getHostAddress();
+        } catch (IOException e) {
+            return "invalid-ip";
+        }
     }
 
     private static class Session {
