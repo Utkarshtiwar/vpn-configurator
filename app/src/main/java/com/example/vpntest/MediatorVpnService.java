@@ -66,12 +66,29 @@ public class MediatorVpnService extends VpnService {
 
     private final IBinder binder = new LocalBinder();
 
+    private VpnReadyCallback vpnReadyCallback;
+
+    public interface VpnReadyCallback {
+        void onVpnEstablished();
+    }
+
+    public void setVpnReadyCallback(VpnReadyCallback callback) {
+        this.vpnReadyCallback = callback;
+
+        if (vpnInterface != null) {
+            callback.onVpnEstablished();
+        }
+    }
+
+    public void clearVpnReadyCallback() {
+        this.vpnReadyCallback = null;
+    }
+
     public class LocalBinder extends Binder {
         MediatorVpnService getService() {
             return MediatorVpnService.this;
         }
     }
-
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
@@ -422,6 +439,9 @@ public class MediatorVpnService extends VpnService {
         dashboard.setVpnStatus(
                 "Running"
         );
+        if (vpnReadyCallback != null) {
+            vpnReadyCallback.onVpnEstablished();
+        }
 
         dashboard.logEvent(
                 "VPN interface established",
@@ -1007,6 +1027,8 @@ public class MediatorVpnService extends VpnService {
         vpnInterface = null;
 
         underlyingNetwork = null;
+
+        vpnReadyCallback = null;
 
         dashboard.setVpnStatus(
                 "Stopped"

@@ -58,14 +58,43 @@ public class VpnTestActivity extends AppCompatActivity {
     // never sees the SYN, so TTFB can never be measured.
     private boolean pendingUrlLoad = false;
     private String pendingTargetUrl = null;
-    private static final String READER_STATUS_RUNNING = "Running";
+    //private static final String READER_STATUS_RUNNING = "Running";
     // TTFB END
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            mediatorVpnService = ((MediatorVpnService.LocalBinder) service).getService();
+
+            mediatorVpnService =
+                    ((MediatorVpnService.LocalBinder) service).getService();
+
             isServiceBound = true;
+
+            mediatorVpnService.setVpnReadyCallback(
+                    () -> runOnUiThread(() -> {
+
+                        Log.d(
+                                TAG,
+                                "VPN established callback received."
+                        );
+
+                        if (pendingUrlLoad && pendingTargetUrl != null) {
+
+                            String urlToLoad = pendingTargetUrl;
+
+                            pendingUrlLoad = false;
+                            pendingTargetUrl = null;
+
+                            updateStatus(
+                                    "VPN established. Loading "
+                                            + urlToLoad
+                                            + " ..."
+                            );
+
+                            webView.loadUrl(urlToLoad);
+                        }
+                    })
+            );
         }
 
         @Override
@@ -86,7 +115,6 @@ public class VpnTestActivity extends AppCompatActivity {
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
                     result -> {
-
                         if (result.getResultCode() == RESULT_OK) {
                             Log.d(TAG, "VPN permission granted by user.");
                             dashboardRepo.setPermissionStatus("Granted");
@@ -151,19 +179,7 @@ public class VpnTestActivity extends AppCompatActivity {
                     : "-");
             tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
 
-            // TTFB START
-            // Only now do we know the tun is actually up and the packet
-            // reader thread is running. Loading any earlier risks the
-            // WebView's TCP handshake happening outside the tunnel,
-            // which means TcpForwarder never sees the SYN and TTFB is
-            // never captured.
-            if (pendingUrlLoad && READER_STATUS_RUNNING.equals(stats.readerStatus)) {
-                pendingUrlLoad = false;
-                String urlToLoad = pendingTargetUrl;
-                pendingTargetUrl = null;
-                updateStatus("Tunnel ready. Loading " + urlToLoad + " ...");
-                webView.loadUrl(urlToLoad);
-            }
+
             // TTFB END
         });
     }
@@ -228,28 +244,27 @@ public class VpnTestActivity extends AppCompatActivity {
 
         updateStatus("Starting MediatorVpnService...");
 
-        Intent serviceIntent = new Intent(this, MediatorVpnService.class);
+        Intent serviceIntent =
+                new Intent(this, MediatorVpnService.class);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
         }
-        bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
 
-        // TTFB START
-        // Do NOT call webView.loadUrl() here. Starting/binding the service
-        // only schedules its onCreate/onStartCommand — it does not mean the
-        // tun interface exists or the packet-reader thread is running yet.
-        // Loading now risks the WebView completing its TCP handshake before
-        // per-UID VPN routing is active, so TcpForwarder would never see
-        // the SYN and TTFB would never be captured. Instead, defer the load
-        // until the dashboard reports the reader thread is actually running
-        // (see the stats observer in onCreate()).
+        bindService(
+                serviceIntent,
+                connection,
+                Context.BIND_AUTO_CREATE
+        );
+
         pendingTargetUrl = targetUrl;
         pendingUrlLoad = true;
-        updateStatus("VPN service starting. Waiting for tunnel before loading " + targetUrl + " ...");
-        // TTFB END
 
-        //webView.clearCache(true);
+        updateStatus(
+                "VPN service starting. Waiting for VPN establishment before loading "
+                        + targetUrl
+                        + " ..."
+        );
 
         btnStartVpn.setEnabled(false);
         btnStopVpn.setEnabled(true);
@@ -268,8 +283,13 @@ public class VpnTestActivity extends AppCompatActivity {
         // TTFB END
 
         if (isServiceBound && mediatorVpnService != null) {
-            mediatorVpnService.stopVpn();   // synchronous, real teardown, happens now
+
+            mediatorVpnService.clearVpnReadyCallback();
+
+            mediatorVpnService.stopVpn();
+
             unbindService(connection);
+
             isServiceBound = false;
             mediatorVpnService = null;
         }

@@ -43,27 +43,6 @@ class TcpForwarder {
 
     private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
 
-    /*
-     * ============================================================
-     * GLOBAL / VPN SESSION TTFB STATE
-     * ============================================================
-     *
-     * TTFB is measured only ONCE for the complete VPN test/session.
-     *
-     * START
-     *   -> resetGlobalTtfb()
-     *   -> first request payload captures request time
-     *   -> first server byte captures first-byte time
-     *   -> TTFB calculated once
-     *
-     * All later TCP sessions are ignored for TTFB.
-     *
-     * STOP
-     *   -> resetGlobalTtfb()
-     *
-     * START again
-     *   -> completely new TTFB measurement
-     */
 
     private final java.util.concurrent.atomic.AtomicBoolean globalTtfbCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
