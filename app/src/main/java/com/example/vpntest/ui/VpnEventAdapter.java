@@ -98,6 +98,10 @@ public class VpnEventAdapter extends RecyclerView.Adapter<VpnEventAdapter.EventV
                     iconRes = R.drawable.ic_error;
                     colorRes = R.color.status_error;
                     break;
+                case MATCH:
+                    iconRes = R.drawable.ic_search;
+                    colorRes = R.color.status_error;
+                    break;
                 default:
                     iconRes = levelIcon(event.level);
                     colorRes = levelColor(event.level);

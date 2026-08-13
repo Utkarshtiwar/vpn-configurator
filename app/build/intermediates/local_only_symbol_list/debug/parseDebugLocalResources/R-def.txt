@@ -13,6 +13,7 @@ drawable ic_error
 drawable ic_info
 drawable ic_launcher_background
 drawable ic_launcher_foreground
+drawable ic_search
 drawable ic_success
 drawable ic_tcp
 drawable ic_udp

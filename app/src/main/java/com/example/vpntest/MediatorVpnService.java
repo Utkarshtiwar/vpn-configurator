@@ -31,7 +31,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MediatorVpnService extends VpnService {
@@ -64,6 +66,16 @@ public class MediatorVpnService extends VpnService {
     private final Map<String, ConnectionInfo> activeConnections =
             new ConcurrentHashMap<>();
 
+    /*
+     * Website-IP verification (minimal, in-memory only - no history/persistence):
+     * the hostname and current DNS-resolved IP(s) of the website the user entered,
+     * plus a small per-session guard so a repeated match on the same destination
+     * IP doesn't spam the event console with duplicate MATCH entries.
+     */
+    private volatile String targetWebsiteHostname;
+    private volatile Set<String> targetWebsiteResolvedIps = Collections.emptySet();
+    private final Set<String> matchedIpsLoggedThisSession = ConcurrentHashMap.newKeySet();
+
     private final IBinder binder = new LocalBinder();
 
     private VpnReadyCallback vpnReadyCallback;
@@ -82,6 +94,18 @@ public class MediatorVpnService extends VpnService {
 
     public void clearVpnReadyCallback() {
         this.vpnReadyCallback = null;
+    }
+
+    /**
+     * Called by VpnTestActivity once the entered website's hostname has been
+     * DNS-resolved off the main thread. Replaces the current target for the
+     * active test only - no history of previous targets/resolutions is kept.
+     * Passing null/empty clears the target (e.g. when the VPN stops).
+     */
+    public void setWebsiteTarget(String hostname, Set<String> resolvedIps) {
+        this.targetWebsiteHostname = hostname;
+        this.targetWebsiteResolvedIps = resolvedIps != null ? resolvedIps : Collections.emptySet();
+        this.matchedIpsLoggedThisSession.clear();
     }
 
     public class LocalBinder extends Binder {
@@ -658,6 +682,57 @@ public class MediatorVpnService extends VpnService {
         packetReaderThread.start();
     }
 
+    /**
+     * Compares the just-parsed packet's destination IP against the current
+     * website's DNS-resolved IP(s) (NOT the system DNS resolver IPs). On a
+     * match, immediately logs one RED MATCH event to the existing event
+     * console. A tiny per-session set prevents duplicate MATCH spam if the
+     * same destination IP appears in many packets; no history/list is kept.
+     */
+    private void checkWebsiteIpMatch(ParsedPacket parsed) {
+
+        if (parsed.destinationIp == null) {
+            return;
+        }
+
+        String hostname = targetWebsiteHostname;
+        Set<String> resolvedIps = targetWebsiteResolvedIps;
+
+        if (hostname == null || resolvedIps.isEmpty()) {
+            return;
+        }
+
+        String matchedDnsIp = null;
+
+        for (String resolvedIp : resolvedIps) {
+            if (resolvedIp.equals(parsed.destinationIp)) {
+                matchedDnsIp = resolvedIp;
+                break;
+            }
+        }
+
+        if (matchedDnsIp == null) {
+            return;
+        }
+
+        if (!matchedIpsLoggedThisSession.add(parsed.destinationIp)) {
+            return;
+        }
+
+        String matchLog =
+                "[MATCH] Requested website destination IP matched\n"
+                        + "Website       : " + hostname + "\n"
+                        + "Destination IP: " + parsed.destinationIp + "\n"
+                        + "DNS IP        : " + matchedDnsIp + "\n"
+                        + "IP Version    : IPv" + parsed.ipVersion;
+
+        dashboard.logEvent(
+                matchLog,
+                VpnEvent.Level.ERROR,
+                VpnEvent.Category.MATCH
+        );
+    }
+
     private void handlePacket(
             byte[] packetBytes,
             int length
@@ -672,6 +747,8 @@ public class MediatorVpnService extends VpnService {
         }
 
         ParsedPacket parsed = PacketParser.parse(packetBytes, length);
+
+        checkWebsiteIpMatch(parsed);
 
         if (parsed.status == ParsedPacket.Status.MALFORMED) {
 
@@ -1029,6 +1106,10 @@ public class MediatorVpnService extends VpnService {
         underlyingNetwork = null;
 
         vpnReadyCallback = null;
+
+        targetWebsiteHostname = null;
+        targetWebsiteResolvedIps = Collections.emptySet();
+        matchedIpsLoggedThisSession.clear();
 
         dashboard.setVpnStatus(
                 "Stopped"

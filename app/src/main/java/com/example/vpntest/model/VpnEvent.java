@@ -7,7 +7,7 @@ public class VpnEvent {
     }
 
     public enum Category {
-        GENERAL, TCP, UDP, ICMP, OTHER, IPV6_SKIPPED, ERROR
+        GENERAL, TCP, UDP, ICMP, OTHER, IPV6_SKIPPED, ERROR, MATCH
     }
 
     public final String message;

@@ -26,6 +26,12 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import androidx.core.content.FileProvider;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
@@ -50,6 +56,12 @@ public class VpnTestActivity extends AppCompatActivity {
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
+
+    // Website-IP verification: resolves the entered website's hostname off
+    // the main thread so MediatorVpnService can compare it against parsed
+    // packet destination IPs. No history/list is kept here - see
+    // MediatorVpnService for the actual comparison and match logging.
+    private final ExecutorService websiteDnsExecutor = Executors.newSingleThreadExecutor();
 
     // TTFB START
     // The WebView must not start loading until the tunnel is actually
@@ -90,6 +102,8 @@ public class VpnTestActivity extends AppCompatActivity {
                                             + urlToLoad
                                             + " ..."
                             );
+
+                            resolveAndSetWebsiteTarget(urlToLoad);
 
                             webView.loadUrl(urlToLoad);
                         }
@@ -282,6 +296,11 @@ public class VpnTestActivity extends AppCompatActivity {
         pendingTargetUrl = null;
         // TTFB END
 
+        // Website-IP verification: no target website for the (now ending) session.
+        if (isServiceBound && mediatorVpnService != null) {
+            mediatorVpnService.setWebsiteTarget(null, null);
+        }
+
         if (isServiceBound && mediatorVpnService != null) {
 
             mediatorVpnService.clearVpnReadyCallback();
@@ -336,6 +355,50 @@ public class VpnTestActivity extends AppCompatActivity {
         }
 
         return input;
+    }
+
+    /**
+     * Extracts just the hostname from the entered URL (e.g.
+     * "https://www.google.com/search?q=test" -> "www.google.com") using
+     * proper URL parsing rather than string slicing.
+     */
+    private String extractHostname(String url) {
+        Uri uri = Uri.parse(url);
+        return uri.getHost();
+    }
+
+    /**
+     * Resolves the entered website's hostname off the main thread and, once
+     * resolved, hands the current IP address(es) to MediatorVpnService so it
+     * can compare them against parsed packet destination IPs. This does not
+     * keep any history - only the latest resolved set for the active test.
+     */
+    private void resolveAndSetWebsiteTarget(String urlToLoad) {
+        String hostname = extractHostname(urlToLoad);
+
+        if (hostname == null || hostname.isEmpty()) {
+            return;
+        }
+
+        websiteDnsExecutor.execute(() -> {
+            try {
+                InetAddress[] addresses = InetAddress.getAllByName(hostname);
+
+                Set<String> resolvedIps = new HashSet<>();
+                for (InetAddress address : addresses) {
+                    resolvedIps.add(address.getHostAddress());
+                }
+
+                if (isServiceBound && mediatorVpnService != null) {
+                    mediatorVpnService.setWebsiteTarget(hostname, resolvedIps);
+                }
+
+                Log.d(TAG, "Resolved website " + hostname + " -> " + resolvedIps);
+
+            } catch (UnknownHostException e) {
+                Log.w(TAG, "DNS resolution failed for " + hostname + ": " + e.getMessage());
+            }
+        });
     }
 
     private void updateStatus(String message) {
