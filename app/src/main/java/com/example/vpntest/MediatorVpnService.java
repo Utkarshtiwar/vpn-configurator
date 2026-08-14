@@ -102,10 +102,34 @@ public class MediatorVpnService extends VpnService {
      * active test only - no history of previous targets/resolutions is kept.
      * Passing null/empty clears the target (e.g. when the VPN stops).
      */
-    public void setWebsiteTarget(String hostname, Set<String> resolvedIps) {
+    public void setWebsiteTarget(
+            String hostname,
+            Set<String> resolvedIps) {
+
         this.targetWebsiteHostname = hostname;
-        this.targetWebsiteResolvedIps = resolvedIps != null ? resolvedIps : Collections.emptySet();
+
+        this.targetWebsiteResolvedIps =
+                resolvedIps != null
+                        ? resolvedIps
+                        : Collections.emptySet();
+
         this.matchedIpsLoggedThisSession.clear();
+
+        /*
+         * Pass the actual website-resolved IPs to TcpForwarder.
+         */
+        if (tcpForwarder != null) {
+
+            tcpForwarder.setWebsiteResolvedIps(
+                    this.targetWebsiteResolvedIps
+            );
+
+            Log.d(
+                    TAG,
+                    "Updated TcpForwarder with website resolved IPs = "
+                            + this.targetWebsiteResolvedIps
+            );
+        }
     }
 
     public class LocalBinder extends Binder {
@@ -509,6 +533,11 @@ public class MediatorVpnService extends VpnService {
                         underlyingNetwork
                 );
 
+
+        tcpForwarder.setWebsiteResolvedIps(
+                targetWebsiteResolvedIps
+        );
+
         tcpForwarder.resetGlobalTtfb();
 
         Log.d(
@@ -723,7 +752,7 @@ public class MediatorVpnService extends VpnService {
                 "[MATCH] Requested website destination IP matched\n"
                         + "Website       : " + hostname + "\n"
                         + "Destination IP: " + parsed.destinationIp + "\n"
-                        + "DNS IP        : " + matchedDnsIp + "\n"
+                        + "Resolved IP   : " + matchedDnsIp + "\n"
                         + "IP Version    : IPv" + parsed.ipVersion;
 
         dashboard.logEvent(

@@ -7,9 +7,11 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.model.VpnStats;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
-
 public final class VpnEventRepository {
 
     private static volatile VpnEventRepository instance;
@@ -47,17 +49,32 @@ public final class VpnEventRepository {
                          VpnEvent.Level level,
                          VpnEvent.Category category) {
 
+        long eventTimestamp = System.currentTimeMillis();
+
+        String formattedTimestamp =
+                new SimpleDateFormat(
+                        "HH:mm:ss:SSS",
+                        Locale.getDefault()
+                ).format(new Date(eventTimestamp));
+
+        String timestampedMessage =
+                "[" + formattedTimestamp + "] " + message;
+
         latestEvent.postValue(
                 new VpnEvent(
-                        message,
+                        timestampedMessage,
                         level,
                         category,
-                        System.currentTimeMillis()));
+                        eventTimestamp
+                )
+        );
 
-        // Save every UI log into the session log file.
+        /*
+         * Save the SAME timestamped event into the log file.
+         */
         com.example.vpntest.utils.VpnLogFileManager
                 .getInstance()
-                .log(message);
+                .log(timestampedMessage);
     }
     private void updateStats(UnaryOperator<VpnStats> transform) {
         VpnStats updated = currentStats.updateAndGet(transform);
@@ -93,5 +110,12 @@ public final class VpnEventRepository {
     }
     public void resetTtfb() {
         updateStats(s -> s.withTtfb(-1L));
+    }
+    private String getCurrentTimestamp() {
+
+        return new SimpleDateFormat(
+                "HH:mm:ss:SSS",
+                Locale.getDefault()
+        ).format(new Date());
     }
 }
