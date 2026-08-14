@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MediatorVpnService extends VpnService {
 
-    private static final String TAG = "MediatorVpnService";
+    private static final String TAG = "MediatorVpnService ";
     private static final String CHANNEL_ID = "vpn_test_channel";
     private static final int NOTIFICATION_ID = 1001;
 
@@ -58,20 +58,13 @@ public class MediatorVpnService extends VpnService {
 
     private volatile boolean isRunning = false;
 
-    /*
-     * Physical network used by TcpForwarder for outbound sockets.
-     */
+
     private Network underlyingNetwork;
 
     private final Map<String, ConnectionInfo> activeConnections =
             new ConcurrentHashMap<>();
 
-    /*
-     * Website-IP verification (minimal, in-memory only - no history/persistence):
-     * the hostname and current DNS-resolved IP(s) of the website the user entered,
-     * plus a small per-session guard so a repeated match on the same destination
-     * IP doesn't spam the event console with duplicate MATCH entries.
-     */
+
     private volatile String targetWebsiteHostname;
     private volatile Set<String> targetWebsiteResolvedIps = Collections.emptySet();
     private final Set<String> matchedIpsLoggedThisSession = ConcurrentHashMap.newKeySet();
@@ -96,12 +89,6 @@ public class MediatorVpnService extends VpnService {
         this.vpnReadyCallback = null;
     }
 
-    /**
-     * Called by VpnTestActivity once the entered website's hostname has been
-     * DNS-resolved off the main thread. Replaces the current target for the
-     * active test only - no history of previous targets/resolutions is kept.
-     * Passing null/empty clears the target (e.g. when the VPN stops).
-     */
     public void setWebsiteTarget(
             String hostname,
             Set<String> resolvedIps) {

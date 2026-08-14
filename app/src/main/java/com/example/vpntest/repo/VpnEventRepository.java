@@ -80,6 +80,13 @@ public final class VpnEventRepository {
         VpnStats updated = currentStats.updateAndGet(transform);
         stats.postValue(updated);
     }
+    public void logToFile(String message) {
+        String timestampedMessage =
+                "[" + getCurrentTimestamp() + "] " + message;
+        com.example.vpntest.utils.VpnLogFileManager
+                .getInstance()
+                .log(timestampedMessage);
+    }
 
     public void setVpnStatus(String status) {
         updateStats(s -> s.withVpnStatus(status));

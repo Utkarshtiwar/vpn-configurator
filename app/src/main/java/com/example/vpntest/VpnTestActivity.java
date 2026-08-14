@@ -37,10 +37,11 @@ import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
 import com.example.vpntest.ui.VpnEventAdapter;
 import com.example.vpntest.utils.VpnLogFileManager;
+import com.example.vpntest.webTest.WebViewHelper;
 
 public class VpnTestActivity extends AppCompatActivity {
 
-    private static final String TAG = "VpnTestActivity";
+    private static final String TAG = "VpnTestActivity ";
 
     private TextView tvStatus;
     private WebView webView;
@@ -57,21 +58,12 @@ public class VpnTestActivity extends AppCompatActivity {
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
 
-    // Website-IP verification: resolves the entered website's hostname off
-    // the main thread so MediatorVpnService can compare it against parsed
-    // packet destination IPs. No history/list is kept here - see
-    // MediatorVpnService for the actual comparison and match logging.
+
     private final ExecutorService websiteDnsExecutor = Executors.newSingleThreadExecutor();
 
-    // TTFB START
-    // The WebView must not start loading until the tunnel is actually
-    // capturing packets — otherwise its TCP handshake happens outside
-    // the tun (before per-UID VPN routing is active) and TcpForwarder
-    // never sees the SYN, so TTFB can never be measured.
     private boolean pendingUrlLoad = false;
     private String pendingTargetUrl = null;
-    //private static final String READER_STATUS_RUNNING = "Running";
-    // TTFB END
+
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -104,8 +96,7 @@ public class VpnTestActivity extends AppCompatActivity {
                             );
 
                             resolveAndSetWebsiteTarget(urlToLoad);
-
-                            webView.loadUrl(urlToLoad);
+                            websiteDnsExecutor.execute(() -> webViewHelper.runWebTest(urlToLoad));
                         }
                     })
             );
@@ -125,6 +116,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private VpnDashboardViewModel viewModel;
     private final VpnEventRepository dashboardRepo = VpnEventRepository.getInstance();
 
+    private final WebViewHelper webViewHelper = new WebViewHelper();
     private final ActivityResultLauncher<Intent> vpnPermissionLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
@@ -132,13 +124,13 @@ public class VpnTestActivity extends AppCompatActivity {
                         if (result.getResultCode() == RESULT_OK) {
                             Log.d(TAG, "VPN permission granted by user.");
                             dashboardRepo.setPermissionStatus("Granted");
-                            dashboardRepo.logEvent("VPN permission granted",
+                            dashboardRepo.logEvent(TAG+"VPN permission granted",
                                     VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
                             startVpnServiceAndLoadWebView();
                         } else {
                             Log.d(TAG, "VPN permission denied by user.");
                             dashboardRepo.setPermissionStatus("Denied");
-                            dashboardRepo.logEvent("VPN permission denied",
+                            dashboardRepo.logEvent(TAG+"VPN permission denied",
                                     VpnEvent.Level.ERROR, VpnEvent.Category.ERROR);
                             updateStatus("VPN permission denied.");
                             Toast.makeText(this,
@@ -234,7 +226,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private void onStartVpnClicked() {
         updateStatus("Requesting VPN permission...");
         dashboardRepo.setPermissionStatus("Requesting");
-        dashboardRepo.logEvent("Requesting VPN permission",
+        dashboardRepo.logEvent(TAG+"Requesting VPN permission",
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
         Intent prepareIntent = VpnService.prepare(this);
@@ -246,7 +238,7 @@ public class VpnTestActivity extends AppCompatActivity {
 
             Log.d(TAG, "VPN permission already granted.");
             dashboardRepo.setPermissionStatus("Granted");
-            dashboardRepo.logEvent("VPN permission already granted",
+            dashboardRepo.logEvent(TAG+"VPN permission already granted",
                     VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
             startVpnServiceAndLoadWebView();
         }
@@ -286,17 +278,13 @@ public class VpnTestActivity extends AppCompatActivity {
 
     private void onStopVpnClicked() {
         updateStatus("Stopping VPN...");
-        dashboardRepo.logEvent("Stopping VPN (user requested)",
+        dashboardRepo.logEvent(TAG+"Stopping VPN (user requested)",
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
-        // TTFB START
-        // Cancel any deferred load — the tunnel is going away, so there's
-        // nothing left to wait for and we must not load into a torn-down session.
+
         pendingUrlLoad = false;
         pendingTargetUrl = null;
-        // TTFB END
 
-        // Website-IP verification: no target website for the (now ending) session.
         if (isServiceBound && mediatorVpnService != null) {
             mediatorVpnService.setWebsiteTarget(null, null);
         }
@@ -316,13 +304,13 @@ public class VpnTestActivity extends AppCompatActivity {
         Intent serviceIntent = new Intent(this, MediatorVpnService.class);
         stopService(serviceIntent);
 
-        webView.stopLoading();
-        webView.loadUrl("about:blank");
+//        webView.stopLoading();
+//        webView.loadUrl("about:blank");
 
         dashboardRepo.setVpnStatus("Stopped");
         dashboardRepo.setInterfaceStatus("Closed");
         dashboardRepo.setReaderStatus("Stopped");
-        dashboardRepo.logEvent("VPN stopped by user",
+        dashboardRepo.logEvent(TAG+"VPN stopped by user",
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
         updateStatus("VPN stopped.");
@@ -357,22 +345,13 @@ public class VpnTestActivity extends AppCompatActivity {
         return input;
     }
 
-    /**
-     * Extracts just the hostname from the entered URL (e.g.
-     * "https://www.google.com/search?q=test" -> "www.google.com") using
-     * proper URL parsing rather than string slicing.
-     */
+
     private String extractHostname(String url) {
         Uri uri = Uri.parse(url);
         return uri.getHost();
     }
 
-    /**
-     * Resolves the entered website's hostname off the main thread and, once
-     * resolved, hands the current IP address(es) to MediatorVpnService so it
-     * can compare them against parsed packet destination IPs. This does not
-     * keep any history - only the latest resolved set for the active test.
-     */
+
     private void resolveAndSetWebsiteTarget(String urlToLoad) {
         String hostname = extractHostname(urlToLoad);
 

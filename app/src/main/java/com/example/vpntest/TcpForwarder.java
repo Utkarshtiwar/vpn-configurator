@@ -71,6 +71,8 @@ class TcpForwarder {
 
     private volatile String globalTtfbRequestConnectionKey = null;
     private volatile String globalTtfbRequestDestinationIp = null;
+    private volatile String globalTtfbRequestResolvedIp = null;
+    private volatile int globalTtfbRequestPayloadSize = 0;
 
     TcpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock,
                  Network underlyingNetwork) {
@@ -290,6 +292,22 @@ class TcpForwarder {
                             System.currentTimeMillis();
 
                     /*
+                     * Save the EXACT destination IP that matched
+                     * against the resolved website IPs.
+                     */
+                    globalTtfbRequestDestinationIp =
+                            destinationIp;
+                    globalTtfbRequestResolvedIp =
+                            destinationIp;
+
+                    /*
+                     * Save the request payload size that started TTFB.
+                     */
+                    globalTtfbRequestPayloadSize =
+                            payloadLen;
+
+
+                    /*
                      * Save the TCP connection on which the
                      * TTFB request was sent.
                      */
@@ -298,16 +316,33 @@ class TcpForwarder {
 
                     requestTimestampCapturedForThisPacket = true;
 
-                    Log.i(
-                            TAG,
-                            "========== TTFB REQUEST START ==========\n"
-                                    + "Destination IP : " + destinationIp + "\n"
-                                    + "Payload Length  : " + payloadLen + "\n"
-                                    + "Connection Key  : " + key + "\n"
-                                    + "Request Time    : "
+                    String ttfbRequestTimestampLog =
+                            "========== TTFB REQUEST TIMESTAMP ASSIGNED ==========\n"
+                                    + "Timestamp Type   : REQUEST START\n"
+                                    + "Request Time     : "
                                     + formatTimestamp(globalRequestSentWallTime)
                                     + "\n"
-                                    + "========================================="
+                                    + "Destination IP   : "
+                                    + globalTtfbRequestDestinationIp
+                                    + "\n"
+                                    + "Payload Size     : "
+                                    + globalTtfbRequestPayloadSize
+                                    + " bytes\n"
+                                    + "Connection Key   : "
+                                    + key
+                                    + "\n"
+                                    + "=====================================================";
+
+                    Log.i(
+                            TAG,
+                            ttfbRequestTimestampLog
+                    );
+
+
+                    dashboard.logEvent(
+                            ttfbRequestTimestampLog,
+                            VpnEvent.Level.INFO,
+                            VpnEvent.Category.TCP
                     );
                 }
 
@@ -334,6 +369,8 @@ class TcpForwarder {
 
                     globalRequestCaptured.set(false);
                     globalRequestSentTime = 0L;
+                    globalTtfbRequestDestinationIp = null;
+                    globalTtfbRequestPayloadSize = 0;
                     globalTtfbRequestConnectionKey = null;
                 }
 
@@ -417,18 +454,7 @@ class TcpForwarder {
                         VpnEvent.Category.TCP
                 );
 
-                /*
-                 * IMPORTANT:
-                 *
-                 * Do NOT call vpnService.protect(socket)
-                 * here.
-                 *
-                 * protect() was consistently returning false
-                 * on the device.
-                 *
-                 * Instead explicitly bind this socket to the
-                 * active physical Network.
-                 */
+
 
                 if (underlyingNetwork == null) {
                     Log.e(TAG, "No underlying Network available for " + key);
@@ -654,6 +680,8 @@ class TcpForwarder {
         globalRequestSentWallTime = 0L;
         globalFirstByteReceivedWallTime = 0L;
         globalTtfbMs = -1L;
+        globalTtfbRequestDestinationIp = null;
+        globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
     }
 
@@ -671,6 +699,8 @@ class TcpForwarder {
         globalRequestSentWallTime = 0L;
         globalFirstByteReceivedWallTime = 0L;
         globalTtfbMs = -1L;
+        globalTtfbRequestDestinationIp = null;
+        globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
         Log.d(TAG, "GLOBAL TTFB state RESET");
     }
@@ -794,6 +824,35 @@ class TcpForwarder {
                                 forwarder.globalFirstByteReceivedWallTime =
                                         System.currentTimeMillis();
 
+                                String ttfbFirstByteTimestampLog =
+                                        "========== TTFB FIRST BYTE TIMESTAMP ASSIGNED ==========\n"
+                                                + "Timestamp Type   : FIRST BYTE RECEIVED\n"
+                                                + "First Byte Time  : "
+                                                + forwarder.formatTimestamp(
+                                                forwarder.globalFirstByteReceivedWallTime
+                                        )
+                                                + "\n"
+                                                + "Destination IP   : "
+                                                + forwarder.globalTtfbRequestDestinationIp
+                                                + "\n"
+                                                + "Received Payload : "
+                                                + n
+                                                + " bytes\n"
+                                                + "=======================================================";
+
+
+                                Log.i(
+                                        TAG,
+                                        ttfbFirstByteTimestampLog
+                                );
+
+
+                                forwarder.dashboard.logEvent(
+                                        ttfbFirstByteTimestampLog,
+                                        VpnEvent.Level.INFO,
+                                        VpnEvent.Category.TCP
+                                );
+
                                 /*
                                  * ================================================
                                  * TTFB IN MILLISECONDS
@@ -842,13 +901,14 @@ class TcpForwarder {
 
                                 String ttfbLog =
                                         "========== TTFB ==========\n"
-                                                + "Resolved IP : "
-                                                + forwarder.ipStr(
-                                                this.dstIp
-                                        )
+                                                + "Destination IP : "
+                                                + forwarder.globalTtfbRequestDestinationIp
                                                 + "\n"
-                                                + "Payload Size   : "
-                                                + n
+                                                + "Resolved IP    : "
+                                                + forwarder.globalTtfbRequestResolvedIp
+                                                + "\n"
+                                                + "Request Payload: "
+                                                + forwarder.globalTtfbRequestPayloadSize
                                                 + " bytes\n"
                                                 + "\n"
                                                 + "Request Sent Time: "
