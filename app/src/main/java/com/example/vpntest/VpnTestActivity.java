@@ -41,7 +41,7 @@ import com.example.vpntest.webTest.WebViewHelper;
 
 public class VpnTestActivity extends AppCompatActivity {
 
-    private static final String TAG = "VpnTestActivity ";
+    private static final String TAG = "VpnTestActivity : ";
 
     private TextView tvStatus;
     private WebView webView;
@@ -157,6 +157,16 @@ public class VpnTestActivity extends AppCompatActivity {
 
         webView.getSettings().setJavaScriptEnabled(true);
         webView.setWebViewClient(new WebViewClient());
+
+        // WebViewHelper now does the fetch manually (no more WebViewClient.onPageFinished()),
+        // so it tells us via this listener when the "page" has finished loading.
+        webViewHelper.setWebTestListener((success, loadedUrl) -> runOnUiThread(() -> {
+            if (success) {
+                updateStatus("WebView Loaded: " + loadedUrl);
+            } else {
+                updateStatus("WebView Load Failed: " + loadedUrl);
+            }
+        }));
 
         btnStartVpn.setOnClickListener(v -> onStartVpnClicked());
         btnStopVpn.setOnClickListener(v -> onStopVpnClicked());
@@ -334,9 +344,9 @@ public class VpnTestActivity extends AppCompatActivity {
                 ? etTargetUrl.getText().toString().trim()
                 : "";
 
-//        if (input.isEmpty()) {
-//            input = "https://www.google.com";
-//        }
+        if (input.isEmpty()) {
+            input = "https://www.google.com";
+        }
 
         if (!input.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
             input = "https://" + input;

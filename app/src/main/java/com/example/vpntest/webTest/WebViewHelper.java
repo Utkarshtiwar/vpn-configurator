@@ -20,6 +20,18 @@ public class WebViewHelper {
     private final VpnEventRepository dashboard =
             VpnEventRepository.getInstance();
 
+    // Callback so the UI can react when the "page load" (our manual fetch) finishes,
+    // just like WebViewClient.onPageFinished() used to give us.
+    public interface WebTestListener {
+        void onWebTestFinished(boolean success, String url);
+    }
+
+    private WebTestListener listener;
+
+    public void setWebTestListener(WebTestListener listener) {
+        this.listener = listener;
+    }
+
     public void runWebTest(String url) {
 
         String host_name = url;
@@ -93,6 +105,11 @@ public class WebViewHelper {
                             + "RequestStart Time T0_0 ms:"
                             + requestStart
             );
+//            dashboard.logToFile(
+//                    TAG
+//                            + "T0_CONNECTION_START\n"
+//                            + requestStart
+//            );
 
 
             // =========================================================
@@ -192,11 +209,11 @@ public class WebViewHelper {
             long connectStart =
                     System.currentTimeMillis();
 
-            dashboard.logToFile(
-                    TAG
-                            + "Connection start T0 Time in ms:"
-                            + connectStart
-            );
+//            dashboard.logToFile(
+//                    TAG
+//                            + "Connection start T0 Time in ms:"
+//                            + connectStart
+//            );
 
             dashboard.logToFile(
                     TAG + " WEB TEST CONNECT START"
@@ -207,6 +224,7 @@ public class WebViewHelper {
             // HTTP CONNECTION
             // =========================================================
 
+            dashboard.logToFile(TAG+"T0_CONNECTION_START");
             HttpURLConnection urlConnection =
                     (HttpURLConnection)
                             new URL(url).openConnection();
@@ -225,11 +243,11 @@ public class WebViewHelper {
             long connectEnd =
                     System.currentTimeMillis();
 
-            dashboard.logToFile(
-                    TAG
-                            + "Connection End T1 Time in ms:"
-                            + connectEnd
-            );
+//            dashboard.logToFile(
+//                    TAG
+//                            + "T1_RESPONSE_CODE_RXD\n"
+//                            + connectEnd
+//            );
 
             dashboard.logToFile(
                     TAG + "WEB TEST CONNECT SUCCESS"
@@ -261,6 +279,11 @@ public class WebViewHelper {
 
             int responseCode =
                     urlConnection.getResponseCode();
+            dashboard.logToFile(
+                    TAG
+                            + "T1_RESPONSE_CODE_RXD\n"
+                            + responseCode
+            );
 
             long ttfb =
                     System.currentTimeMillis();
@@ -278,8 +301,8 @@ public class WebViewHelper {
 
             dashboard.logToFile(
                     TAG
-                            + "Fetch response code T2 time ms:"
-                            + ttfb
+                            + "T2_TTFB\n"
+                            + ttfbTime
             );
 
             dashboard.logToFile(
@@ -367,6 +390,11 @@ public class WebViewHelper {
                 bis.close();
                 inputStream.close();
 
+                // Equivalent of onPageFinished(): notify UI the "page" loaded.
+                if (listener != null) {
+                    listener.onWebTestFinished(true, url);
+                }
+
             } else {
 
                 // =====================================================
@@ -378,6 +406,10 @@ public class WebViewHelper {
                                 + "WEB TEST RESPONSE FAILED: "
                                 + responseCode
                 );
+
+                if (listener != null) {
+                    listener.onWebTestFinished(false, url);
+                }
             }
 
 
@@ -507,6 +539,10 @@ public class WebViewHelper {
                     "IOException in web test",
                     io
             );
+
+            if (listener != null) {
+                listener.onWebTestFinished(false, url);
+            }
 
         } catch (Exception e) {
 

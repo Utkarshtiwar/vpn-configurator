@@ -19,7 +19,7 @@ import com.example.vpntest.repo.VpnEventRepository;
 
 
 class UdpForwarder {
-    private static final String TAG = "UdpForwarder";
+    private static final String TAG = "VPN_UdpForwarder : ";
     private static final long SESSION_IDLE_TIMEOUT_MS = 60_000;
 
     private final VpnService vpnService;
@@ -87,7 +87,7 @@ class UdpForwarder {
                             "Packet Length      : " + payload.length + "\n" +
                             "==============================";
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     udpTxLog,
                     VpnEvent.Level.INFO,
                     VpnEvent.Category.UDP
@@ -170,7 +170,7 @@ class UdpForwarder {
                         "Packet Length      : " + dataLength + "\n" +
                         "==============================";
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 udpRxLog,
                 VpnEvent.Level.INFO,
                 VpnEvent.Category.UDP

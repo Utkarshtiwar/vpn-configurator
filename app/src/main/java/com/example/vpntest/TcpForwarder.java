@@ -1,5 +1,6 @@
 package com.example.vpntest;
 
+import android.icu.text.IDNA;
 import android.net.Network;
 import android.net.VpnService;
 import android.util.Log;
@@ -26,7 +27,7 @@ import com.example.vpntest.repo.VpnEventRepository;
 
 class TcpForwarder {
 
-    private static final String TAG = "TcpForwarder";
+    private static final String TAG = "VPN_TcpForwarder : ";
 
     private final VpnService vpnService;
     private final FileOutputStream tunOut;
@@ -52,6 +53,27 @@ class TcpForwarder {
 
     private final java.util.concurrent.atomic.AtomicBoolean globalRequestCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    // Tracks whether the first outgoing IP-match event has already been logged
+    private final java.util.concurrent.atomic.AtomicBoolean firstOutgoingIpMatchLogged =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    // Tracks whether the first incoming IP-match event has already been logged
+    private final java.util.concurrent.atomic.AtomicBoolean firstIncomingIpMatchLogged =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final java.util.concurrent.atomic.AtomicInteger outgoingIpMatchCount =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
+    private final java.util.concurrent.atomic.AtomicInteger incomingIpMatchCount =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
+    // Total TCP packets forwarded device -> real server (all destinations, matched or not)
+    private final java.util.concurrent.atomic.AtomicInteger totalPacketsSent =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
+    // Total TCP packets received real server -> device (all sources, matched or not)
+    private final java.util.concurrent.atomic.AtomicInteger totalPacketsReceived =
+            new java.util.concurrent.atomic.AtomicInteger(0);
 
     /*
      * Monotonic timestamps.
@@ -136,6 +158,7 @@ class TcpForwarder {
 
         StringBuilder tcpHeaderLog = new StringBuilder();
         tcpHeaderLog.append("========== [TX] TCP/IP HEADER ==========\n")
+
                 .append("IP Version         : IPv").append(version).append("\n")
                 .append("Source IP          : ").append(ipStr(srcIp)).append("\n")
                 .append("Destination IP     : ").append(ipStr(dstIp)).append("\n")
@@ -163,7 +186,7 @@ class TcpForwarder {
                 .append("===================================");
 
         Log.d(TAG, tcpHeaderLog.toString());
-        dashboard.logEvent(tcpHeaderLog.toString(), VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+        dashboard.logEvent(TAG+tcpHeaderLog.toString(), VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
         String key = parsed.connectionKey();
 
@@ -176,6 +199,14 @@ class TcpForwarder {
 
         TcpSession session = sessions.get(key);
 
+        if (session != null) {
+            dashboard.logEvent(
+                    TAG
+                            + "Session State = " + session.state,
+                    VpnEvent.Level.INFO,
+                    VpnEvent.Category.TCP
+            );
+        }
         if (isSyn && !isAck) {
 
             if (session != null) {
@@ -185,6 +216,10 @@ class TcpForwarder {
 
                     if (session.synAckSent.get()) {
                         Log.d(TAG, "Retransmitted SYN for existing session " + key + ", re-sending SYN-ACK.");
+                        dashboard.logEvent(TAG+"Retransmitted SYN for existing session " + key + ", re-sending SYN-ACK.",
+                                VpnEvent.Level.INFO,
+                                VpnEvent.Category.TCP
+                                );
                         sendSynAck(session);
                     }
 
@@ -218,7 +253,8 @@ class TcpForwarder {
 
         Log.d(TAG, "payload len and sessionstate : " + payloadLen + " " + session.state);
 
-        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
+//        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
+        if ( session.state == TcpSession.State.ESTABLISHED) {
 
             byte[] data = new byte[payloadLen];
 
@@ -259,65 +295,81 @@ class TcpForwarder {
                             + ", Payload Length = " + payloadLen
             );
 
+            boolean isFirstOutgoingMatch = false;
+
+            if (destinationIpMatched) {
+
+                isFirstOutgoingMatch =
+                        firstOutgoingIpMatchLogged.compareAndSet(false, true);
+
+                int matchCount = outgoingIpMatchCount.incrementAndGet();
+
+                String evtName = isFirstOutgoingMatch ? "OG_IP_MATCH" : "O_IP_MATCH";
+
+                String ipMatchLog =
+                        "========== " + evtName + " ==========\n"
+                                + "Match Count    : " + matchCount + "\n"
+                                + "Destination IP : " + destinationIp + "\n"
+                                + "Payload Length : " + payloadLen + " bytes\n"
+                                + "Connection Key : " + key + "\n"
+                                + "Session State  : " + session.state + "\n"
+                                + "===================================";
+
+                Log.i(TAG, ipMatchLog);
+
+                dashboard.logEvent(
+                        TAG + ipMatchLog,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
+                Log.i(TAG, ipMatchLog);
+
+                dashboard.logEvent(
+                        TAG + ipMatchLog,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
+            }
+
             boolean requestTimestampCapturedForThisPacket = false;
 
             try {
 
                 /*
-                 * =====================================================
+                 * ================================================
                  * CAPTURE REQUEST START TIME
-                 * =====================================================
+                 * ================================================
                  *
-                 * This MUST happen immediately before write().
+                 * Only the FIRST outgoing IP-matched packet
+                 * captures TTFB request start time.
+                 *
+                 * This remains immediately before write().
                  */
-                if (destinationIpMatched
-                        && payloadLen > 0
+                if (isFirstOutgoingMatch
                         && globalRequestCaptured.compareAndSet(false, true)) {
 
-                    /*
-                     * ================================================
-                     * TTFB REQUEST START TIME
-                     * ================================================
-                     *
-                     * nanoTime():
-                     * Accurate TTFB duration calculation ke liye.
-                     *
-                     * currentTimeMillis():
-                     * Human-readable log timestamp ke liye.
-                     */
                     globalRequestSentTime =
                             System.nanoTime();
 
                     globalRequestSentWallTime =
                             System.currentTimeMillis();
 
-                    /*
-                     * Save the EXACT destination IP that matched
-                     * against the resolved website IPs.
-                     */
                     globalTtfbRequestDestinationIp =
                             destinationIp;
+
                     globalTtfbRequestResolvedIp =
                             destinationIp;
 
-                    /*
-                     * Save the request payload size that started TTFB.
-                     */
                     globalTtfbRequestPayloadSize =
                             payloadLen;
 
-
-                    /*
-                     * Save the TCP connection on which the
-                     * TTFB request was sent.
-                     */
                     globalTtfbRequestConnectionKey =
                             key;
 
                     requestTimestampCapturedForThisPacket = true;
 
                     String ttfbRequestTimestampLog =
-                            "========== TTFB REQUEST TIMESTAMP ASSIGNED ==========\n"
+                            "========== T0_REQUEST_START ==========\n"
                                     + "Timestamp Type   : REQUEST START\n"
                                     + "Request Time     : "
                                     + formatTimestamp(globalRequestSentWallTime)
@@ -338,22 +390,23 @@ class TcpForwarder {
                             ttfbRequestTimestampLog
                     );
 
-
                     dashboard.logEvent(
-                            ttfbRequestTimestampLog,
+                            TAG + ttfbRequestTimestampLog,
                             VpnEvent.Level.INFO,
                             VpnEvent.Category.TCP
                     );
                 }
 
                 /*
-                 * =====================================================
+                 * ================================================
                  * WRITE REQUEST TO REAL SOCKET
-                 * =====================================================
+                 * ================================================
                  */
                 session.realOut.write(data);
 
                 session.realOut.flush();
+
+                int sentCount = totalPacketsSent.incrementAndGet();
 
                 Log.d(TAG, "Payload written successfully.");
 
@@ -361,6 +414,12 @@ class TcpForwarder {
                         TAG,
                         "Payload Length = " + payloadLen
                 );
+
+                Log.d(TAG, "Total Packets Sent So Far = " + sentCount);
+                dashboard.logEvent(TAG+"Total Packets Sent So Far = " + sentCount,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                        );
 
             } catch (IOException e) {
 
@@ -445,10 +504,10 @@ class TcpForwarder {
 
             try {
                 Log.d(TAG, "Creating new TCP session...");
-                dashboard.logEvent("Creating new TCP session ..", VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+                dashboard.logEvent(TAG+"Creating new TCP session ..", VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
                 Log.d(TAG, "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
-                dashboard.logEvent(
+                dashboard.logEvent(TAG+
                         "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort,
                         VpnEvent.Level.INFO,
                         VpnEvent.Category.TCP
@@ -458,7 +517,7 @@ class TcpForwarder {
 
                 if (underlyingNetwork == null) {
                     Log.e(TAG, "No underlying Network available for " + key);
-                    dashboard.logEvent("No underlying Network available for " + key,
+                    dashboard.logEvent(TAG+"No underlying Network available for " + key,
                             VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
 
                     sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
@@ -472,11 +531,11 @@ class TcpForwarder {
                 try {
                     underlyingNetwork.bindSocket(socket);
                     Log.d(TAG, "Underlying Network bindSocket SUCCESS for " + key);
-                    dashboard.logEvent("Underlying Network bindSocket SUCCESS for " + key,
+                    dashboard.logEvent(TAG+"Underlying Network bindSocket SUCCESS for " + key,
                             VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
                 } catch (IOException e) {
                     Log.e(TAG, "Underlying Network bindSocket FAILED for " + key, e);
-                    dashboard.logEvent("Underlying Network bindSocket FAILED for " + key + " : " + e.getMessage(),
+                    dashboard.logEvent(TAG+"Underlying Network bindSocket FAILED for " + key + " : " + e.getMessage(),
                             VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
 
                     try {
@@ -494,7 +553,7 @@ class TcpForwarder {
                 socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
 
                 Log.d(TAG, "Socket connected successfully.");
-                dashboard.logEvent("Socket connected successfully.", VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
+                dashboard.logEvent(TAG+"Socket connected successfully.", VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
 
                 session.realSocket = socket;
 
@@ -507,7 +566,7 @@ class TcpForwarder {
                     serverName = "Unknown";
                     Log.e(TAG, "Exception while rsolving host name : "
                             + intToInetName(dstIp).getHostAddress() + ":" + dstPort, e);
-                    dashboard.logEvent(
+                    dashboard.logEvent(TAG+
                             "Exception while rsolving host name : "
                                     + intToInetName(dstIp).getHostAddress() + ":" + dstPort
                                     + " exception is : " + e.getMessage(),
@@ -516,7 +575,7 @@ class TcpForwarder {
                 }
 
                 Log.d(TAG, "Creating TCP session");
-                dashboard.logEvent(
+                dashboard.logEvent(TAG+
                         "========== SERVER ==========\n"
                                 + "Server IP      : " + serverIp + "\n"
                                 + "Server Name    : " + serverName + "\n"
@@ -535,7 +594,7 @@ class TcpForwarder {
 
             } catch (IOException e) {
                 Log.e(TAG, "TCP connect failed for " + key + ": " + e.getMessage(), e);
-                dashboard.logEvent("TCP socket exception " + e.getMessage(),
+                dashboard.logEvent(TAG+"TCP socket exception " + e.getMessage(),
                         VpnEvent.Level.ERROR, VpnEvent.Category.TCP);
 
                 sendRst(srcIp, srcPort, dstIp, dstPort, session.deviceSeq, session.clientNextSeq);
@@ -595,7 +654,7 @@ class TcpForwarder {
 
         Log.d(TAG, "Reporting TTFB = " + ttfbMs + " ms");
 
-        dashboard.logEvent("TTFB : " + ttfbMs + " ms  (" + key + ")",
+        dashboard.logEvent(TAG+"TTFB : " + ttfbMs + " ms  (" + key + ")",
                 VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
 
         dashboard.recordTtfb(ttfbMs);
@@ -683,6 +742,10 @@ class TcpForwarder {
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
+        firstOutgoingIpMatchLogged.set(false);
+        firstIncomingIpMatchLogged.set(false);
+        outgoingIpMatchCount.set(0);
+        incomingIpMatchCount.set(0);
     }
 
 
@@ -702,6 +765,10 @@ class TcpForwarder {
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
+        firstOutgoingIpMatchLogged.set(false);
+        firstIncomingIpMatchLogged.set(false);
+        outgoingIpMatchCount.set(0);
+        incomingIpMatchCount.set(0);
         Log.d(TAG, "GLOBAL TTFB state RESET");
     }
 
@@ -790,8 +857,16 @@ class TcpForwarder {
 
                     while ((n = realIn.read(buf)) != -1) {
 
+                        int receivedCount = forwarder.totalPacketsReceived.incrementAndGet();
+
                         Log.d(TAG, "Received " + n + " bytes from server.");
                         Log.d(TAG, "realIn.read() = " + n);
+                        Log.d(TAG, "Total Packets Received So Far = " + receivedCount);
+                        forwarder.dashboard.logEvent(TAG+
+                                        "Total Packets Received So Far = " + receivedCount,
+                                VpnEvent.Level.INFO,
+                                VpnEvent.Category.TCP
+                        );
                         Log.d(TAG, "First byte condition checking");
 
                         /*
@@ -825,7 +900,7 @@ class TcpForwarder {
                                         System.currentTimeMillis();
 
                                 String ttfbFirstByteTimestampLog =
-                                        "========== TTFB FIRST BYTE TIMESTAMP ASSIGNED ==========\n"
+                                        "========== T1_FIRST_BYTE_RECEIVED ==========\n"
                                                 + "Timestamp Type   : FIRST BYTE RECEIVED\n"
                                                 + "First Byte Time  : "
                                                 + forwarder.formatTimestamp(
@@ -847,7 +922,7 @@ class TcpForwarder {
                                 );
 
 
-                                forwarder.dashboard.logEvent(
+                                forwarder.dashboard.logEvent(TAG+
                                         ttfbFirstByteTimestampLog,
                                         VpnEvent.Level.INFO,
                                         VpnEvent.Category.TCP
@@ -900,7 +975,7 @@ class TcpForwarder {
                                  */
 
                                 String ttfbLog =
-                                        "========== TTFB ==========\n"
+                                        "========== T2_TTFB ==========\n"
                                                 + "Destination IP : "
                                                 + forwarder.globalTtfbRequestDestinationIp
                                                 + "\n"
@@ -937,7 +1012,7 @@ class TcpForwarder {
                                         ttfbLog
                                 );
 
-                                forwarder.dashboard.logEvent(
+                                forwarder.dashboard.logEvent(TAG+
                                         ttfbLog,
                                         VpnEvent.Level.INFO,
                                         VpnEvent.Category.TCP
@@ -964,7 +1039,35 @@ class TcpForwarder {
                                             + "ACK Number         : " + clientNextSeq + "\n"
                                             + "=====================================";
 
-                            forwarder.dashboard.logEvent(rxHeaderLog, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+                            forwarder.dashboard.logEvent(TAG+rxHeaderLog, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+
+                            String incomingIp = TcpForwarder.ipStr(dstIp);
+
+                            if (forwarder.websiteResolvedIps.contains(incomingIp)) {
+
+                                boolean isFirstIncomingMatch =
+                                        forwarder.firstIncomingIpMatchLogged.compareAndSet(false, true);
+
+                                int matchCount = forwarder.incomingIpMatchCount.incrementAndGet();
+
+                                String evtName = isFirstIncomingMatch ? "IC_IP_MATCH" : "I_IP_MATCH";
+
+                                String ipMatchLog =
+                                        "========== " + evtName + " ==========\n"
+                                                + "Match Count    : " + matchCount + "\n"
+                                                + "Source IP      : " + incomingIp + "\n"
+                                                + "Payload Length : " + n + " bytes\n"
+                                                + "Connection Key : " + key + "\n"
+                                                + "===================================";
+
+                                Log.i(TAG, ipMatchLog);
+
+                                forwarder.dashboard.logEvent(
+                                        TAG + ipMatchLog,
+                                        VpnEvent.Level.INFO,
+                                        VpnEvent.Category.TCP
+                                );
+                            }
                         }
 
                         forwarder.sendDataToClient(this, buf, n);

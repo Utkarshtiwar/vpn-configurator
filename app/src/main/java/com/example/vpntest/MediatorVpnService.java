@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MediatorVpnService extends VpnService {
 
-    private static final String TAG = "MediatorVpnService ";
+    private static final String TAG = "VPN_MediatorVpnService : ";
     private static final String CHANNEL_ID = "vpn_test_channel";
     private static final int NOTIFICATION_ID = 1001;
 
@@ -102,9 +102,7 @@ public class MediatorVpnService extends VpnService {
 
         this.matchedIpsLoggedThisSession.clear();
 
-        /*
-         * Pass the actual website-resolved IPs to TcpForwarder.
-         */
+
         if (tcpForwarder != null) {
 
             tcpForwarder.setWebsiteResolvedIps(
@@ -211,6 +209,7 @@ public class MediatorVpnService extends VpnService {
                 .startSession(this);
 
         dashboard.logEvent(
+                TAG+
                 "Starting VPN Service",
                 VpnEvent.Level.INFO,
                 VpnEvent.Category.GENERAL
@@ -297,7 +296,7 @@ public class MediatorVpnService extends VpnService {
                     e
             );
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "Failed to configure IPv6 VPN address/route; continuing IPv4-only: " + e.getMessage(),
                     VpnEvent.Level.WARNING,
                     VpnEvent.Category.GENERAL
@@ -352,7 +351,7 @@ public class MediatorVpnService extends VpnService {
                     String dnsIp =
                             dnsServer.getHostAddress();
 
-                    dashboard.logEvent(
+                    dashboard.logEvent(TAG+
                             "========== DNS SERVER ==========\n"
                                     + "DNS Server IP : "
                                     + dnsIp
@@ -380,7 +379,7 @@ public class MediatorVpnService extends VpnService {
                     "NO ACTIVE UNDERLYING NETWORK FOUND"
             );
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "No active underlying network found",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
@@ -441,7 +440,7 @@ public class MediatorVpnService extends VpnService {
                     "Stopped"
             );
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "VPN interface could not be established",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
@@ -478,7 +477,7 @@ public class MediatorVpnService extends VpnService {
             vpnReadyCallback.onVpnEstablished();
         }
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 "VPN interface established",
                 VpnEvent.Level.SUCCESS,
                 VpnEvent.Category.GENERAL
@@ -549,7 +548,7 @@ public class MediatorVpnService extends VpnService {
                     "Cannot start packet reading loop: vpnInterface is null."
             );
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "Cannot start packet reading loop: interface is null",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
@@ -616,7 +615,7 @@ public class MediatorVpnService extends VpnService {
                                         "Running"
                                 );
 
-                                dashboard.logEvent(
+                                dashboard.logEvent(TAG+
                                         "Packet reading loop started",
                                         VpnEvent.Level.SUCCESS,
                                         VpnEvent.Category.GENERAL
@@ -677,7 +676,7 @@ public class MediatorVpnService extends VpnService {
                                     "Stopped"
                             );
 
-                            dashboard.logEvent(
+                            dashboard.logEvent(TAG+
                                     "Packet reading loop stopped",
                                     VpnEvent.Level.INFO,
                                     VpnEvent.Category.GENERAL
@@ -742,7 +741,7 @@ public class MediatorVpnService extends VpnService {
                         + "Resolved IP   : " + matchedDnsIp + "\n"
                         + "IP Version    : IPv" + parsed.ipVersion;
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 matchLog,
                 VpnEvent.Level.ERROR,
                 VpnEvent.Category.MATCH
@@ -782,7 +781,7 @@ public class MediatorVpnService extends VpnService {
              */
             dashboard.recordIpv6Skipped();
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "Malformed packet dropped: " + parsed.reason,
                     VpnEvent.Level.WARNING,
                     VpnEvent.Category.IPV6_SKIPPED
@@ -800,7 +799,7 @@ public class MediatorVpnService extends VpnService {
                             + " - transport header unavailable, skipping port extraction."
             );
 
-            dashboard.logEvent(
+            dashboard.logEvent(TAG+
                     "Non-first fragment (IPv" + parsed.ipVersion + ") from "
                             + parsed.sourceIp + " to " + parsed.destinationIp
                             + " - transport header unavailable",
@@ -928,7 +927,7 @@ public class MediatorVpnService extends VpnService {
                         VpnEvent.Category.OTHER;
         }
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 captureLog.toString(),
                 VpnEvent.Level.INFO,
                 category
@@ -1042,7 +1041,7 @@ public class MediatorVpnService extends VpnService {
                         + System.currentTimeMillis()
         );
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 "DIAG onDestroy: serviceInstance="
                         + System.identityHashCode(this)
                         + " vpnInterface="
@@ -1159,7 +1158,7 @@ public class MediatorVpnService extends VpnService {
                 "onRevoke: user revoked VPN permission from system settings."
         );
 
-        dashboard.logEvent(
+        dashboard.logEvent(TAG+
                 "VPN permission revoked from system settings",
                 VpnEvent.Level.WARNING,
                 VpnEvent.Category.GENERAL
