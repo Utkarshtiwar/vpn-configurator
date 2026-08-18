@@ -319,6 +319,32 @@ public class WebViewHelper {
             );
 
 
+            // ADDED: HTTPURLCONNECTION RESPONSE LOG
+            try {
+
+                StringBuilder httpResponseLog = new StringBuilder();
+                httpResponseLog.append("========== HTTPURLCONNECTION RESPONSE ==========\n");
+                httpResponseLog.append("Timestamp       : ").append(System.currentTimeMillis()).append("\n");
+                httpResponseLog.append("URL             : ").append(url).append("\n");
+                httpResponseLog.append("Response Code   : ").append(responseCode).append("\n");
+                httpResponseLog.append("Response Message: ").append(urlConnection.getResponseMessage()).append("\n");
+                httpResponseLog.append("Content-Type    : ").append(urlConnection.getContentType()).append("\n");
+                httpResponseLog.append("Content-Length  : ").append(urlConnection.getContentLengthLong()).append("\n");
+                httpResponseLog.append("Final URL       : ").append(urlConnection.getURL()).append("\n");
+                httpResponseLog.append("=================================================");
+
+                dashboard.logToFile(TAG+httpResponseLog.toString());
+
+            } catch (Exception loggingException) {
+
+                Log.w(
+                        TAG,
+                        "Failed to build/write HttpURLConnection response log",
+                        loggingException
+                );
+            }
+
+
             // =========================================================
             // RESPONSE BODY
             // =========================================================

@@ -210,7 +210,7 @@ public class MediatorVpnService extends VpnService {
 
         dashboard.logEvent(
                 TAG+
-                "Starting VPN Service",
+                        "Starting VPN Service",
                 VpnEvent.Level.INFO,
                 VpnEvent.Category.GENERAL
         );
@@ -297,7 +297,7 @@ public class MediatorVpnService extends VpnService {
             );
 
             dashboard.logEvent(TAG+
-                    "Failed to configure IPv6 VPN address/route; continuing IPv4-only: " + e.getMessage(),
+                            "Failed to configure IPv6 VPN address/route; continuing IPv4-only: " + e.getMessage(),
                     VpnEvent.Level.WARNING,
                     VpnEvent.Category.GENERAL
             );
@@ -352,7 +352,7 @@ public class MediatorVpnService extends VpnService {
                             dnsServer.getHostAddress();
 
                     dashboard.logEvent(TAG+
-                            "========== DNS SERVER ==========\n"
+                                    "========== DNS SERVER ==========\n"
                                     + "DNS Server IP : "
                                     + dnsIp
                                     + "\n"
@@ -380,7 +380,7 @@ public class MediatorVpnService extends VpnService {
             );
 
             dashboard.logEvent(TAG+
-                    "No active underlying network found",
+                            "No active underlying network found",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
             );
@@ -441,7 +441,7 @@ public class MediatorVpnService extends VpnService {
             );
 
             dashboard.logEvent(TAG+
-                    "VPN interface could not be established",
+                            "VPN interface could not be established",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
             );
@@ -478,7 +478,7 @@ public class MediatorVpnService extends VpnService {
         }
 
         dashboard.logEvent(TAG+
-                "VPN interface established",
+                        "VPN interface established",
                 VpnEvent.Level.SUCCESS,
                 VpnEvent.Category.GENERAL
         );
@@ -539,6 +539,55 @@ public class MediatorVpnService extends VpnService {
         );
     }
 
+    // ADDED: MEDIATOR VPN RX PACKET LOG
+    /**
+     * Builds the log entry for a raw packet exactly as received from the
+     * Mediator VPN / TUN interface, before any parsing or forwarding.
+     * Read-only: does not modify packetBytes, does not call PacketParser's
+     * mutable state, and has no effect on existing forwarding behavior.
+     */
+    private String buildMediatorRxPacketLog(byte[] packetBytes, int length) {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("========== MEDIATOR VPN RX PACKET ==========\n");
+        sb.append("Timestamp      : ").append(System.currentTimeMillis()).append("\n");
+        sb.append("Packet Length  : ").append(length).append(" bytes\n");
+
+        // Best-effort, non-throwing parse for extra context only; failures
+        // never affect the mandatory hex/length log below.
+        try {
+            ParsedPacket parsed = PacketParser.parse(packetBytes, length);
+            sb.append("IP Version     : IPv").append(parsed.ipVersion).append("\n");
+            if (parsed.status == ParsedPacket.Status.OK
+                    || parsed.status == ParsedPacket.Status.NON_FIRST_FRAGMENT) {
+                sb.append("Source IP      : ").append(parsed.sourceIp).append("\n");
+                sb.append("Destination IP : ").append(parsed.destinationIp).append("\n");
+                sb.append("Protocol       : ").append(PacketParser.protocolName(parsed.transportProtocol)).append("\n");
+                if (parsed.sourcePort >= 0) {
+                    sb.append("Source Port    : ").append(parsed.sourcePort).append("\n");
+                    sb.append("Destination Port: ").append(parsed.destinationPort).append("\n");
+                }
+            }
+        } catch (Exception ignored) {
+            // Parsing is best-effort here; raw hex/length below is always logged regardless.
+        }
+
+        sb.append("Raw Packet HEX : ").append(bytesToHex(packetBytes, length)).append("\n");
+        sb.append("Direction      : RECEIVED FROM MEDIATOR VPN SERVICE (TUN)\n");
+        sb.append("=============================================");
+
+        return sb.toString();
+    }
+
+    // ADDED: MEDIATOR VPN RX PACKET LOG
+    private static String bytesToHex(byte[] bytes, int length) {
+        StringBuilder hex = new StringBuilder(length * 2);
+        for (int i = 0; i < length; i++) {
+            hex.append(String.format("%02X", bytes[i]));
+        }
+        return hex.toString();
+    }
+
     private void startPacketReadingLoop() {
 
         if (vpnInterface == null) {
@@ -549,7 +598,7 @@ public class MediatorVpnService extends VpnService {
             );
 
             dashboard.logEvent(TAG+
-                    "Cannot start packet reading loop: interface is null",
+                            "Cannot start packet reading loop: interface is null",
                     VpnEvent.Level.ERROR,
                     VpnEvent.Category.ERROR
             );
@@ -616,7 +665,7 @@ public class MediatorVpnService extends VpnService {
                                 );
 
                                 dashboard.logEvent(TAG+
-                                        "Packet reading loop started",
+                                                "Packet reading loop started",
                                         VpnEvent.Level.SUCCESS,
                                         VpnEvent.Category.GENERAL
                                 );
@@ -651,6 +700,14 @@ public class MediatorVpnService extends VpnService {
                                                 "TCP packet intercepted"
                                         );
 
+                                        // ADDED: MEDIATOR VPN RX PACKET LOG
+                                        dashboard.logToFile(TAG+
+                                                buildMediatorRxPacketLog(
+                                                        buffer,
+                                                        length
+                                                )
+                                        );
+
                                         handlePacket(
                                                 buffer,
                                                 length
@@ -677,7 +734,7 @@ public class MediatorVpnService extends VpnService {
                             );
 
                             dashboard.logEvent(TAG+
-                                    "Packet reading loop stopped",
+                                            "Packet reading loop stopped",
                                     VpnEvent.Level.INFO,
                                     VpnEvent.Category.GENERAL
                             );
@@ -742,7 +799,7 @@ public class MediatorVpnService extends VpnService {
                         + "IP Version    : IPv" + parsed.ipVersion;
 
         dashboard.logEvent(TAG+
-                matchLog,
+                        matchLog,
                 VpnEvent.Level.ERROR,
                 VpnEvent.Category.MATCH
         );
@@ -782,7 +839,7 @@ public class MediatorVpnService extends VpnService {
             dashboard.recordIpv6Skipped();
 
             dashboard.logEvent(TAG+
-                    "Malformed packet dropped: " + parsed.reason,
+                            "Malformed packet dropped: " + parsed.reason,
                     VpnEvent.Level.WARNING,
                     VpnEvent.Category.IPV6_SKIPPED
             );
@@ -800,7 +857,7 @@ public class MediatorVpnService extends VpnService {
             );
 
             dashboard.logEvent(TAG+
-                    "Non-first fragment (IPv" + parsed.ipVersion + ") from "
+                            "Non-first fragment (IPv" + parsed.ipVersion + ") from "
                             + parsed.sourceIp + " to " + parsed.destinationIp
                             + " - transport header unavailable",
                     VpnEvent.Level.INFO,
@@ -928,7 +985,7 @@ public class MediatorVpnService extends VpnService {
         }
 
         dashboard.logEvent(TAG+
-                captureLog.toString(),
+                        captureLog.toString(),
                 VpnEvent.Level.INFO,
                 category
         );
@@ -1042,7 +1099,7 @@ public class MediatorVpnService extends VpnService {
         );
 
         dashboard.logEvent(TAG+
-                "DIAG onDestroy: serviceInstance="
+                        "DIAG onDestroy: serviceInstance="
                         + System.identityHashCode(this)
                         + " vpnInterface="
                         + System.identityHashCode(vpnInterface)
@@ -1159,7 +1216,7 @@ public class MediatorVpnService extends VpnService {
         );
 
         dashboard.logEvent(TAG+
-                "VPN permission revoked from system settings",
+                        "VPN permission revoked from system settings",
                 VpnEvent.Level.WARNING,
                 VpnEvent.Category.GENERAL
         );

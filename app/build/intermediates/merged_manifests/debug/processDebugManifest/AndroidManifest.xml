@@ -26,6 +26,7 @@
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_launcher"
         android:label="VpnTestPOC"
+        android:testOnly="true"
         android:theme="@style/Theme.AppCompat.DayNight"
         android:usesCleartextTraffic="false" >
         <activity
