@@ -5,13 +5,22 @@ import android.util.Log;
 import com.example.vpntest.repo.VpnEventRepository;
 
 import java.io.BufferedInputStream;
+// ADDED: PAGE SOURCE (RAW HTML) LOG
+import java.io.BufferedReader;
+// ADDED: PAGE SOURCE (RAW HTML) LOG
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+// ADDED: PAGE SOURCE (RAW HTML) LOG
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
+// ADDED: PAGE SOURCE (RAW HTML) LOG
+import java.nio.charset.StandardCharsets;
 
 public class WebViewHelper {
 
@@ -333,7 +342,7 @@ public class WebViewHelper {
                 httpResponseLog.append("Final URL       : ").append(urlConnection.getURL()).append("\n");
                 httpResponseLog.append("=================================================");
 
-                dashboard.logToFile(TAG+httpResponseLog.toString());
+                dashboard.logToFile(httpResponseLog.toString());
 
             } catch (Exception loggingException) {
 
@@ -363,12 +372,22 @@ public class WebViewHelper {
                         );
 
 
+                // ADDED: PAGE SOURCE (RAW HTML) LOG
+                ByteArrayOutputStream pageSourceCapture =
+                        new ByteArrayOutputStream();
+
+
                 // =====================================================
                 // FIRST BYTE / T3
                 // =====================================================
 
                 int firstByte =
                         bis.read();
+
+                // ADDED: PAGE SOURCE (RAW HTML) LOG
+                if (firstByte != -1) {
+                    pageSourceCapture.write(firstByte);
+                }
 
                 long firstByteTime =
                         System.currentTimeMillis();
@@ -397,6 +416,9 @@ public class WebViewHelper {
                         bis.read(buffer)) != -1) {
 
                     responseSize += bytesRead;
+
+                    // ADDED: PAGE SOURCE (RAW HTML) LOG
+                    pageSourceCapture.write(buffer, 0, bytesRead);
                 }
 
 
@@ -411,6 +433,42 @@ public class WebViewHelper {
                         )
                                 + " KB)"
                 );
+
+
+                // ADDED: PAGE SOURCE (RAW HTML) LOG
+                try {
+
+                    StringBuilder source = new StringBuilder();
+
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    new ByteArrayInputStream(pageSourceCapture.toByteArray()),
+                                    StandardCharsets.UTF_8))) {
+
+                        String line;
+
+                        while ((line = reader.readLine()) != null) {
+                            source.append(line).append("\n");
+                        }
+                    }
+
+                    String pageSource = source.toString();
+
+                    dashboard.logToFile(
+                            TAG
+                                    + "========== PAGE SOURCE (RAW HTML) ==========\n"
+                                    + pageSource
+                                    + "\n=============================================="
+                    );
+
+                } catch (Exception pageSourceLoggingException) {
+
+                    Log.w(
+                            TAG,
+                            "Failed to log page source",
+                            pageSourceLoggingException
+                    );
+                }
 
 
                 bis.close();
