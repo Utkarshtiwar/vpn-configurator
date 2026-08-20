@@ -211,10 +211,21 @@
 
                     <TextView
                         style="@style/DashboardCardLabel"
-                        android:text="Time To First Byte" />
+                        android:text="Time To First Byte (VPN)" />
 
                     <TextView
                         android:id="@+id/tvLastTtfb"
+                        style="@style/DashboardCardValue"
+                        android:textColor="@color/status_success"
+                        android:textSize="14sp"
+                        android:text="-" />
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Time To First Byte (WEB TEST)" />
+
+                    <TextView
+                        android:id="@+id/tvLastTtfbWeb"
                         style="@style/DashboardCardValue"
                         android:textColor="@color/status_success"
                         android:textSize="14sp"

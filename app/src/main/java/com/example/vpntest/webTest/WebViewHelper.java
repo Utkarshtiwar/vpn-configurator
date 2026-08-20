@@ -125,15 +125,6 @@ public class WebViewHelper {
             // DNS RESOLUTION
             // =========================================================
 
-            long dnsStart =
-                    System.nanoTime();
-
-            dashboard.logToFile(
-                    TAG
-                            + "DNS Start Nano Time:"
-                            + dnsStart
-            );
-
             String host =
                     new URL(url).getHost();
 
@@ -172,38 +163,6 @@ public class WebViewHelper {
             String hostName =
                     inetAddress.getHostName();
 
-
-            // =========================================================
-            // DNS END
-            // =========================================================
-
-            long dnsEnd =
-                    System.nanoTime();
-
-            dashboard.logToFile(
-                    TAG
-                            + "DNS End Nano Time:"
-                            + dnsEnd
-            );
-
-            double dnsDurationMs =
-                    (dnsEnd - dnsStart)
-                            / 1_000_000.0;
-
-            dashboard.logToFile(
-                    TAG
-                            + "DNS Time in ms:"
-                            + dnsDurationMs
-            );
-
-            dashboard.logToFile(
-                    TAG
-                            + " WEB TEST DNS COMPLETE: "
-                            + ipList
-                            + " ("
-                            + dnsDurationMs
-                            + " ms)"
-            );
 
 
             // =========================================================

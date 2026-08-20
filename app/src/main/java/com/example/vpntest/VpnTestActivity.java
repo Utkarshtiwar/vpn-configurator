@@ -193,7 +193,7 @@ public class VpnTestActivity extends AppCompatActivity {
             tvLastTimestamp.setText(stats.lastPacketTimestamp > 0
                     ? android.text.format.DateFormat.format("HH:mm:ss", stats.lastPacketTimestamp)
                     : "-");
-            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
+            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ns" : "-");
 
 
             // TTFB END

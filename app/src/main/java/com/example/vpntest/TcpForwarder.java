@@ -51,8 +51,8 @@ class TcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean globalTtfbCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
-    private final java.util.concurrent.atomic.AtomicBoolean globalRequestCaptured =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
+//    private final java.util.concurrent.atomic.AtomicBoolean globalRequestCaptured =
+//            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // Tracks whether the first outgoing IP-match event has already been logged
     private final java.util.concurrent.atomic.AtomicBoolean firstOutgoingIpMatchLogged =
@@ -80,14 +80,24 @@ class TcpForwarder {
      *
      * Used ONLY for accurate TTFB duration calculation.
      */
-    private volatile long globalRequestSentTime = 0L;
+    //old ttbf logic
+//    private volatile long globalRequestSentTime = 0L;
+//
+//    private volatile long globalFirstByteReceivedTime = 0L;
+//
+//
+//    private volatile long globalRequestSentWallTime = 0L;
+//
+//    private volatile long globalFirstByteReceivedWallTime = 0L;
+//
+//    private volatile long globalTtfbMs = -1L;
+    private volatile long globalOutgoingIpMatchTime = 0L;
 
-    private volatile long globalFirstByteReceivedTime = 0L;
+    private volatile long globalIncomingIpMatchTime = 0L;
 
+    private volatile long globalOutgoingIpMatchWallTime = 0L;
 
-    private volatile long globalRequestSentWallTime = 0L;
-
-    private volatile long globalFirstByteReceivedWallTime = 0L;
+    private volatile long globalIncomingIpMatchWallTime = 0L;
 
     private volatile long globalTtfbMs = -1L;
 
@@ -306,6 +316,44 @@ class TcpForwarder {
 
                 String evtName = isFirstOutgoingMatch ? "OG_IP_MATCH" : "O_IP_MATCH";
 
+                if (isFirstOutgoingMatch) {
+
+                    globalOutgoingIpMatchTime = System.nanoTime();
+
+                    globalOutgoingIpMatchWallTime = System.currentTimeMillis();
+
+                    globalTtfbRequestDestinationIp = destinationIp;
+                    globalTtfbRequestResolvedIp = destinationIp;
+                    globalTtfbRequestPayloadSize = payloadLen;
+                    globalTtfbRequestConnectionKey = key;
+
+//                    dashboard.logToFile(
+//                            TAG +
+//                                    "OG_IP_MATCH T0_Time timestamp captured = "
+//                                    + globalOutgoingIpMatchTime
+//                                    + " ns"
+//                    );
+                    dashboard.logToFile(
+                            TAG +
+                                    "OG_IP_MATCH T0_Time timestamp captured = "
+                                    + globalOutgoingIpMatchTime
+                                    + " ns\n"
+                                    + "Source IP       : " + ipStr(srcIp) + "\n"
+                                    + "Destination IP  : " + ipStr(dstIp) + "\n"
+                                    + "Source Port     : " + srcPort + "\n"
+                                    + "Destination Port: " + dstPort + "\n"
+                                    + "Protocol        : TCP\n"
+                                    + "Packet Length   : " + length + " bytes\n"
+                                    + "Payload Length  : " + payloadLen + " bytes\n"
+                                    + "Timestamp       : "
+                                    + formatTimestamp(globalOutgoingIpMatchWallTime)
+                                    + "\n"
+                                    + "Timestamp Nano  : "
+                                    + globalOutgoingIpMatchTime
+                                    + " ns\n"
+                                    + "============================================"
+                    );
+                }
                 String ipMatchLog =
                         "========== " + evtName + " ==========\n"
                                 + "Match Count    : " + matchCount + "\n"
@@ -345,57 +393,57 @@ class TcpForwarder {
                  *
                  * This remains immediately before write().
                  */
-                if (isFirstOutgoingMatch
-                        && globalRequestCaptured.compareAndSet(false, true)) {
-
-                    globalRequestSentTime =
-                            System.nanoTime();
-
-                    globalRequestSentWallTime =
-                            System.currentTimeMillis();
-
-                    globalTtfbRequestDestinationIp =
-                            destinationIp;
-
-                    globalTtfbRequestResolvedIp =
-                            destinationIp;
-
-                    globalTtfbRequestPayloadSize =
-                            payloadLen;
-
-                    globalTtfbRequestConnectionKey =
-                            key;
-
-                    requestTimestampCapturedForThisPacket = true;
-
-                    String ttfbRequestTimestampLog =
-                            "========== T0_REQUEST_START ==========\n"
-                                    + "Timestamp Type   : REQUEST START\n"
-                                    + "Request Time     : "
-                                    + formatTimestamp(globalRequestSentWallTime)
-                                    + "\n"
-                                    + "Destination IP   : "
-                                    + globalTtfbRequestDestinationIp
-                                    + "\n"
-                                    + "Payload Size     : "
-                                    + globalTtfbRequestPayloadSize
-                                    + " bytes\n"
-                                    + "Connection Key   : "
-                                    + key
-                                    + "\n"
-                                    + "=====================================================";
-
-                    Log.i(
-                            TAG,
-                            ttfbRequestTimestampLog
-                    );
-
-                    dashboard.logEvent(
-                            TAG + ttfbRequestTimestampLog,
-                            VpnEvent.Level.INFO,
-                            VpnEvent.Category.TCP
-                    );
-                }
+//                if (isFirstOutgoingMatch
+//                        && globalRequestCaptured.compareAndSet(false, true)) {
+//
+//                    globalRequestSentTime =
+//                            System.nanoTime();
+//
+//                    globalRequestSentWallTime =
+//                            System.currentTimeMillis();
+//
+//                    globalTtfbRequestDestinationIp =
+//                            destinationIp;
+//
+//                    globalTtfbRequestResolvedIp =
+//                            destinationIp;
+//
+//                    globalTtfbRequestPayloadSize =
+//                            payloadLen;
+//
+//                    globalTtfbRequestConnectionKey =
+//                            key;
+//
+//                    requestTimestampCapturedForThisPacket = true;
+//
+//                    String ttfbRequestTimestampLog =
+//                            "========== T0_REQUEST_START ==========\n"
+//                                    + "Timestamp Type   : REQUEST START\n"
+//                                    + "Request Time     : "
+//                                    + formatTimestamp(globalRequestSentWallTime)
+//                                    + "\n"
+//                                    + "Destination IP   : "
+//                                    + globalTtfbRequestDestinationIp
+//                                    + "\n"
+//                                    + "Payload Size     : "
+//                                    + globalTtfbRequestPayloadSize
+//                                    + " bytes\n"
+//                                    + "Connection Key   : "
+//                                    + key
+//                                    + "\n"
+//                                    + "=====================================================";
+//
+//                    Log.i(
+//                            TAG,
+//                            ttfbRequestTimestampLog
+//                    );
+//
+//                    dashboard.logEvent(
+//                            TAG + ttfbRequestTimestampLog,
+//                            VpnEvent.Level.INFO,
+//                            VpnEvent.Category.TCP
+//                    );
+//                }  this is old ttfb logic
 
                 /*
                  * ================================================
@@ -426,8 +474,8 @@ class TcpForwarder {
 
                 if (requestTimestampCapturedForThisPacket) {
 
-                    globalRequestCaptured.set(false);
-                    globalRequestSentTime = 0L;
+//                    globalRequestCaptured.set(false);
+//                    globalRequestSentTime = 0L;
                     globalTtfbRequestDestinationIp = null;
                     globalTtfbRequestPayloadSize = 0;
                     globalTtfbRequestConnectionKey = null;
@@ -575,13 +623,13 @@ class TcpForwarder {
                 }
 
                 Log.d(TAG, "Creating TCP session");
-                dashboard.logEvent(TAG+
-                        "========== SERVER ==========\n"
-                                + "Server IP      : " + serverIp + "\n"
-                                + "Server Name    : " + serverName + "\n"
-                                + "============================",
-                        VpnEvent.Level.INFO, VpnEvent.Category.TCP
-                );
+//                dashboard.logEvent(TAG+
+//                        "========== SERVER ==========\n"
+//                                + "Server IP      : " + serverIp + "\n"
+//                                + "Server Name    : " + serverName + "\n"
+//                                + "============================",
+//                        VpnEvent.Level.INFO, VpnEvent.Category.TCP
+//                );
 
                 session.realOut = socket.getOutputStream();
                 session.realIn = socket.getInputStream();
@@ -733,17 +781,22 @@ class TcpForwarder {
          * Reset complete TTFB state when VPN session stops.
          */
         globalTtfbCaptured.set(false);
-        globalRequestCaptured.set(false);
-        globalRequestSentTime = 0L;
-        globalFirstByteReceivedTime = 0L;
-        globalRequestSentWallTime = 0L;
-        globalFirstByteReceivedWallTime = 0L;
+
+        globalOutgoingIpMatchTime = 0L;
+        globalIncomingIpMatchTime = 0L;
+
+        globalOutgoingIpMatchWallTime = 0L;
+        globalIncomingIpMatchWallTime = 0L;
+
         globalTtfbMs = -1L;
+
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
+
         firstOutgoingIpMatchLogged.set(false);
         firstIncomingIpMatchLogged.set(false);
+
         outgoingIpMatchCount.set(0);
         incomingIpMatchCount.set(0);
     }
@@ -756,19 +809,25 @@ class TcpForwarder {
          * / a new VPN session begins.
          */
         globalTtfbCaptured.set(false);
-        globalRequestCaptured.set(false);
-        globalRequestSentTime = 0L;
-        globalFirstByteReceivedTime = 0L;
-        globalRequestSentWallTime = 0L;
-        globalFirstByteReceivedWallTime = 0L;
+
+        globalOutgoingIpMatchTime = 0L;
+        globalIncomingIpMatchTime = 0L;
+
+        globalOutgoingIpMatchWallTime = 0L;
+        globalIncomingIpMatchWallTime = 0L;
+
         globalTtfbMs = -1L;
+
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
         globalTtfbRequestConnectionKey = null;
+
         firstOutgoingIpMatchLogged.set(false);
         firstIncomingIpMatchLogged.set(false);
+
         outgoingIpMatchCount.set(0);
         incomingIpMatchCount.set(0);
+
         Log.d(TAG, "GLOBAL TTFB state RESET");
     }
 
@@ -879,152 +938,152 @@ class TcpForwarder {
                          *
                          * Any later TCP connection is ignored.
                          */
-                        if (n > 0
-                                && !forwarder.globalTtfbCaptured.get()
-                                && forwarder.globalRequestCaptured.get()
-                                && forwarder.globalRequestSentTime > 0
-                                && key.equals(forwarder.globalTtfbRequestConnectionKey)) {
-
-                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
-
-                                /*
-                                 * ================================================
-                                 * FIRST BYTE TIMESTAMP
-                                 * ================================================
-                                 */
-
-                                forwarder.globalFirstByteReceivedTime =
-                                        System.nanoTime();
-
-                                forwarder.globalFirstByteReceivedWallTime =
-                                        System.currentTimeMillis();
-
-                                String ttfbFirstByteTimestampLog =
-                                        "========== T1_FIRST_BYTE_RECEIVED ==========\n"
-                                                + "Timestamp Type   : FIRST BYTE RECEIVED\n"
-                                                + "First Byte Time  : "
-                                                + forwarder.formatTimestamp(
-                                                forwarder.globalFirstByteReceivedWallTime
-                                        )
-                                                + "\n"
-                                                + "Destination IP   : "
-                                                + forwarder.globalTtfbRequestDestinationIp
-                                                + "\n"
-                                                + "Received Payload : "
-                                                + n
-                                                + " bytes\n"
-                                                + "=======================================================";
-
-
-                                Log.i(
-                                        TAG,
-                                        ttfbFirstByteTimestampLog
-                                );
-
-
-                                forwarder.dashboard.logEvent(TAG+
-                                        ttfbFirstByteTimestampLog,
-                                        VpnEvent.Level.INFO,
-                                        VpnEvent.Category.TCP
-                                );
-
-                                /*
-                                 * ================================================
-                                 * TTFB IN MILLISECONDS
-                                 * ================================================
-                                 */
-
-                                forwarder.globalTtfbMs =
-                                        TimeUnit.NANOSECONDS.toMillis(
-                                                forwarder.globalFirstByteReceivedTime
-                                                        - forwarder.globalRequestSentTime
-                                        );
-
-                                /*
-                                 * ================================================
-                                 * TTFB IN MICROSECONDS
-                                 * ================================================
-                                 */
-
-                                long ttfbMicros =
-                                        TimeUnit.NANOSECONDS.toMicros(
-                                                forwarder.globalFirstByteReceivedTime
-                                                        - forwarder.globalRequestSentTime
-                                        );
-
-                                /*
-                                 * ================================================
-                                 * HUMAN READABLE TIMESTAMPS
-                                 * ================================================
-                                 */
-
-                                String requestTimestamp =
-                                        forwarder.formatTimestamp(
-                                                forwarder.globalRequestSentWallTime
-                                        );
-
-                                String firstByteTimestamp =
-                                        forwarder.formatTimestamp(
-                                                forwarder.globalFirstByteReceivedWallTime
-                                        );
-
-                                /*
-                                 * ================================================
-                                 * FINAL TTFB LOG
-                                 * ================================================
-                                 */
-
-                                String ttfbLog =
-                                        "========== T2_TTFB ==========\n"
-                                                + "Destination IP : "
-                                                + forwarder.globalTtfbRequestDestinationIp
-                                                + "\n"
-                                                + "Resolved IP    : "
-                                                + forwarder.globalTtfbRequestResolvedIp
-                                                + "\n"
-                                                + "Request Payload: "
-                                                + forwarder.globalTtfbRequestPayloadSize
-                                                + " bytes\n"
-                                                + "\n"
-                                                + "Request Sent Time: "
-                                                + requestTimestamp
-                                                + "\n"
-                                                + "First Byte Time  : "
-                                                + firstByteTimestamp
-                                                + "\n"
-                                                + "\n"
-                                                + "TTFB = First Byte - Request Sent\n"
-                                                + "     = "
-                                                + firstByteTimestamp
-                                                + " - "
-                                                + requestTimestamp
-                                                + "\n"
-                                                + "     = "
-                                                + ttfbMicros
-                                                + " µs\n"
-                                                + "     = "
-                                                + forwarder.globalTtfbMs
-                                                + " ms\n"
-                                                + "==========================";
-
-                                Log.i(
-                                        TAG,
-                                        ttfbLog
-                                );
-
-                                forwarder.dashboard.logEvent(TAG+
-                                        ttfbLog,
-                                        VpnEvent.Level.INFO,
-                                        VpnEvent.Category.TCP
-                                );
-
-                                forwarder.reportTtfb(
-                                        this,
-                                        forwarder.globalTtfbMs,
-                                        key
-                                );
-                            }
-                        }
+//                        if (n > 0
+//                                && !forwarder.globalTtfbCaptured.get()
+//                                && forwarder.globalRequestCaptured.get()
+//                                && forwarder.globalRequestSentTime > 0
+//                                && key.equals(forwarder.globalTtfbRequestConnectionKey)) {
+//
+//                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
+//
+//                                /*
+//                                 * ================================================
+//                                 * FIRST BYTE TIMESTAMP
+//                                 * ================================================
+//                                 */
+//
+//                                forwarder.globalFirstByteReceivedTime =
+//                                        System.nanoTime();
+//
+//                                forwarder.globalFirstByteReceivedWallTime =
+//                                        System.currentTimeMillis();
+//
+//                                String ttfbFirstByteTimestampLog =
+//                                        "========== T1_FIRST_BYTE_RECEIVED ==========\n"
+//                                                + "Timestamp Type   : FIRST BYTE RECEIVED\n"
+//                                                + "First Byte Time  : "
+//                                                + forwarder.formatTimestamp(
+//                                                forwarder.globalFirstByteReceivedWallTime
+//                                        )
+//                                                + "\n"
+//                                                + "Destination IP   : "
+//                                                + forwarder.globalTtfbRequestDestinationIp
+//                                                + "\n"
+//                                                + "Received Payload : "
+//                                                + n
+//                                                + " bytes\n"
+//                                                + "=======================================================";
+//
+//
+//                                Log.i(
+//                                        TAG,
+//                                        ttfbFirstByteTimestampLog
+//                                );
+//
+//
+//                                forwarder.dashboard.logEvent(TAG+
+//                                        ttfbFirstByteTimestampLog,
+//                                        VpnEvent.Level.INFO,
+//                                        VpnEvent.Category.TCP
+//                                );
+//
+//                                /*
+//                                 * ================================================
+//                                 * TTFB IN MILLISECONDS
+//                                 * ================================================
+//                                 */
+//
+//                                forwarder.globalTtfbMs =
+//                                        TimeUnit.NANOSECONDS.toMillis(
+//                                                forwarder.globalFirstByteReceivedTime
+//                                                        - forwarder.globalRequestSentTime
+//                                        );
+//
+//                                /*
+//                                 * ================================================
+//                                 * TTFB IN MICROSECONDS
+//                                 * ================================================
+//                                 */
+//
+//                                long ttfbMicros =
+//                                        TimeUnit.NANOSECONDS.toMicros(
+//                                                forwarder.globalFirstByteReceivedTime
+//                                                        - forwarder.globalRequestSentTime
+//                                        );
+//
+//                                /*
+//                                 * ================================================
+//                                 * HUMAN READABLE TIMESTAMPS
+//                                 * ================================================
+//                                 */
+//
+//                                String requestTimestamp =
+//                                        forwarder.formatTimestamp(
+//                                                forwarder.globalRequestSentWallTime
+//                                        );
+//
+//                                String firstByteTimestamp =
+//                                        forwarder.formatTimestamp(
+//                                                forwarder.globalFirstByteReceivedWallTime
+//                                        );
+//
+//                                /*
+//                                 * ================================================
+//                                 * FINAL TTFB LOG
+//                                 * ================================================
+//                                 */
+//
+//                                String ttfbLog =
+//                                        "========== T2_TTFB ==========\n"
+//                                                + "Destination IP : "
+//                                                + forwarder.globalTtfbRequestDestinationIp
+//                                                + "\n"
+//                                                + "Resolved IP    : "
+//                                                + forwarder.globalTtfbRequestResolvedIp
+//                                                + "\n"
+//                                                + "Request Payload: "
+//                                                + forwarder.globalTtfbRequestPayloadSize
+//                                                + " bytes\n"
+//                                                + "\n"
+//                                                + "Request Sent Time: "
+//                                                + requestTimestamp
+//                                                + "\n"
+//                                                + "First Byte Time  : "
+//                                                + firstByteTimestamp
+//                                                + "\n"
+//                                                + "\n"
+//                                                + "TTFB = First Byte - Request Sent\n"
+//                                                + "     = "
+//                                                + firstByteTimestamp
+//                                                + " - "
+//                                                + requestTimestamp
+//                                                + "\n"
+//                                                + "     = "
+//                                                + ttfbMicros
+//                                                + " µs\n"
+//                                                + "     = "
+//                                                + forwarder.globalTtfbMs
+//                                                + " ms\n"
+//                                                + "==========================";
+//
+//                                Log.i(
+//                                        TAG,
+//                                        ttfbLog
+//                                );
+//
+//                                forwarder.dashboard.logEvent(TAG+
+//                                        ttfbLog,
+//                                        VpnEvent.Level.INFO,
+//                                        VpnEvent.Category.TCP
+//                                );
+//
+//                                forwarder.reportTtfb(
+//                                        this,
+//                                        forwarder.globalTtfbMs,
+//                                        key
+//                                );
+//                            }
+//                        } old ttfb logic
 
                         if (n > 0) {
 
@@ -1048,17 +1107,144 @@ class TcpForwarder {
                                 boolean isFirstIncomingMatch =
                                         forwarder.firstIncomingIpMatchLogged.compareAndSet(false, true);
 
-                                int matchCount = forwarder.incomingIpMatchCount.incrementAndGet();
+                                int matchCount =
+                                        forwarder.incomingIpMatchCount.incrementAndGet();
 
-                                String evtName = isFirstIncomingMatch ? "IC_IP_MATCH" : "I_IP_MATCH";
+                                String evtName =
+                                        isFirstIncomingMatch ? "IC_IP_MATCH" : "I_IP_MATCH";
+
+                                /*
+                                 * Capture IC_IP_MATCH timestamp only for the first
+                                 * incoming IP match.
+                                 */
+                                if (isFirstIncomingMatch) {
+
+                                    forwarder.globalIncomingIpMatchTime =
+                                            System.nanoTime();
+
+                                    forwarder.globalIncomingIpMatchWallTime =
+                                            System.currentTimeMillis();
+                                    forwarder.dashboard.logToFile(
+                                            TAG +
+                                                    "========== T1_Time IC_IP_MATCH PACKET ==========\n"
+                                                    + "Source IP       : " + incomingIp + "\n"
+                                                    + "Destination IP  : " + TcpForwarder.ipStr(srcIp) + "\n"
+                                                    + "Source Port     : " + dstPort + "\n"
+                                                    + "Destination Port: " + srcPort + "\n"
+                                                    + "Protocol        : TCP\n"
+                                                    + "Packet Length   : " + n + " bytes\n"
+                                                    + "Timestamp       : "
+                                                    + forwarder.formatTimestamp(
+                                                    forwarder.globalIncomingIpMatchWallTime
+                                            )
+                                                    + "\n"
+                                                    + "Timestamp Nano  : "
+                                                    + forwarder.globalIncomingIpMatchTime
+                                                    + " ns\n"
+                                                    + "============================================"
+                                    );
+
+                                    Log.d(
+                                            TAG,
+                                            "IC_IP_MATCH T1_Time timestamp captured = "
+                                                    + forwarder.globalIncomingIpMatchTime
+                                                    + " ns"
+                                    );
+
+                                    /*
+                                     * =====================================================
+                                     * NEW TTFB CALCULATION
+                                     * TTFB = IC_IP_MATCH - OG_IP_MATCH
+                                     * =====================================================
+                                     */
+                                    if (forwarder.globalOutgoingIpMatchTime > 0L) {
+
+                                        long ttfbNano =
+                                                forwarder.globalIncomingIpMatchTime
+                                                        - forwarder.globalOutgoingIpMatchTime;
+
+                                        long ttfbMicros =
+                                                TimeUnit.NANOSECONDS.toMicros(ttfbNano);
+
+                                        forwarder.globalTtfbMs =
+                                                TimeUnit.NANOSECONDS.toMillis(ttfbNano);
+
+                                        String ttfbLog =
+                                                "========== T2_TTFB ==========\n"
+                                                        + "Destination IP : "
+                                                        + forwarder.globalTtfbRequestDestinationIp
+                                                        + "\n"
+                                                        + "Resolved IP    : "
+                                                        + forwarder.globalTtfbRequestResolvedIp
+                                                        + "\n"
+                                                        + "\n"
+                                                        + "OG_IP_MATCH T0_Time Time: "
+                                                        + forwarder.formatTimestamp(
+                                                        forwarder.globalOutgoingIpMatchWallTime
+                                                )
+                                                        + "\n"
+                                                        + "IC_IP_MATCH Time: "
+                                                        + forwarder.formatTimestamp(
+                                                        forwarder.globalIncomingIpMatchWallTime
+                                                )
+                                                        + "\n"
+                                                        + "\n"
+                                                        + "OG_IP_MATCH Nano: "
+                                                        + forwarder.globalOutgoingIpMatchTime
+                                                        + " ns\n"
+                                                        + "IC_IP_MATCH Nano: "
+                                                        + forwarder.globalIncomingIpMatchTime
+                                                        + " ns\n"
+                                                        + "\n"
+                                                        + "TTFB = IC_IP_MATCH - OG_IP_MATCH\n"
+                                                        + "     = "
+                                                        + ttfbNano
+                                                        + " ns\n"
+                                                        + "     = "
+                                                        + ttfbMicros
+                                                        + " µs\n"
+                                                        + "     = "
+                                                        + forwarder.globalTtfbMs
+                                                        + " ms\n"
+                                                        + "==========================";
+
+                                        Log.i(TAG, ttfbLog);
+
+                                        forwarder.dashboard.logEvent(
+                                                TAG + ttfbLog,
+                                                VpnEvent.Level.SUCCESS,
+                                                VpnEvent.Category.TCP
+                                        );
+
+                                        forwarder.reportTtfb(
+                                                this,
+                                                ttfbNano,
+                                                key
+                                        );
+                                    }
+                                }
 
                                 String ipMatchLog =
                                         "========== " + evtName + " ==========\n"
                                                 + "Match Count    : " + matchCount + "\n"
                                                 + "Source IP      : " + incomingIp + "\n"
                                                 + "Payload Length : " + n + " bytes\n"
-                                                + "Connection Key : " + key + "\n"
-                                                + "===================================";
+                                                + "Connection Key : " + key + "\n";
+
+                                if (isFirstIncomingMatch) {
+                                    ipMatchLog +=
+                                            "IC_IP_MATCH Time: "
+                                                    + forwarder.formatTimestamp(
+                                                    forwarder.globalIncomingIpMatchWallTime
+                                            )
+                                                    + "\n"
+                                                    + "IC_IP_MATCH Nano: "
+                                                    + forwarder.globalIncomingIpMatchTime
+                                                    + " ns\n";
+                                }
+
+                                ipMatchLog +=
+                                        "===================================";
 
                                 Log.i(TAG, ipMatchLog);
 

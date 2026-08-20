@@ -701,12 +701,12 @@ public class MediatorVpnService extends VpnService {
                                         );
 
                                         // ADDED: MEDIATOR VPN RX PACKET LOG
-                                        dashboard.logToFile(TAG+
-                                                buildMediatorRxPacketLog(
-                                                        buffer,
-                                                        length
-                                                )
-                                        );
+//                                        dashboard.logToFile(TAG+
+//                                                buildMediatorRxPacketLog(
+//                                                        buffer,
+//                                                        length
+//                                                )
+//                                        );
 
                                         handlePacket(
                                                 buffer,
@@ -928,7 +928,7 @@ public class MediatorVpnService extends VpnService {
 
         StringBuilder captureLog = new StringBuilder();
 
-        captureLog.append("Packet captured -> IP Version: IPv")
+        captureLog.append("Packet captured -> IP Version: IPv")// this is traansmitted packets
                 .append(parsed.ipVersion)
                 .append(", Protocol: ").append(protocolName)
                 .append(", Source: ").append(sourceIp)
