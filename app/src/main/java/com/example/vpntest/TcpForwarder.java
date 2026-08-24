@@ -346,6 +346,9 @@ class TcpForwarder {
                                     + "Destination IP  : " + ipStr(dstIp) + "\n"
                                     + "Source Port     : " + srcPort + "\n"
                                     + "Destination Port: " + dstPort + "\n"
+                                    + "Connection Key : " + key + "\n"
+                                    + "Session State  : " + session.state + "\n"
+                                    + "Match Count    : " + matchCount + "\n"
                                     + "Protocol        : TCP\n"
                                     + "Packet Length   : " + length + " bytes\n"
                                     + "Payload Length  : " + payloadLen + " bytes\n"
@@ -357,30 +360,40 @@ class TcpForwarder {
                                     + " ns\n"
                                     + "============================================"
                     );
-                }
-                String ipMatchLog =
+                } else {
+                    String ipMatchLog =
                         "========== " + evtName + " ==========\n"
-                                + "Match Count    : " + matchCount + "\n"
+                                + "Source IP       : " + ipStr(srcIp) + "\n"
                                 + "Destination IP : " + destinationIp + "\n"
+                                + "Source Port     : " + srcPort + "\n"
+                                + "Destination Port: " + dstPort + "\n"
+                                + "Match Count    : " + matchCount + "\n"
                                 + "Payload Length : " + payloadLen + " bytes\n"
                                 + "Connection Key : " + key + "\n"
                                 + "Session State  : " + session.state + "\n"
+                                + "Protocol        : TCP\n"
+                                + "Packet Length   : " + length + " bytes\n"
+                                + "Payload Length  : " + payloadLen + " bytes\n"
+                                + "Timestamp       : "
+                                + formatTimestamp(globalOutgoingIpMatchWallTime)
+                                + "\n"
+                                + "Timestamp Nano  : "
+                                + globalOutgoingIpMatchTime
+                                + " ns\n"
                                 + "===================================";
 
-                Log.i(TAG, ipMatchLog);
+                        Log.i(TAG, ipMatchLog);
 
-                dashboard.logEvent(
-                        TAG + ipMatchLog,
-                        VpnEvent.Level.INFO,
-                        VpnEvent.Category.TCP
-                );
-                Log.i(TAG, ipMatchLog);
+                        dashboard.logEvent(
+                                TAG + ipMatchLog,
+                                VpnEvent.Level.INFO,
+                                VpnEvent.Category.TCP
+                        );
+                        Log.i(TAG, ipMatchLog);
+                }
 
-                dashboard.logEvent(
-                        TAG + ipMatchLog,
-                        VpnEvent.Level.INFO,
-                        VpnEvent.Category.TCP
-                );
+
+
             }
 
             boolean requestTimestampCapturedForThisPacket = false;

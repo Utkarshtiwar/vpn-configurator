@@ -407,12 +407,12 @@ public class WebViewHelper {
 
                     String pageSource = source.toString();
 
-                    dashboard.logToFile(
-                            TAG
-                                    + "========== PAGE SOURCE (RAW HTML) ==========\n"
-                                    + pageSource
-                                    + "\n=============================================="
-                    );
+//                    dashboard.logToFile(
+//                            TAG
+//                                    + "========== PAGE SOURCE (RAW HTML) ==========\n"
+//                                    + pageSource
+//                                    + "\n=============================================="
+//                    );
 
                 } catch (Exception pageSourceLoggingException) {
 
