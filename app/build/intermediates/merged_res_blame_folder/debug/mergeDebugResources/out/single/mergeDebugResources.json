@@ -4,6 +4,10 @@
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\mipmap-xhdpi\\ic_launcher_round.webp"
     },
     {
+        "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\drawable_ic_search.xml.flat",
+        "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\drawable\\ic_search.xml"
+    },
+    {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\mipmap-xxhdpi_ic_launcher_round.webp.flat",
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\mipmap-xxhdpi\\ic_launcher_round.webp"
     },
@@ -68,10 +72,6 @@
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\drawable\\ic_error.xml"
     },
     {
-        "merged": "com.example.vpntest.app-debug-33:/drawable_ic_search.xml.flat",
-        "source": "com.example.vpntest.app-main-35:/drawable/ic_search.xml"
-    },
-    {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\mipmap-xxxhdpi_ic_launcher_round.webp.flat",
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\mipmap-xxxhdpi\\ic_launcher_round.webp"
     },
@@ -90,6 +90,10 @@
     {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\drawable_ic_tcp.xml.flat",
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\drawable\\ic_tcp.xml"
+    },
+    {
+        "merged": "com.example.vpntest.app-debug-33:/layout_activity_vpn_test.xml.flat",
+        "source": "com.example.vpntest.app-main-35:/layout/activity_vpn_test.xml"
     },
     {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\mipmap-anydpi-v26_ic_launcher.xml.flat",

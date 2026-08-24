@@ -33,6 +33,7 @@ id tvLastSize
 id tvLastSource
 id tvLastTimestamp
 id tvLastTtfb
+id tvLastTtfbWeb
 id tvPermissionStatus
 id tvReaderStatus
 id tvStatus

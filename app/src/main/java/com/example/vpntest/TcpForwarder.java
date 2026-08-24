@@ -264,7 +264,11 @@ class TcpForwarder {
         Log.d(TAG, "payload len and sessionstate : " + payloadLen + " " + session.state);
 
 //        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
-        if ( session.state == TcpSession.State.ESTABLISHED) {
+        boolean isPsh = (flags & PacketUtils.TCP_PSH) != 0;
+
+        if (payloadLen > 0
+                && isPsh
+                && session.state == TcpSession.State.ESTABLISHED) {
 
             byte[] data = new byte[payloadLen];
 
@@ -1218,7 +1222,7 @@ class TcpForwarder {
 
                                         forwarder.reportTtfb(
                                                 this,
-                                                ttfbNano,
+                                                forwarder.globalTtfbMs,
                                                 key
                                         );
                                     }

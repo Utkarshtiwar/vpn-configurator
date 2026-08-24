@@ -29,8 +29,10 @@ public class WebViewHelper {
     private final VpnEventRepository dashboard =
             VpnEventRepository.getInstance();
 
+    private long ttfbTime = 0;
+
     // Callback so the UI can react when the "page load" (our manual fetch) finishes,
-    // just like WebViewClient.onPageFinished() used to give us.
+// just like WebViewClient.onPageFinished() used to give us.
     public interface WebTestListener {
         void onWebTestFinished(boolean success, String url);
     }
@@ -39,6 +41,10 @@ public class WebViewHelper {
 
     public void setWebTestListener(WebTestListener listener) {
         this.listener = listener;
+    }
+
+    public long getTtfbTime() {
+        return ttfbTime;
     }
 
     public void runWebTest(String url) {
@@ -128,13 +134,8 @@ public class WebViewHelper {
             String host =
                     new URL(url).getHost();
 
-            dashboard.logToFile(
-                    TAG + "WEB TEST HOST: " + host
-            );
 
-            dashboard.logToFile(
-                    TAG + "WEB TEST DNS START"
-            );
+
 
             InetAddress[] allAddresses =
                     InetAddress.getAllByName(host);
@@ -169,10 +170,6 @@ public class WebViewHelper {
             // CONNECTION START
             // =========================================================
 
-            dashboard.logToFile(
-                    TAG
-                            + "ELOG_WEB_TEST: going to make connection"
-            );
 
             long connectStart =
                     System.currentTimeMillis();
@@ -183,9 +180,7 @@ public class WebViewHelper {
 //                            + connectStart
 //            );
 
-            dashboard.logToFile(
-                    TAG + " WEB TEST CONNECT START"
-            );
+
 
 
             // =========================================================
@@ -237,7 +232,6 @@ public class WebViewHelper {
             );
 
 
-            long ttfbTime = 0;
             long totalTime = 0;
 
 
@@ -272,19 +266,19 @@ public class WebViewHelper {
                             + "T2_TTFB\n"
                             + ttfbTime
             );
+//
+//            dashboard.logToFile(
+//                    TAG
+//                            + "WEB TEST RESPONSE CODE: "
+//                            + responseCode
+//            );
 
-            dashboard.logToFile(
-                    TAG
-                            + "WEB TEST RESPONSE CODE: "
-                            + responseCode
-            );
-
-            dashboard.logToFile(
-                    TAG
-                            + "WEB TEST TTFB TIME: "
-                            + ttfbTime
-                            + " ms"
-            );
+//            dashboard.logToFile(
+//                    TAG
+//                            + "WEB TEST TTFB TIME: "
+//                            + ttfbTime
+//                            + " ms"
+//            );
 
 
             // ADDED: HTTPURLCONNECTION RESPONSE LOG

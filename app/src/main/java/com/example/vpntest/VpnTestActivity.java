@@ -53,6 +53,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvTotalPackets, tvTcpCount, tvUdpCount, tvIpv6Skipped;
     private TextView tvLastProtocol, tvLastSource, tvLastDest, tvLastSize, tvLastTimestamp;
     private TextView tvLastTtfb;
+    private TextView tvLastTtfbWeb;
 
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
@@ -163,8 +164,10 @@ public class VpnTestActivity extends AppCompatActivity {
         webViewHelper.setWebTestListener((success, loadedUrl) -> runOnUiThread(() -> {
             if (success) {
                 updateStatus("WebView Loaded: " + loadedUrl);
+                tvLastTtfbWeb.setText(webViewHelper.getTtfbTime() + " ms");
             } else {
                 updateStatus("WebView Load Failed: " + loadedUrl);
+                tvLastTtfbWeb.setText("-");
             }
         }));
 
@@ -193,7 +196,7 @@ public class VpnTestActivity extends AppCompatActivity {
             tvLastTimestamp.setText(stats.lastPacketTimestamp > 0
                     ? android.text.format.DateFormat.format("HH:mm:ss", stats.lastPacketTimestamp)
                     : "-");
-            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ns" : "-");
+            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
 
 
             // TTFB END
@@ -217,6 +220,7 @@ public class VpnTestActivity extends AppCompatActivity {
         tvLastSize = findViewById(R.id.tvLastSize);
         tvLastTimestamp = findViewById(R.id.tvLastTimestamp);
         tvLastTtfb = findViewById(R.id.tvLastTtfb); // TTFB
+        tvLastTtfbWeb = findViewById(R.id.tvLastTtfbWeb); // WEB TEST TTFB
     }
 
     private void setupEventConsole() {
