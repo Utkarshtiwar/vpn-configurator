@@ -217,6 +217,16 @@ class TcpForwarder {
                     VpnEvent.Category.TCP
             );
         }
+
+        if (flags == 0x02) {
+
+            String txSynLog =
+                    "========== TX SYN ==========\n"
+                            + "Flags = 0x02\n"
+                            + "================================";
+            Log.i(TAG, txSynLog);
+            dashboard.logToFile(TAG + txSynLog);
+        }
         if (isSyn && !isAck) {
 
             if (session != null) {
@@ -255,9 +265,24 @@ class TcpForwarder {
             return;
         }
 
-        if (session.state == TcpSession.State.SYN_RCVD && isAck) {
+        if (session.state == TcpSession.State.SYN_RCVD
+                && flags == 0x10) {
+
+            String txAckLog =
+                    "========== TX ACK ==========\n"
+                            + "Flags = 0x10\n"
+                            + "================================";
+
+            // Logcat
+            Log.i(TAG, txAckLog);
+
+            // Log file
+            dashboard.logToFile(TAG + txAckLog);
+
             Log.d(TAG, "TCP Handshake completed.");
+
             session.state = TcpSession.State.ESTABLISHED;
+
             session.startRealSocketReaderThread(this, key);
         }
 
@@ -676,10 +701,29 @@ class TcpForwarder {
 
 
     private void sendSynAck(TcpSession s) {
-
         boolean firstSend = s.synAckSent.compareAndSet(false, true);
 
-        writeTcpPacket(s.dstIp, s.dstPort, s.srcIp, s.srcPort, s.deviceSeq, s.clientNextSeq,
+        int flags = PacketUtils.TCP_SYN | PacketUtils.TCP_ACK;
+        if (flags == 0x12) {
+
+            String rxSynAckLog =
+                    "========== RX SYN + ACK ==========\n"
+                            + "Flags = 0x12\n"
+                            + "========================================";
+
+            // Logcat
+            Log.i(TAG, rxSynAckLog);
+
+            // Log file
+            dashboard.logToFile(TAG + rxSynAckLog);
+        }
+        writeTcpPacket(
+                s.dstIp,
+                s.dstPort,
+                s.srcIp,
+                s.srcPort,
+                s.deviceSeq,
+                s.clientNextSeq,
                 PacketUtils.TCP_SYN | PacketUtils.TCP_ACK, null, 0);
 
         if (firstSend) {
