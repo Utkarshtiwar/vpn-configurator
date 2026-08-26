@@ -25,7 +25,7 @@ import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 
 
-class TcpForwarder {
+public class TcpForwarder {
 
     private static final String TAG = "VPN_TcpForwarder : ";
 
@@ -93,6 +93,11 @@ class TcpForwarder {
 //    private volatile long globalTtfbMs = -1L;
     private volatile long globalOutgoingIpMatchTime = 0L;
 
+    private static volatile long webViewT0Nano = 0L;
+
+    public static void setWebViewT0(long t0Nano) {
+        webViewT0Nano = t0Nano;
+    }
     private volatile long globalIncomingIpMatchTime = 0L;
 
     private volatile long globalOutgoingIpMatchWallTime = 0L;
@@ -860,6 +865,8 @@ class TcpForwarder {
 
         outgoingIpMatchCount.set(0);
         incomingIpMatchCount.set(0);
+        webViewT0Nano = 0L;
+
     }
 
 
@@ -878,6 +885,7 @@ class TcpForwarder {
         globalIncomingIpMatchWallTime = 0L;
 
         globalTtfbMs = -1L;
+        webViewT0Nano = 0L;
 
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
@@ -1218,11 +1226,11 @@ class TcpForwarder {
                                      * TTFB = IC_IP_MATCH - OG_IP_MATCH
                                      * =====================================================
                                      */
-                                    if (forwarder.globalOutgoingIpMatchTime > 0L) {
+                                    if (forwarder.webViewT0Nano > 0L) {
 
                                         long ttfbNano =
                                                 forwarder.globalIncomingIpMatchTime
-                                                        - forwarder.globalOutgoingIpMatchTime;
+                                                        - forwarder.webViewT0Nano;
 
                                         long ttfbMicros =
                                                 TimeUnit.NANOSECONDS.toMicros(ttfbNano);
@@ -1239,25 +1247,14 @@ class TcpForwarder {
                                                         + forwarder.globalTtfbRequestResolvedIp
                                                         + "\n"
                                                         + "\n"
-                                                        + "OG_IP_MATCH T0_Time Time: "
-                                                        + forwarder.formatTimestamp(
-                                                        forwarder.globalOutgoingIpMatchWallTime
-                                                )
-                                                        + "\n"
-                                                        + "IC_IP_MATCH Time: "
-                                                        + forwarder.formatTimestamp(
-                                                        forwarder.globalIncomingIpMatchWallTime
-                                                )
-                                                        + "\n"
-                                                        + "\n"
-                                                        + "OG_IP_MATCH Nano: "
-                                                        + forwarder.globalOutgoingIpMatchTime
+                                                        + "WebView T0 Nano: "
+                                                        + forwarder.webViewT0Nano
                                                         + " ns\n"
-                                                        + "IC_IP_MATCH Nano: "
+                                                        + "IC_IP_MATCH T1 Nano: "
                                                         + forwarder.globalIncomingIpMatchTime
                                                         + " ns\n"
                                                         + "\n"
-                                                        + "TTFB = IC_IP_MATCH - OG_IP_MATCH\n"
+                                                        + "TTFB = IC_IP_MATCH T1 - WebView T0\n"
                                                         + "     = "
                                                         + ttfbNano
                                                         + " ns\n"
@@ -1268,7 +1265,6 @@ class TcpForwarder {
                                                         + forwarder.globalTtfbMs
                                                         + " ms\n"
                                                         + "==========================";
-
                                         Log.i(TAG, ttfbLog);
 
                                         forwarder.dashboard.logEvent(

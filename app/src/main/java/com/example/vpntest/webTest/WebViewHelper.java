@@ -120,6 +120,10 @@ public class WebViewHelper {
                             + "RequestStart Time T0_0 ms:"
                             + requestStart
             );
+            long t0Nano =
+                    System.nanoTime();
+
+            com.example.vpntest.TcpForwarder.setWebViewT0(t0Nano);
 //            dashboard.logToFile(
 //                    TAG
 //                            + "T0_CONNECTION_START\n"
