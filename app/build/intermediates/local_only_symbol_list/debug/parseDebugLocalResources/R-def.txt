@@ -20,9 +20,9 @@ drawable ic_udp
 drawable ic_warning
 id btnStartVpn
 id btnStopVpn
-id etTargetUrl
 id ivEventIcon
 id rvEventConsole
+id spinnerAppSelect
 id tvEventMessage
 id tvEventTimestamp
 id tvInterfaceStatus
@@ -33,7 +33,6 @@ id tvLastSize
 id tvLastSource
 id tvLastTimestamp
 id tvLastTtfb
-id tvLastTtfbWeb
 id tvPermissionStatus
 id tvReaderStatus
 id tvStatus
@@ -41,7 +40,6 @@ id tvTcpCount
 id tvTotalPackets
 id tvUdpCount
 id tvVpnStatus
-id webView
 layout activity_vpn_test
 layout item_vpn_event
 mipmap ic_launcher

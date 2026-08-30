@@ -14,10 +14,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -46,8 +44,29 @@ class TcpForwarder {
 
     private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
 
-    private volatile Set<String> websiteResolvedIps =
-            Collections.emptySet();
+    /*
+     * ==========================================================================
+     * TARGET HOSTNAME (optional, hostname-based TTFB filtering)
+     * ==========================================================================
+     *
+     * Historically this was required for TTFB request-start matching: a
+     * request only "counted" if its HTTP Host header / TLS ClientHello SNI
+     * (see RequestHostnameUtils) matched this hostname.
+     *
+     * The VPN test target is now a single real Android application
+     * selected by the user, and the VPN interface itself is already scoped
+     * to that one application via VpnService.Builder.addAllowedApplication
+     * (see MediatorVpnService). Every TCP flow reaching this forwarder
+     * therefore already belongs to the selected app - no separate hostname
+     * gate is needed to know "is this the app's traffic". Nothing sets this
+     * field anymore in the normal flow (it stays null), and when it is
+     * null the FIRST outbound TCP data packet observed on the tunnel is
+     * used as the TTFB request-start marker instead (see handlePacket()
+     * below). The field/method are kept only in case hostname-scoped
+     * filtering is useful again in the future.
+     */
+    private volatile String targetHostname = null;
+
     private final java.util.concurrent.atomic.AtomicBoolean globalTtfbCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
@@ -102,6 +121,17 @@ class TcpForwarder {
     private volatile long globalTtfbMs = -1L;
 
     private volatile String globalTtfbRequestConnectionKey = null;
+    /*
+     * NOTE: These two fields historically held the packet's destination IP
+     * and the DNS-resolved IP it matched against (old IP-based TTFB
+     * matching). TTFB matching is now based on the request hostname
+     * extracted from HTTP Host header / TLS SNI when available (or simply
+     * the first outbound data packet on the tunnel when no target
+     * hostname is configured - see above), so the matched hostname (which
+     * may be null) is stored here instead. Field names kept as-is to
+     * minimize the diff; downstream logging still reads naturally with
+     * this content.
+     */
     private volatile String globalTtfbRequestDestinationIp = null;
     private volatile String globalTtfbRequestResolvedIp = null;
     private volatile int globalTtfbRequestPayloadSize = 0;
@@ -239,7 +269,7 @@ class TcpForwarder {
                         dashboard.logEvent(TAG+"Retransmitted SYN for existing session " + key + ", re-sending SYN-ACK.",
                                 VpnEvent.Level.INFO,
                                 VpnEvent.Category.TCP
-                                );
+                        );
                         sendSynAck(session);
                     }
 
@@ -314,25 +344,63 @@ class TcpForwarder {
              *
              * 1. Payload size > 0
              * 2. TCP session is ESTABLISHED
-             * 3. Packet destination IP matches one of the
-             *    resolved IPs of the requested website
+             * 3. EITHER:
+             *      a) no target hostname is configured (the normal case
+             *         for the real-app test flow) - the VPN tunnel is
+             *         already scoped to exactly one selected application
+             *         via per-app routing, so every payload packet here
+             *         already belongs to that app and this packet is
+             *         treated as a match candidate; the
+             *         firstOutgoingIpMatchLogged gate below still ensures
+             *         only the very FIRST such packet of the session
+             *         starts the TTFB clock, OR
+             *      b) a target hostname IS configured (legacy/optional
+             *         path) and the hostname extracted from this
+             *         request's payload (HTTP Host header, or TLS
+             *         ClientHello SNI for HTTPS) matches it.
              *
              * IMPORTANT:
              * Request timestamp is captured immediately BEFORE
              * writing the request to the real socket.
+             *
+             * TLS is never decrypted; for HTTPS only the SNI field of
+             * the (unencrypted) ClientHello handshake is inspected, and
+             * only for informational logging when no target hostname is
+             * configured.
              */
-            String destinationIp = ipStr(dstIp);
+            String requestHostname = RequestHostnameUtils.extractHostname(data, payloadLen);
+            String normalizedRequestHostname = RequestHostnameUtils.normalizeHostname(requestHostname);
+            String normalizedTargetHostname = RequestHostnameUtils.normalizeHostname(targetHostname);
 
-            boolean destinationIpMatched =
-                    websiteResolvedIps.contains(destinationIp);
+            boolean destinationIpMatched;
+
+            if (normalizedTargetHostname == null) {
+                // No target hostname configured (normal app-test flow):
+                // the VPN is already scoped to a single selected
+                // application, so no further filtering is needed here.
+                destinationIpMatched = true;
+            } else {
+                // Legacy/optional hostname-scoped filtering.
+                destinationIpMatched =
+                        normalizedRequestHostname != null
+                                && normalizedRequestHostname.equals(normalizedTargetHostname);
+            }
 
             Log.d(
                     TAG,
-                    "TTFB IP MATCH CHECK -> "
-                            + "Destination IP = " + destinationIp
-                            + ", Resolved IPs = " + websiteResolvedIps
+                    "TTFB HOSTNAME MATCH CHECK -> "
+                            + "Extracted Hostname = " + requestHostname
+                            + ", Target Hostname = " + targetHostname
                             + ", Payload Length = " + payloadLen
             );
+
+            if (requestHostname == null) {
+                Log.d(
+                        TAG,
+                        "Hostname could not be determined for this request (no HTTP Host header "
+                                + "or TLS ClientHello SNI found) - connection key = " + key
+                );
+            }
 
             boolean isFirstOutgoingMatch = false;
 
@@ -351,8 +419,8 @@ class TcpForwarder {
 
                     globalOutgoingIpMatchWallTime = System.currentTimeMillis();
 
-                    globalTtfbRequestDestinationIp = destinationIp;
-                    globalTtfbRequestResolvedIp = destinationIp;
+                    globalTtfbRequestDestinationIp = requestHostname;
+                    globalTtfbRequestResolvedIp = requestHostname;
                     globalTtfbRequestPayloadSize = payloadLen;
                     globalTtfbRequestConnectionKey = key;
 
@@ -371,6 +439,7 @@ class TcpForwarder {
                                     + "Destination IP  : " + ipStr(dstIp) + "\n"
                                     + "Source Port     : " + srcPort + "\n"
                                     + "Destination Port: " + dstPort + "\n"
+                                    + "Matched Hostname: " + requestHostname + "\n"
                                     + "Connection Key : " + key + "\n"
                                     + "Session State  : " + session.state + "\n"
                                     + "Match Count    : " + matchCount + "\n"
@@ -387,34 +456,34 @@ class TcpForwarder {
                     );
                 } else {
                     String ipMatchLog =
-                        "========== " + evtName + " ==========\n"
-                                + "Source IP       : " + ipStr(srcIp) + "\n"
-                                + "Destination IP : " + destinationIp + "\n"
-                                + "Source Port     : " + srcPort + "\n"
-                                + "Destination Port: " + dstPort + "\n"
-                                + "Match Count    : " + matchCount + "\n"
-                                + "Payload Length : " + payloadLen + " bytes\n"
-                                + "Connection Key : " + key + "\n"
-                                + "Session State  : " + session.state + "\n"
-                                + "Protocol        : TCP\n"
-                                + "Packet Length   : " + length + " bytes\n"
-                                + "Payload Length  : " + payloadLen + " bytes\n"
-                                + "Timestamp       : "
-                                + formatTimestamp(globalOutgoingIpMatchWallTime)
-                                + "\n"
-                                + "Timestamp Nano  : "
-                                + globalOutgoingIpMatchTime
-                                + " ns\n"
-                                + "===================================";
+                            "========== " + evtName + " ==========\n"
+                                    + "Source IP       : " + ipStr(srcIp) + "\n"
+                                    + "Matched Hostname: " + requestHostname + "\n"
+                                    + "Source Port     : " + srcPort + "\n"
+                                    + "Destination Port: " + dstPort + "\n"
+                                    + "Match Count    : " + matchCount + "\n"
+                                    + "Payload Length : " + payloadLen + " bytes\n"
+                                    + "Connection Key : " + key + "\n"
+                                    + "Session State  : " + session.state + "\n"
+                                    + "Protocol        : TCP\n"
+                                    + "Packet Length   : " + length + " bytes\n"
+                                    + "Payload Length  : " + payloadLen + " bytes\n"
+                                    + "Timestamp       : "
+                                    + formatTimestamp(globalOutgoingIpMatchWallTime)
+                                    + "\n"
+                                    + "Timestamp Nano  : "
+                                    + globalOutgoingIpMatchTime
+                                    + " ns\n"
+                                    + "===================================";
 
-                        Log.i(TAG, ipMatchLog);
+                    Log.i(TAG, ipMatchLog);
 
-                        dashboard.logEvent(
-                                TAG + ipMatchLog,
-                                VpnEvent.Level.INFO,
-                                VpnEvent.Category.TCP
-                        );
-                        Log.i(TAG, ipMatchLog);
+                    dashboard.logEvent(
+                            TAG + ipMatchLog,
+                            VpnEvent.Level.INFO,
+                            VpnEvent.Category.TCP
+                    );
+                    Log.i(TAG, ipMatchLog);
                 }
 
 
@@ -480,6 +549,7 @@ class TcpForwarder {
 //                            ttfbRequestTimestampLog
 //                    );
 //
+//
 //                    dashboard.logEvent(
 //                            TAG + ttfbRequestTimestampLog,
 //                            VpnEvent.Level.INFO,
@@ -509,7 +579,7 @@ class TcpForwarder {
                 dashboard.logEvent(TAG+"Total Packets Sent So Far = " + sentCount,
                         VpnEvent.Level.INFO,
                         VpnEvent.Category.TCP
-                        );
+                );
 
             } catch (IOException e) {
 
@@ -561,18 +631,26 @@ class TcpForwarder {
             }
         }
     }
-    void setWebsiteResolvedIps(Set<String> resolvedIps) {
 
-        if (resolvedIps == null) {
-            websiteResolvedIps = Collections.emptySet();
-        } else {
-            websiteResolvedIps = resolvedIps;
-        }
+    /**
+     * Sets an optional target hostname used to further restrict TTFB
+     * request-start matching to requests whose HTTP Host header / TLS
+     * ClientHello SNI equals this value.
+     *
+     * Not called anywhere in the current real-app test flow (the VPN
+     * tunnel is already scoped to a single selected application via
+     * per-app routing, so no hostname filter is required - see
+     * handlePacket() above). Left in place in case hostname-scoped
+     * filtering is needed again in the future.
+     */
+    void setTargetHostname(String hostname) {
+
+        this.targetHostname = RequestHostnameUtils.normalizeHostname(hostname);
 
         Log.d(
                 TAG,
-                "Website resolved IPs received by TcpForwarder = "
-                        + websiteResolvedIps
+                "Target hostname received by TcpForwarder = "
+                        + this.targetHostname
         );
     }
 
@@ -598,7 +676,7 @@ class TcpForwarder {
 
                 Log.d(TAG, "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
                 dashboard.logEvent(TAG+
-                        "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort,
+                                "Destination = " + intToInetName(dstIp).getHostAddress() + ":" + dstPort,
                         VpnEvent.Level.INFO,
                         VpnEvent.Category.TCP
                 );
@@ -657,7 +735,7 @@ class TcpForwarder {
                     Log.e(TAG, "Exception while rsolving host name : "
                             + intToInetName(dstIp).getHostAddress() + ":" + dstPort, e);
                     dashboard.logEvent(TAG+
-                            "Exception while rsolving host name : "
+                                    "Exception while rsolving host name : "
                                     + intToInetName(dstIp).getHostAddress() + ":" + dstPort
                                     + " exception is : " + e.getMessage(),
                             VpnEvent.Level.INFO, VpnEvent.Category.TCP
@@ -1005,6 +1083,7 @@ class TcpForwarder {
 //                                && forwarder.globalRequestSentTime > 0
 //                                && key.equals(forwarder.globalTtfbRequestConnectionKey)) {
 //
+//
 //                            if (forwarder.globalTtfbCaptured.compareAndSet(false, true)) {
 //
 //                                /*
@@ -1163,7 +1242,23 @@ class TcpForwarder {
 
                             String incomingIp = TcpForwarder.ipStr(dstIp);
 
-                            if (forwarder.websiteResolvedIps.contains(incomingIp)) {
+                            /*
+                             * Old logic matched by checking if incomingIp was in the
+                             * DNS-resolved IP set for the target website. Replaced:
+                             * this response is now considered "matched" if it arrives
+                             * on the same TCP connection that was matched on the way
+                             * out - i.e. it belongs to the request tracked by
+                             * globalTtfbRequestConnectionKey (which, in the normal
+                             * app-test flow, is simply the first TCP connection that
+                             * sent a data packet on this already app-scoped tunnel).
+                             * This removes the dependency on DNS resolution /
+                             * destination-IP comparison entirely.
+                             */
+                            boolean isMatchedResponseConnection =
+                                    forwarder.globalTtfbRequestConnectionKey != null
+                                            && key.equals(forwarder.globalTtfbRequestConnectionKey);
+
+                            if (isMatchedResponseConnection) {
 
                                 boolean isFirstIncomingMatch =
                                         forwarder.firstIncomingIpMatchLogged.compareAndSet(false, true);

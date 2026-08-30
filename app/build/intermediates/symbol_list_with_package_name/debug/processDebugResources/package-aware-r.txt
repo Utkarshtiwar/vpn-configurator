@@ -3182,7 +3182,6 @@ id endToStart
 id enterAlways
 id enterAlwaysCollapsed
 id escape
-id etTargetUrl
 id exitUntilCollapsed
 id expand_activities_button
 id expanded_menu
@@ -3398,6 +3397,7 @@ id snap
 id snapMargins
 id spacer
 id special_effects_controller_view_tag
+id spinnerAppSelect
 id spline
 id split_action_bar
 id spread
@@ -3476,7 +3476,6 @@ id tvLastSize
 id tvLastSource
 id tvLastTimestamp
 id tvLastTtfb
-id tvLastTtfbWeb
 id tvPermissionStatus
 id tvReaderStatus
 id tvStatus
@@ -3496,7 +3495,6 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
-id webView
 id withText
 id with_icon
 id withinBounds

@@ -11,17 +11,19 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <EditText
-            android:id="@+id/etTargetUrl"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:text="Select app to route through VPN"
+            android:textColor="@color/on_surface_secondary" />
+
+        <Spinner
+            android:id="@+id/spinnerAppSelect"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:inputType="textUri"
-            android:singleLine="true"
-            android:hint="https://example.com"
-            android:text="https://www.google.com"
-            android:textColor="@color/on_surface_primary"
-            android:textColorHint="@color/on_surface_secondary" />
+            android:layout_margin="8dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -211,21 +213,10 @@
 
                     <TextView
                         style="@style/DashboardCardLabel"
-                        android:text="Time To First Byte (VPN)" />
+                        android:text="Time To First Byte" />
 
                     <TextView
                         android:id="@+id/tvLastTtfb"
-                        style="@style/DashboardCardValue"
-                        android:textColor="@color/status_success"
-                        android:textSize="14sp"
-                        android:text="-" />
-
-                    <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="Time To First Byte (WEB TEST)" />
-
-                    <TextView
-                        android:id="@+id/tvLastTtfbWeb"
                         style="@style/DashboardCardValue"
                         android:textColor="@color/status_success"
                         android:textSize="14sp"
@@ -253,13 +244,6 @@
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
-
-            <!-- Compact WebView preview -->
-            <WebView
-                android:id="@+id/webView"
-                android:layout_width="match_parent"
-                android:layout_height="150dp"
-                android:layout_margin="4dp" />
 
         </LinearLayout>
 

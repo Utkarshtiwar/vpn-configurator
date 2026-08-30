@@ -9,10 +9,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
@@ -26,45 +27,44 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import androidx.core.content.FileProvider;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.ArrayList;
+import java.util.List;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
 import com.example.vpntest.ui.VpnEventAdapter;
 import com.example.vpntest.utils.VpnLogFileManager;
-import com.example.vpntest.webTest.WebViewHelper;
 
 public class VpnTestActivity extends AppCompatActivity {
 
     private static final String TAG = "VpnTestActivity : ";
 
+    private static final String STATE_SELECTED_PACKAGE = "selected_package_name";
+
     private TextView tvStatus;
-    private WebView webView;
     private Button btnStartVpn;
     private Button btnStopVpn;
+    private Spinner spinnerAppSelect;
 
     // Dashboard views
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
     private TextView tvTotalPackets, tvTcpCount, tvUdpCount, tvIpv6Skipped;
     private TextView tvLastProtocol, tvLastSource, tvLastDest, tvLastSize, tvLastTimestamp;
     private TextView tvLastTtfb;
-    private TextView tvLastTtfbWeb;
 
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
 
+    private final List<AppInfo> installedApps = new ArrayList<>();
+    private String selectedPackageName = null;
 
-    private final ExecutorService websiteDnsExecutor = Executors.newSingleThreadExecutor();
-
-    private boolean pendingUrlLoad = false;
-    private String pendingTargetUrl = null;
-
+    /**
+     * Set right before the VPN service is started; consumed by the
+     * VPN-ready callback below, which launches the selected real
+     * application only after the VPN interface has actually established.
+     */
+    private boolean pendingAppLaunch = false;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -83,21 +83,11 @@ public class VpnTestActivity extends AppCompatActivity {
                                 "VPN established callback received."
                         );
 
-                        if (pendingUrlLoad && pendingTargetUrl != null) {
+                        if (pendingAppLaunch) {
 
-                            String urlToLoad = pendingTargetUrl;
+                            pendingAppLaunch = false;
 
-                            pendingUrlLoad = false;
-                            pendingTargetUrl = null;
-
-                            updateStatus(
-                                    "VPN established. Loading "
-                                            + urlToLoad
-                                            + " ..."
-                            );
-
-                            resolveAndSetWebsiteTarget(urlToLoad);
-                            websiteDnsExecutor.execute(() -> webViewHelper.runWebTest(urlToLoad));
+                            launchSelectedApp();
                         }
                     })
             );
@@ -110,14 +100,12 @@ public class VpnTestActivity extends AppCompatActivity {
         }
     };
 
-    private EditText etTargetUrl;
     private RecyclerView rvEventConsole;
     private VpnEventAdapter eventAdapter;
 
     private VpnDashboardViewModel viewModel;
     private final VpnEventRepository dashboardRepo = VpnEventRepository.getInstance();
 
-    private final WebViewHelper webViewHelper = new WebViewHelper();
     private final ActivityResultLauncher<Intent> vpnPermissionLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
@@ -127,7 +115,7 @@ public class VpnTestActivity extends AppCompatActivity {
                             dashboardRepo.setPermissionStatus("Granted");
                             dashboardRepo.logEvent(TAG+"VPN permission granted",
                                     VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
-                            startVpnServiceAndLoadWebView();
+                            startVpnServiceForSelectedApp();
                         } else {
                             Log.d(TAG, "VPN permission denied by user.");
                             dashboardRepo.setPermissionStatus("Denied");
@@ -147,29 +135,14 @@ public class VpnTestActivity extends AppCompatActivity {
         setContentView(R.layout.activity_vpn_test);
 
         tvStatus = findViewById(R.id.tvStatus);
-        webView = findViewById(R.id.webView);
-        etTargetUrl = findViewById(R.id.etTargetUrl);
         btnStartVpn = findViewById(R.id.btnStartVpn);
         btnStopVpn = findViewById(R.id.btnStopVpn);
+        spinnerAppSelect = findViewById(R.id.spinnerAppSelect);
 
 
         bindDashboardViews();
         setupEventConsole();
-
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.setWebViewClient(new WebViewClient());
-
-        // WebViewHelper now does the fetch manually (no more WebViewClient.onPageFinished()),
-        // so it tells us via this listener when the "page" has finished loading.
-        webViewHelper.setWebTestListener((success, loadedUrl) -> runOnUiThread(() -> {
-            if (success) {
-                updateStatus("WebView Loaded: " + loadedUrl);
-                tvLastTtfbWeb.setText(webViewHelper.getTtfbTime() + " ms");
-            } else {
-                updateStatus("WebView Load Failed: " + loadedUrl);
-                tvLastTtfbWeb.setText("-");
-            }
-        }));
+        setupAppSelectionSpinner(savedInstanceState);
 
         btnStartVpn.setOnClickListener(v -> onStartVpnClicked());
         btnStopVpn.setOnClickListener(v -> onStopVpnClicked());
@@ -220,7 +193,6 @@ public class VpnTestActivity extends AppCompatActivity {
         tvLastSize = findViewById(R.id.tvLastSize);
         tvLastTimestamp = findViewById(R.id.tvLastTimestamp);
         tvLastTtfb = findViewById(R.id.tvLastTtfb); // TTFB
-        tvLastTtfbWeb = findViewById(R.id.tvLastTtfbWeb); // WEB TEST TTFB
     }
 
     private void setupEventConsole() {
@@ -232,12 +204,106 @@ public class VpnTestActivity extends AppCompatActivity {
         rvEventConsole.setHasFixedSize(true);
     }
 
+    /**
+     * Populates the app-selection dropdown with a fixed, hardcoded list of
+     * well-known third-party applications. Restores the previously selected
+     * package across Activity recreation when possible.
+     */
+    private void setupAppSelectionSpinner(Bundle savedInstanceState) {
+        loadInstalledApps();
+
+        ArrayAdapter<AppInfo> spinnerAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, installedApps);
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerAppSelect.setAdapter(spinnerAdapter);
+
+        spinnerAppSelect.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (position >= 0 && position < installedApps.size()) {
+                    selectedPackageName = installedApps.get(position).packageName;
+                    Log.d(TAG, "Selected application for VPN routing = " + selectedPackageName);
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedPackageName = null;
+            }
+        });
+
+        String restoredPackage = savedInstanceState != null
+                ? savedInstanceState.getString(STATE_SELECTED_PACKAGE)
+                : null;
+
+        int restoredIndex = restoredPackage != null ? indexOfPackage(restoredPackage) : -1;
+
+        if (restoredIndex >= 0) {
+            spinnerAppSelect.setSelection(restoredIndex);
+            selectedPackageName = restoredPackage;
+        } else if (!installedApps.isEmpty()) {
+            spinnerAppSelect.setSelection(0);
+            selectedPackageName = installedApps.get(0).packageName;
+        } else {
+            selectedPackageName = null;
+        }
+    }
+
+    /**
+     * Populates the app-selection dropdown with a fixed, hardcoded set of
+     * well-known third-party applications (name -> package name). No
+     * PackageManager-based discovery or filtering is performed here.
+     */
+    private void loadInstalledApps() {
+        installedApps.clear();
+
+        installedApps.add(new AppInfo("Instagram", "com.instagram.android"));
+        installedApps.add(new AppInfo("YouTube", "com.google.android.youtube"));
+        installedApps.add(new AppInfo("Facebook", "com.facebook.katana"));
+        installedApps.add(new AppInfo("Chrome", "com.android.chrome"));
+        installedApps.add(new AppInfo("WhatsApp", "com.whatsapp"));
+        installedApps.add(new AppInfo("Netflix", "com.netflix.mediaclient"));
+        installedApps.add(new AppInfo("Spotify", "com.spotify.music"));
+    }
+
+    private int indexOfPackage(String packageName) {
+        if (packageName == null) {
+            return -1;
+        }
+        for (int i = 0; i < installedApps.size(); i++) {
+            if (installedApps.get(i).packageName.equals(packageName)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     private void onNewEvent(VpnEvent event) {
         eventAdapter.addEvent(event);
         rvEventConsole.scrollToPosition(eventAdapter.getLastIndex());
     }
 
     private void onStartVpnClicked() {
+
+        if (selectedPackageName == null || selectedPackageName.isEmpty()) {
+            Toast.makeText(this,
+                    "Please select an application to route through the VPN.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Early feedback before we even ask for VPN permission. The
+        // authoritative check happens again in launchSelectedApp() right
+        // before we actually launch, since state can change while the
+        // user is granting VPN permission.
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(selectedPackageName);
+        if (launchIntent == null) {
+            String message = describeUnlaunchableApp(selectedPackageName);
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            updateStatus(message);
+            return;
+        }
+
         updateStatus("Requesting VPN permission...");
         dashboardRepo.setPermissionStatus("Requesting");
         dashboardRepo.logEvent(TAG+"Requesting VPN permission",
@@ -254,18 +320,30 @@ public class VpnTestActivity extends AppCompatActivity {
             dashboardRepo.setPermissionStatus("Granted");
             dashboardRepo.logEvent(TAG+"VPN permission already granted",
                     VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
-            startVpnServiceAndLoadWebView();
+            startVpnServiceForSelectedApp();
         }
     }
 
+    private void startVpnServiceForSelectedApp() {
 
-    private void startVpnServiceAndLoadWebView() {
-        String targetUrl = resolveTargetUrl();
+        if (selectedPackageName == null || selectedPackageName.isEmpty()) {
+            Toast.makeText(this,
+                    "Please select an application to route through the VPN.",
+                    Toast.LENGTH_SHORT).show();
+            btnStartVpn.setEnabled(true);
+            btnStopVpn.setEnabled(false);
+            return;
+        }
 
         updateStatus("Starting MediatorVpnService...");
 
         Intent serviceIntent =
                 new Intent(this, MediatorVpnService.class);
+
+        serviceIntent.putExtra(
+                MediatorVpnService.EXTRA_SELECTED_PACKAGE,
+                selectedPackageName
+        );
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
@@ -277,17 +355,87 @@ public class VpnTestActivity extends AppCompatActivity {
                 Context.BIND_AUTO_CREATE
         );
 
-        pendingTargetUrl = targetUrl;
-        pendingUrlLoad = true;
+        pendingAppLaunch = true;
 
         updateStatus(
-                "VPN service starting. Waiting for VPN establishment before loading "
-                        + targetUrl
+                "VPN service starting. Waiting for VPN establishment before launching "
+                        + selectedPackageName
                         + " ..."
         );
 
         btnStartVpn.setEnabled(false);
         btnStopVpn.setEnabled(true);
+    }
+
+    /**
+     * Launches the selected real Android application. Must only be called
+     * after the VPN interface has actually established (i.e. from the
+     * VpnReadyCallback), so that the app's traffic is guaranteed to pass
+     * through our TUN interface from its very first packet.
+     */
+    private void launchSelectedApp() {
+
+        if (selectedPackageName == null || selectedPackageName.isEmpty()) {
+            updateStatus("No application selected; cannot launch.");
+            return;
+        }
+
+        // Re-check right before launching: package visibility/availability
+        // could theoretically change between the pre-flight check in
+        // onStartVpnClicked() and VPN establishment completing.
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(selectedPackageName);
+
+        if (launchIntent == null) {
+            String message = describeUnlaunchableApp(selectedPackageName);
+
+            updateStatus(message);
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+
+            dashboardRepo.logEvent(TAG + message,
+                    VpnEvent.Level.ERROR, VpnEvent.Category.ERROR);
+            return;
+        }
+
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+        updateStatus(
+                "VPN established. Launching "
+                        + selectedPackageName
+                        + " ..."
+        );
+
+        dashboardRepo.logEvent(
+                TAG + "VPN established; launching selected application: " + selectedPackageName,
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.GENERAL
+        );
+
+        startActivity(launchIntent);
+    }
+
+    /**
+     * getLaunchIntentForPackage() returning null does not by itself mean
+     * "not installed" - it can also mean the package is installed but
+     * exposes no launchable (MAIN/LAUNCHER) activity, or that package
+     * visibility is restricted. This distinguishes those cases for a more
+     * accurate status/error message rather than assuming "not installed".
+     */
+    private String describeUnlaunchableApp(String packageName) {
+        if (isPackageVisible(packageName)) {
+            return "Selected application is installed but exposes no launchable activity: "
+                    + packageName;
+        }
+        return "Selected application is not installed or not visible to this app: "
+                + packageName;
+    }
+
+    private boolean isPackageVisible(String packageName) {
+        try {
+            getPackageManager().getPackageInfo(packageName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
     }
 
     private void onStopVpnClicked() {
@@ -296,12 +444,7 @@ public class VpnTestActivity extends AppCompatActivity {
                 VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
 
-        pendingUrlLoad = false;
-        pendingTargetUrl = null;
-
-        if (isServiceBound && mediatorVpnService != null) {
-            mediatorVpnService.setWebsiteTarget(null, null);
-        }
+        pendingAppLaunch = false;
 
         if (isServiceBound && mediatorVpnService != null) {
 
@@ -317,9 +460,6 @@ public class VpnTestActivity extends AppCompatActivity {
 
         Intent serviceIntent = new Intent(this, MediatorVpnService.class);
         stopService(serviceIntent);
-
-//        webView.stopLoading();
-//        webView.loadUrl("about:blank");
 
         dashboardRepo.setVpnStatus("Stopped");
         dashboardRepo.setInterfaceStatus("Closed");
@@ -341,57 +481,6 @@ public class VpnTestActivity extends AppCompatActivity {
 
         btnStartVpn.setEnabled(true);
         btnStopVpn.setEnabled(false);
-    }
-
-    private String resolveTargetUrl() {
-        String input = etTargetUrl.getText() != null
-                ? etTargetUrl.getText().toString().trim()
-                : "";
-
-        if (input.isEmpty()) {
-            input = "https://www.google.com";
-        }
-
-        if (!input.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
-            input = "https://" + input;
-        }
-
-        return input;
-    }
-
-
-    private String extractHostname(String url) {
-        Uri uri = Uri.parse(url);
-        return uri.getHost();
-    }
-
-
-    private void resolveAndSetWebsiteTarget(String urlToLoad) {
-        String hostname = extractHostname(urlToLoad);
-
-        if (hostname == null || hostname.isEmpty()) {
-            return;
-        }
-
-        websiteDnsExecutor.execute(() -> {
-            try {
-                InetAddress[] addresses = InetAddress.getAllByName(hostname);
-
-                Set<String> resolvedIps = new HashSet<>();
-                for (InetAddress address : addresses) {
-                    resolvedIps.add(address.getHostAddress());
-                }
-
-                if (isServiceBound && mediatorVpnService != null) {
-                    mediatorVpnService.setWebsiteTarget(hostname, resolvedIps);
-                }
-
-                Log.d(TAG, "Resolved website " + hostname + " -> " + resolvedIps);
-
-            } catch (UnknownHostException e) {
-                Log.w(TAG, "DNS resolution failed for " + hostname + ": " + e.getMessage());
-            }
-        });
     }
 
     private void updateStatus(String message) {
@@ -489,6 +578,28 @@ public class VpnTestActivity extends AppCompatActivity {
                     "VPN log deleted.",
                     Toast.LENGTH_SHORT
             ).show();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_SELECTED_PACKAGE, selectedPackageName);
+    }
+
+    /** Simple holder used by the app-selection dropdown. */
+    private static class AppInfo {
+        final String label;
+        final String packageName;
+
+        AppInfo(String label, String packageName) {
+            this.label = label;
+            this.packageName = packageName;
+        }
+
+        @Override
+        public String toString() {
+            return label;
         }
     }
 }

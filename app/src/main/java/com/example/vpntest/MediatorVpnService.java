@@ -31,9 +31,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MediatorVpnService extends VpnService {
@@ -41,6 +39,14 @@ public class MediatorVpnService extends VpnService {
     private static final String TAG = "VPN_MediatorVpnService : ";
     private static final String CHANNEL_ID = "vpn_test_channel";
     private static final int NOTIFICATION_ID = 1001;
+
+    /**
+     * Intent extra key used by VpnTestActivity to pass the package name of
+     * the single application whose traffic should be routed through this
+     * VPN (Requirement: per-app VPN routing via addAllowedApplication).
+     */
+    public static final String EXTRA_SELECTED_PACKAGE =
+            "com.example.vpntest.EXTRA_SELECTED_PACKAGE";
 
     private final VpnEventRepository dashboard =
             VpnEventRepository.getInstance();
@@ -61,13 +67,15 @@ public class MediatorVpnService extends VpnService {
 
     private Network underlyingNetwork;
 
+    /**
+     * Package name of the single application selected in the UI to be
+     * routed through this VPN. Must be set (via EXTRA_SELECTED_PACKAGE)
+     * before establishVpn() runs.
+     */
+    private volatile String selectedPackageName;
+
     private final Map<String, ConnectionInfo> activeConnections =
             new ConcurrentHashMap<>();
-
-
-    private volatile String targetWebsiteHostname;
-    private volatile Set<String> targetWebsiteResolvedIps = Collections.emptySet();
-    private final Set<String> matchedIpsLoggedThisSession = ConcurrentHashMap.newKeySet();
 
     private final IBinder binder = new LocalBinder();
 
@@ -87,34 +95,6 @@ public class MediatorVpnService extends VpnService {
 
     public void clearVpnReadyCallback() {
         this.vpnReadyCallback = null;
-    }
-
-    public void setWebsiteTarget(
-            String hostname,
-            Set<String> resolvedIps) {
-
-        this.targetWebsiteHostname = hostname;
-
-        this.targetWebsiteResolvedIps =
-                resolvedIps != null
-                        ? resolvedIps
-                        : Collections.emptySet();
-
-        this.matchedIpsLoggedThisSession.clear();
-
-
-        if (tcpForwarder != null) {
-
-            tcpForwarder.setWebsiteResolvedIps(
-                    this.targetWebsiteResolvedIps
-            );
-
-            Log.d(
-                    TAG,
-                    "Updated TcpForwarder with website resolved IPs = "
-                            + this.targetWebsiteResolvedIps
-            );
-        }
     }
 
     public class LocalBinder extends Binder {
@@ -173,6 +153,27 @@ public class MediatorVpnService extends VpnService {
                         + " time="
                         + System.currentTimeMillis()
         );
+
+        /*
+         * Capture which application was selected in the UI so
+         * establishVpn() below can call addAllowedApplication() with it.
+         */
+        if (intent != null) {
+
+            String selectedFromIntent =
+                    intent.getStringExtra(EXTRA_SELECTED_PACKAGE);
+
+            if (selectedFromIntent != null && !selectedFromIntent.isEmpty()) {
+
+                selectedPackageName = selectedFromIntent;
+
+                Log.d(
+                        TAG,
+                        "Selected application for VPN routing (from intent) = "
+                                + selectedPackageName
+                );
+            }
+        }
 
         /*
          * Prevent duplicate VPN establishment on the same service instance.
@@ -391,26 +392,51 @@ public class MediatorVpnService extends VpnService {
         /*
          * IMPORTANT:
          *
-         * Only this application is routed through this VPN.
+         * Only the user-selected application is routed through this VPN.
+         * (Previously this always routed this app's own traffic via
+         * getPackageName(); now it routes selectedPackageName instead.)
          */
+        if (selectedPackageName == null || selectedPackageName.isEmpty()) {
+
+            Log.e(
+                    TAG,
+                    "No application selected for VPN routing; aborting VPN establishment."
+            );
+
+            dashboard.logEvent(TAG+
+                            "No application selected for VPN routing; VPN not established",
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+
+            return;
+        }
+
         try {
 
             builder.addAllowedApplication(
-                    getPackageName()
+                    selectedPackageName
             );
 
             Log.d(
                     TAG,
                     "VPN allowed application = "
-                            + getPackageName()
+                            + selectedPackageName
             );
 
         } catch (PackageManager.NameNotFoundException e) {
 
             Log.e(
                     TAG,
-                    "Failed to add allowed application",
+                    "Failed to add allowed application: " + selectedPackageName,
                     e
+            );
+
+            dashboard.logEvent(TAG+
+                            "Failed to add allowed application: " + selectedPackageName
+                            + " : " + e.getMessage(),
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
             );
 
             return;
@@ -518,11 +544,6 @@ public class MediatorVpnService extends VpnService {
                         tunWriteLock,
                         underlyingNetwork
                 );
-
-
-        tcpForwarder.setWebsiteResolvedIps(
-                targetWebsiteResolvedIps
-        );
 
         tcpForwarder.resetGlobalTtfb();
 
@@ -754,57 +775,6 @@ public class MediatorVpnService extends VpnService {
         packetReaderThread.start();
     }
 
-    /**
-     * Compares the just-parsed packet's destination IP against the current
-     * website's DNS-resolved IP(s) (NOT the system DNS resolver IPs). On a
-     * match, immediately logs one RED MATCH event to the existing event
-     * console. A tiny per-session set prevents duplicate MATCH spam if the
-     * same destination IP appears in many packets; no history/list is kept.
-     */
-    private void checkWebsiteIpMatch(ParsedPacket parsed) {
-
-        if (parsed.destinationIp == null) {
-            return;
-        }
-
-        String hostname = targetWebsiteHostname;
-        Set<String> resolvedIps = targetWebsiteResolvedIps;
-
-        if (hostname == null || resolvedIps.isEmpty()) {
-            return;
-        }
-
-        String matchedDnsIp = null;
-
-        for (String resolvedIp : resolvedIps) {
-            if (resolvedIp.equals(parsed.destinationIp)) {
-                matchedDnsIp = resolvedIp;
-                break;
-            }
-        }
-
-        if (matchedDnsIp == null) {
-            return;
-        }
-
-        if (!matchedIpsLoggedThisSession.add(parsed.destinationIp)) {
-            return;
-        }
-
-        String matchLog =
-                "[MATCH] Requested website destination IP matched\n"
-                        + "Website       : " + hostname + "\n"
-                        + "Destination IP: " + parsed.destinationIp + "\n"
-                        + "Resolved IP   : " + matchedDnsIp + "\n"
-                        + "IP Version    : IPv" + parsed.ipVersion;
-
-        dashboard.logEvent(TAG+
-                        matchLog,
-                VpnEvent.Level.ERROR,
-                VpnEvent.Category.MATCH
-        );
-    }
-
     private void handlePacket(
             byte[] packetBytes,
             int length
@@ -819,8 +789,6 @@ public class MediatorVpnService extends VpnService {
         }
 
         ParsedPacket parsed = PacketParser.parse(packetBytes, length);
-
-        checkWebsiteIpMatch(parsed);
 
         if (parsed.status == ParsedPacket.Status.MALFORMED) {
 
@@ -1178,10 +1146,6 @@ public class MediatorVpnService extends VpnService {
         underlyingNetwork = null;
 
         vpnReadyCallback = null;
-
-        targetWebsiteHostname = null;
-        targetWebsiteResolvedIps = Collections.emptySet();
-        matchedIpsLoggedThisSession.clear();
 
         dashboard.setVpnStatus(
                 "Stopped"
