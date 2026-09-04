@@ -1,0 +1,1193 @@
+package com.example.vpntest.appOpen;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
+import android.net.VpnService;
+import android.os.Binder;
+import android.os.Build;
+import android.os.IBinder;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
+
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+
+import com.example.vpntest.PacketParser;
+import com.example.vpntest.ParsedPacket;
+import com.example.vpntest.model.ConnectionInfo;
+import com.example.vpntest.model.VpnEvent;
+import com.example.vpntest.repo.VpnEventRepository;
+import com.example.vpntest.utils.VpnLogFileManager;
+
+import java.io.Closeable;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class AppOpenMediatorVpnService extends VpnService {
+
+    private static final String TAG = "VPN_MediatorVpnService : ";
+    private static final String CHANNEL_ID = "vpn_test_channel";
+    private static final int NOTIFICATION_ID = 1001;
+
+    /**
+     * Intent extra key used by VpnTestActivity to pass the package name of
+     * the single application whose traffic should be routed through this
+     * VPN (Requirement: per-app VPN routing via addAllowedApplication).
+     */
+    public static final String EXTRA_SELECTED_PACKAGE =
+            "com.example.vpntest.EXTRA_SELECTED_PACKAGE";
+
+    private final VpnEventRepository dashboard =
+            VpnEventRepository.getInstance();
+
+    private ParcelFileDescriptor vpnInterface;
+    private FileOutputStream tunOut;
+
+    private volatile FileInputStream tunIn;
+    private final Object tunWriteLock = new Object();
+
+    private AppOpenUdpForwarder udpForwarder;
+    private AppOpenTcpForwarder tcpForwarder;
+
+    private Thread packetReaderThread;
+
+    private volatile boolean isRunning = false;
+
+
+    private Network underlyingNetwork;
+
+    /**
+     * Package name of the single application selected in the UI to be
+     * routed through this VPN. Must be set (via EXTRA_SELECTED_PACKAGE)
+     * before establishVpn() runs.
+     */
+    private volatile String selectedPackageName;
+
+    private final Map<String, ConnectionInfo> activeConnections =
+            new ConcurrentHashMap<>();
+
+    private final IBinder binder = new LocalBinder();
+
+    private VpnReadyCallback vpnReadyCallback;
+
+    public interface VpnReadyCallback {
+        void onVpnEstablished();
+    }
+
+    public void setVpnReadyCallback(VpnReadyCallback callback) {
+        this.vpnReadyCallback = callback;
+
+        if (vpnInterface != null) {
+            callback.onVpnEstablished();
+        }
+    }
+
+    public void clearVpnReadyCallback() {
+        this.vpnReadyCallback = null;
+    }
+
+    public class LocalBinder extends Binder {
+        AppOpenMediatorVpnService getService() {
+            return AppOpenMediatorVpnService.this;
+        }
+    }
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        Log.d(
+                TAG,
+                "DIAG onCreate: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " thread="
+                        + Thread.currentThread().getName()
+                        + "("
+                        + Thread.currentThread().getId()
+                        + ")"
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+    }
+
+    @Override
+    public int onStartCommand(
+            @Nullable Intent intent,
+            int flags,
+            int startId
+    ) {
+
+        Log.d(
+                TAG,
+                "DIAG onStartCommand ENTRY: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " startId="
+                        + startId
+                        + " thread="
+                        + Thread.currentThread().getName()
+                        + "("
+                        + Thread.currentThread().getId()
+                        + ")"
+                        + " vpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " vpnInterfaceNull="
+                        + (vpnInterface == null)
+                        + " isRunning="
+                        + isRunning
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+
+        /*
+         * Capture which application was selected in the UI so
+         * establishVpn() below can call addAllowedApplication() with it.
+         */
+        if (intent != null) {
+
+            String selectedFromIntent =
+                    intent.getStringExtra(EXTRA_SELECTED_PACKAGE);
+
+            if (selectedFromIntent != null && !selectedFromIntent.isEmpty()) {
+
+                selectedPackageName = selectedFromIntent;
+
+                Log.d(
+                        TAG,
+                        "Selected application for VPN routing (from intent) = "
+                                + selectedPackageName
+                );
+            }
+        }
+
+        /*
+         * Prevent duplicate VPN establishment on the same service instance.
+         */
+        if (vpnInterface != null && isRunning) {
+
+            Log.w(
+                    TAG,
+                    "DIAG onStartCommand SKIPPED (duplicate): serviceInstance="
+                            + System.identityHashCode(this)
+                            + " startId="
+                            + startId
+                            + " existing vpnInterface="
+                            + System.identityHashCode(vpnInterface)
+                            + " time="
+                            + System.currentTimeMillis()
+            );
+
+            return START_STICKY;
+        }
+
+        Log.d(
+                TAG,
+                "onStartCommand: starting VPN setup. serviceInstance="
+                        + System.identityHashCode(this)
+                        + " startId="
+                        + startId
+        );
+
+        dashboard.setVpnStatus("Starting");
+
+        VpnLogFileManager
+                .getInstance()
+                .startSession(this);
+
+        dashboard.logEvent(
+                TAG+
+                        "Starting VPN Service",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
+
+        startForeground(
+                NOTIFICATION_ID,
+                buildNotification()
+        );
+
+        establishVpn();
+
+        if (vpnInterface != null) {
+            startPacketReadingLoop();
+        }
+
+        return START_STICKY;
+    }
+
+    private void establishVpn() {
+
+        Log.d(
+                TAG,
+                "DIAG establishVpn ENTRY: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " thread="
+                        + Thread.currentThread().getName()
+                        + "("
+                        + Thread.currentThread().getId()
+                        + ")"
+                        + " previousVpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+
+        VpnService.Builder builder = new Builder();
+
+        builder.setSession("AppOpenMediatorVpnService-POC");
+
+        /*
+         * VPN/TUN address.
+         */
+        builder.addAddress(
+                "10.0.0.2",
+                24
+        );
+
+        /*
+         * Route application traffic through the VPN.
+         */
+        builder.addRoute(
+                "0.0.0.0",
+                0
+        );
+
+        /*
+         * IPv6 VPN/TUN address (ULA prefix, private to this VPN) and
+         * default IPv6 route, so IPv6 packets actually reach the TUN
+         * interface instead of bypassing it. Kept separate from the
+         * IPv4 configuration above; IPv4 behavior is unchanged.
+         */
+        try {
+            builder.addAddress(
+                    "fd00:1:fd00::2",
+                    64
+            );
+
+            builder.addRoute(
+                    "::",
+                    0
+            );
+
+            Log.d(
+                    TAG,
+                    "IPv6 VPN address/route configured (fd00:1:fd00::2/64, ::/0)"
+            );
+
+        } catch (IllegalArgumentException e) {
+
+            Log.e(
+                    TAG,
+                    "Failed to configure IPv6 VPN address/route; continuing IPv4-only",
+                    e
+            );
+
+            dashboard.logEvent(TAG+
+                            "Failed to configure IPv6 VPN address/route; continuing IPv4-only: " + e.getMessage(),
+                    VpnEvent.Level.WARNING,
+                    VpnEvent.Category.GENERAL
+            );
+        }
+
+        ConnectivityManager cm =
+                (ConnectivityManager)
+                        getSystemService(
+                                Context.CONNECTIVITY_SERVICE
+                        );
+
+        /*
+         * Get the actual physical network.
+         */
+        underlyingNetwork = cm.getActiveNetwork();
+
+        if (underlyingNetwork != null) {
+
+            Log.d(
+                    TAG,
+                    "Underlying Network = "
+                            + underlyingNetwork
+            );
+
+            /*
+             * Tell Android which physical network is underneath
+             * this VPN.
+             */
+            builder.setUnderlyingNetworks(
+                    new Network[]{
+                            underlyingNetwork
+                    }
+            );
+
+            LinkProperties linkProperties =
+                    cm.getLinkProperties(
+                            underlyingNetwork
+                    );
+
+            if (linkProperties != null) {
+
+                Log.d(
+                        TAG,
+                        "========== SYSTEM DNS SERVERS =========="
+                );
+
+
+                for (InetAddress dnsServer :
+                        linkProperties.getDnsServers()) {
+
+                    String dnsIp =
+                            dnsServer.getHostAddress();
+
+                    dashboard.logEvent(TAG+
+                                    "========== DNS SERVER ==========\n"
+                                    + "DNS Server IP : "
+                                    + dnsIp
+                                    + "\n"
+                                    + "===============================",
+                            VpnEvent.Level.INFO,
+                            VpnEvent.Category.UDP
+                    );
+
+                    builder.addDnsServer(
+                            dnsServer
+                    );
+                }
+
+                Log.d(
+                        TAG,
+                        "========================================"
+                );
+            }
+
+        } else {
+
+            Log.e(
+                    TAG,
+                    "NO ACTIVE UNDERLYING NETWORK FOUND"
+            );
+
+            dashboard.logEvent(TAG+
+                            "No active underlying network found",
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+        }
+
+        builder.setMtu(1500);
+
+        /*
+         * IMPORTANT:
+         *
+         * Only the user-selected application is routed through this VPN.
+         * (Previously this always routed this app's own traffic via
+         * getPackageName(); now it routes selectedPackageName instead.)
+         */
+        if (selectedPackageName == null || selectedPackageName.isEmpty()) {
+
+            Log.e(
+                    TAG,
+                    "No application selected for VPN routing; aborting VPN establishment."
+            );
+
+            dashboard.logEvent(TAG+
+                            "No application selected for VPN routing; VPN not established",
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+
+            return;
+        }
+
+        try {
+
+            builder.addAllowedApplication(
+                    selectedPackageName
+            );
+
+            Log.d(
+                    TAG,
+                    "VPN allowed application = "
+                            + selectedPackageName
+            );
+
+        } catch (PackageManager.NameNotFoundException e) {
+
+            Log.e(
+                    TAG,
+                    "Failed to add allowed application: " + selectedPackageName,
+                    e
+            );
+
+            dashboard.logEvent(TAG+
+                            "Failed to add allowed application: " + selectedPackageName
+                            + " : " + e.getMessage(),
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+
+            return;
+        }
+
+        vpnInterface =
+                builder.establish();
+
+        Log.e(
+                "VPN_TEST",
+                "vpnInterface = "
+                        + vpnInterface
+        );
+
+        if (vpnInterface == null) {
+
+            Log.e(
+                    TAG,
+                    "establish() returned null — VPN could not be started."
+            );
+
+            dashboard.setInterfaceStatus(
+                    "Failed"
+            );
+
+            dashboard.setVpnStatus(
+                    "Stopped"
+            );
+
+            dashboard.logEvent(TAG+
+                            "VPN interface could not be established",
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+
+            return;
+        }
+
+        Log.d(
+                TAG,
+                "VPN interface established successfully."
+        );
+
+        Log.d(
+                TAG,
+                "DIAG establishVpn SUCCESS: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " newVpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " underlyingNetwork="
+                        + underlyingNetwork
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+
+        dashboard.setInterfaceStatus(
+                "Established"
+        );
+
+        dashboard.setVpnStatus(
+                "Running"
+        );
+        if (vpnReadyCallback != null) {
+            vpnReadyCallback.onVpnEstablished();
+        }
+
+        dashboard.logEvent(TAG+
+                        "VPN interface established",
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.GENERAL
+        );
+
+        VpnLogFileManager
+                .getInstance()
+                .log(
+                        "VPN interface established"
+                );
+
+        /*
+         * Reset TTFB for this VPN session.
+         */
+        dashboard.resetTtfb();
+
+        tunOut =
+                new FileOutputStream(
+                        vpnInterface.getFileDescriptor()
+                );
+
+        udpForwarder =
+                new AppOpenUdpForwarder(
+                        this,
+                        tunOut,
+                        tunWriteLock
+                );
+
+        /*
+         * IMPORTANT:
+         *
+         * Pass the physical Network to TcpForwarder.
+         */
+        tcpForwarder =
+                new AppOpenTcpForwarder(
+                        this,
+                        tunOut,
+                        tunWriteLock,
+                        underlyingNetwork
+                );
+
+        tcpForwarder.resetGlobalTtfb();
+
+        Log.d(
+                TAG,
+                "TcpForwarder created with underlyingNetwork="
+                        + underlyingNetwork
+        );
+
+        Log.e(
+                "VPN_TEST",
+                "Package = "
+                        + getPackageName()
+        );
+    }
+
+    // ADDED: MEDIATOR VPN RX PACKET LOG
+    /**
+     * Builds the log entry for a raw packet exactly as received from the
+     * Mediator VPN / TUN interface, before any parsing or forwarding.
+     * Read-only: does not modify packetBytes, does not call PacketParser's
+     * mutable state, and has no effect on existing forwarding behavior.
+     */
+    private String buildMediatorRxPacketLog(byte[] packetBytes, int length) {
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("========== MEDIATOR VPN RX PACKET ==========\n");
+        sb.append("Timestamp      : ").append(System.currentTimeMillis()).append("\n");
+        sb.append("Packet Length  : ").append(length).append(" bytes\n");
+
+        // Best-effort, non-throwing parse for extra context only; failures
+        // never affect the mandatory hex/length log below.
+        try {
+            ParsedPacket parsed = PacketParser.parse(packetBytes, length);
+            sb.append("IP Version     : IPv").append(parsed.ipVersion).append("\n");
+            if (parsed.status == ParsedPacket.Status.OK
+                    || parsed.status == ParsedPacket.Status.NON_FIRST_FRAGMENT) {
+                sb.append("Source IP      : ").append(parsed.sourceIp).append("\n");
+                sb.append("Destination IP : ").append(parsed.destinationIp).append("\n");
+                sb.append("Protocol       : ").append(PacketParser.protocolName(parsed.transportProtocol)).append("\n");
+                if (parsed.sourcePort >= 0) {
+                    sb.append("Source Port    : ").append(parsed.sourcePort).append("\n");
+                    sb.append("Destination Port: ").append(parsed.destinationPort).append("\n");
+                }
+            }
+        } catch (Exception ignored) {
+            // Parsing is best-effort here; raw hex/length below is always logged regardless.
+        }
+
+        sb.append("Raw Packet HEX : ").append(bytesToHex(packetBytes, length)).append("\n");
+        sb.append("Direction      : RECEIVED FROM MEDIATOR VPN SERVICE (TUN)\n");
+        sb.append("=============================================");
+
+        return sb.toString();
+    }
+
+    // ADDED: MEDIATOR VPN RX PACKET LOG
+    private static String bytesToHex(byte[] bytes, int length) {
+        StringBuilder hex = new StringBuilder(length * 2);
+        for (int i = 0; i < length; i++) {
+            hex.append(String.format("%02X", bytes[i]));
+        }
+        return hex.toString();
+    }
+
+    private void startPacketReadingLoop() {
+
+        if (vpnInterface == null) {
+
+            Log.e(
+                    TAG,
+                    "Cannot start packet reading loop: vpnInterface is null."
+            );
+
+            dashboard.logEvent(TAG+
+                            "Cannot start packet reading loop: interface is null",
+                    VpnEvent.Level.ERROR,
+                    VpnEvent.Category.ERROR
+            );
+
+            return;
+        }
+
+        Log.d(
+                TAG,
+                "DIAG startPacketReadingLoop ENTRY: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " vpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " isRunningBefore="
+                        + isRunning
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+
+        isRunning = true;
+
+        packetReaderThread =
+                new Thread(
+                        () -> {
+
+                            try {
+
+                                tunIn =
+                                        new FileInputStream(
+                                                vpnInterface.getFileDescriptor()
+                                        );
+
+                                byte[] buffer =
+                                        new byte[32767];
+
+                                Log.d(
+                                        TAG,
+                                        "Packet reading loop started."
+                                );
+
+                                Log.d(
+                                        TAG,
+                                        "DIAG packetReaderThread STARTED: serviceInstance="
+                                                + System.identityHashCode(
+                                                AppOpenMediatorVpnService.this
+                                        )
+                                                + " vpnInterface="
+                                                + System.identityHashCode(
+                                                vpnInterface
+                                        )
+                                                + " thread="
+                                                + Thread.currentThread()
+                                                .getName()
+                                                + "("
+                                                + Thread.currentThread()
+                                                .getId()
+                                                + ")"
+                                                + " time="
+                                                + System.currentTimeMillis()
+                                );
+
+                                dashboard.setReaderStatus(
+                                        "Running"
+                                );
+
+                                dashboard.logEvent(TAG+
+                                                "Packet reading loop started",
+                                        VpnEvent.Level.SUCCESS,
+                                        VpnEvent.Category.GENERAL
+                                );
+
+                                VpnLogFileManager
+                                        .getInstance()
+                                        .log(
+                                                "Packet reading loop started"
+                                        );
+
+                                while (isRunning) {
+
+                                    int length;
+
+                                    try {
+
+                                        length =
+                                                tunIn.read(
+                                                        buffer
+                                                );
+
+                                    } catch (IOException e) {
+
+                                        break;
+                                    }
+
+                                    if (length > 0 &&
+                                            isRunning) {
+
+                                        Log.d(
+                                                TAG,
+                                                "TCP packet intercepted"
+                                        );
+
+                                        // ADDED: MEDIATOR VPN RX PACKET LOG
+//                                        dashboard.logToFile(TAG+
+//                                                buildMediatorRxPacketLog(
+//                                                        buffer,
+//                                                        length
+//                                                )
+//                                        );
+
+                                        handlePacket(
+                                                buffer,
+                                                length
+                                        );
+                                    }
+                                }
+
+                            } finally {
+
+                                closeQuietly(
+                                        tunIn
+                                );
+
+                                tunIn = null;
+                            }
+
+                            Log.d(
+                                    TAG,
+                                    "Packet reading loop stopped."
+                            );
+
+                            dashboard.setReaderStatus(
+                                    "Stopped"
+                            );
+
+                            dashboard.logEvent(TAG+
+                                            "Packet reading loop stopped",
+                                    VpnEvent.Level.INFO,
+                                    VpnEvent.Category.GENERAL
+                            );
+
+                            VpnLogFileManager
+                                    .getInstance()
+                                    .log(
+                                            "Packet reading loop stopped"
+                                    );
+                        }
+                );
+
+        packetReaderThread.setName(
+                "VpnPacketReaderThread"
+        );
+
+        packetReaderThread.start();
+    }
+
+    private void handlePacket(
+            byte[] packetBytes,
+            int length
+    ) {
+
+        if (!isRunning) {
+            return;
+        }
+
+        if (length < 1) {
+            return;
+        }
+
+        ParsedPacket parsed = PacketParser.parse(packetBytes, length);
+
+        if (parsed.status == ParsedPacket.Status.MALFORMED) {
+
+            Log.w(
+                    TAG,
+                    "Malformed packet dropped: " + parsed.reason
+            );
+
+            /*
+             * Reused as a general "packet could not be processed" counter.
+             * It previously only counted skipped IPv6 packets; IPv6 is now
+             * actually forwarded, so this now tracks malformed/unsupported
+             * packets of either IP version. tvIpv6Skipped in the UI is kept
+             * as-is (see VpnTestActivity) to avoid unrelated UI changes.
+             */
+            dashboard.recordIpv6Skipped();
+
+            dashboard.logEvent(TAG+
+                            "Malformed packet dropped: " + parsed.reason,
+                    VpnEvent.Level.WARNING,
+                    VpnEvent.Category.IPV6_SKIPPED
+            );
+
+            return;
+        }
+
+        if (parsed.status == ParsedPacket.Status.NON_FIRST_FRAGMENT) {
+
+            Log.d(
+                    TAG,
+                    "Non-first fragment (IPv" + parsed.ipVersion + ") from "
+                            + parsed.sourceIp + " to " + parsed.destinationIp
+                            + " - transport header unavailable, skipping port extraction."
+            );
+
+            dashboard.logEvent(TAG+
+                            "Non-first fragment (IPv" + parsed.ipVersion + ") from "
+                            + parsed.sourceIp + " to " + parsed.destinationIp
+                            + " - transport header unavailable",
+                    VpnEvent.Level.INFO,
+                    VpnEvent.Category.OTHER
+            );
+
+            return;
+        }
+
+        int protocol = parsed.transportProtocol;
+        String protocolName = PacketParser.protocolName(protocol);
+
+        String sourceIp = parsed.sourceIp;
+        String destIp = parsed.destinationIp;
+
+        int sourcePort = parsed.sourcePort;
+        int destinationPort = parsed.destinationPort;
+
+        String key = parsed.connectionKey();
+
+        ConnectionInfo info =
+                activeConnections.get(
+                        key
+                );
+
+        if (info == null) {
+
+            info =
+                    new ConnectionInfo();
+
+            activeConnections.put(
+                    key,
+                    info
+            );
+        }
+
+        info.setSourceIp(
+                sourceIp
+        );
+
+        info.setDestinationIp(
+                destIp
+        );
+
+        info.setSourcePort(
+                sourcePort
+        );
+
+        info.setDestinationPort(
+                destinationPort
+        );
+
+        info.setProtocol(
+                protocolName
+        );
+
+        info.setBytesSent(
+                info.getBytesSent()
+                        + length
+        );
+
+        if (info.getStartTime() == 0) {
+
+            info.setStartTime(
+                    System.currentTimeMillis()
+            );
+        }
+
+        StringBuilder captureLog = new StringBuilder();
+
+        captureLog.append("Packet captured -> IP Version: IPv")// this is traansmitted packets
+                .append(parsed.ipVersion)
+                .append(", Protocol: ").append(protocolName)
+                .append(", Source: ").append(sourceIp)
+                .append(", Destination: ").append(destIp)
+                .append(", Size: ").append(length).append(" bytes");
+
+        if (parsed.ipVersion == 6) {
+            captureLog.append(", Next Header: ").append(protocol)
+                    .append(", Hop Limit: ").append(parsed.ttlOrHopLimit)
+                    .append(", IPv6 Header Length: ").append(parsed.ipHeaderLength)
+                    .append(", Transport Offset: ").append(parsed.transportHeaderOffset)
+                    .append(", Payload Length: ").append(parsed.payloadLength);
+            if (sourcePort >= 0) {
+                captureLog.append(", Source Port: ").append(sourcePort)
+                        .append(", Destination Port: ").append(destinationPort);
+            }
+        }
+
+        Log.i(
+                TAG,
+                captureLog.toString()
+        );
+
+        dashboard.recordPacket(
+                protocolName,
+                sourceIp,
+                destIp,
+                length
+        );
+
+        VpnEvent.Category category;
+
+        switch (protocol) {
+
+            case PacketParser.PROTO_TCP:
+                category =
+                        VpnEvent.Category.TCP;
+                break;
+
+            case PacketParser.PROTO_UDP:
+                category =
+                        VpnEvent.Category.UDP;
+                break;
+
+            case PacketParser.PROTO_ICMPV4:
+            case PacketParser.PROTO_ICMPV6:
+                category =
+                        VpnEvent.Category.ICMP;
+                break;
+
+            default:
+                category =
+                        VpnEvent.Category.OTHER;
+        }
+
+        dashboard.logEvent(TAG+
+                        captureLog.toString(),
+                VpnEvent.Level.INFO,
+                category
+        );
+
+        switch (protocol) {
+
+            case PacketParser.PROTO_TCP:
+
+                if (tcpForwarder != null) {
+
+                    tcpForwarder.handlePacket(
+                            packetBytes,
+                            length,
+                            parsed
+                    );
+                }
+
+                break;
+
+            case PacketParser.PROTO_UDP:
+
+                if (udpForwarder != null) {
+
+                    udpForwarder.handlePacket(
+                            packetBytes,
+                            length,
+                            parsed
+                    );
+                }
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private Notification buildNotification() {
+
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O) {
+
+            NotificationChannel channel =
+                    new NotificationChannel(
+                            CHANNEL_ID,
+                            "VPN Test Service",
+                            NotificationManager.IMPORTANCE_LOW
+                    );
+
+            NotificationManager manager =
+                    getSystemService(
+                            NotificationManager.class
+                    );
+
+            if (manager != null) {
+
+                manager.createNotificationChannel(
+                        channel
+                );
+            }
+        }
+
+        Intent notificationIntent =
+                new Intent(
+                        this,
+                        AppOpenVpnTestActivity.class
+                );
+
+        int flags =
+                PendingIntent.FLAG_IMMUTABLE;
+
+        PendingIntent pendingIntent =
+                PendingIntent.getActivity(
+                        this,
+                        0,
+                        notificationIntent,
+                        flags
+                );
+
+        return new NotificationCompat.Builder(
+                this,
+                CHANNEL_ID
+        )
+                .setContentTitle(
+                        "VPN Test POC"
+                )
+                .setContentText(
+                        "VPN tunnel is active (packet logging only)."
+                )
+                .setSmallIcon(
+                        android.R.drawable.ic_lock_lock
+                )
+                .setContentIntent(
+                        pendingIntent
+                )
+                .setOngoing(true)
+                .build();
+    }
+
+    @Override
+    public void onDestroy() {
+
+        Log.d(
+                TAG,
+                "DIAG onDestroy: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " vpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " time="
+                        + System.currentTimeMillis()
+        );
+
+        dashboard.logEvent(TAG+
+                        "DIAG onDestroy: serviceInstance="
+                        + System.identityHashCode(this)
+                        + " vpnInterface="
+                        + System.identityHashCode(vpnInterface)
+                        + " time="
+                        + System.currentTimeMillis(),
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
+
+        stopVpn();
+
+        super.onDestroy();
+    }
+
+    public void stopVpn() {
+
+        isRunning = false;
+
+        closeQuietly(
+                tunIn
+        );
+
+        tunIn = null;
+
+        if (packetReaderThread != null) {
+
+            try {
+
+                packetReaderThread.join(
+                        2000
+                );
+
+                if (packetReaderThread.isAlive()) {
+
+                    Log.e(
+                            TAG,
+                            "packetReaderThread did not terminate within timeout!"
+                    );
+                }
+
+            } catch (InterruptedException ignored) {
+
+                Thread.currentThread()
+                        .interrupt();
+            }
+
+            packetReaderThread = null;
+        }
+
+        if (udpForwarder != null) {
+
+            udpForwarder.shutdown();
+
+            udpForwarder = null;
+        }
+
+        if (tcpForwarder != null) {
+
+            tcpForwarder.shutdown();
+
+            tcpForwarder = null;
+        }
+
+        closeQuietly(
+                tunOut
+        );
+
+        tunOut = null;
+
+        closeQuietly(
+                vpnInterface
+        );
+
+        vpnInterface = null;
+
+        underlyingNetwork = null;
+
+        vpnReadyCallback = null;
+
+        dashboard.setVpnStatus(
+                "Stopped"
+        );
+
+        dashboard.setInterfaceStatus(
+                "Closed"
+        );
+    }
+
+    private void closeQuietly(
+            Closeable c
+    ) {
+
+        if (c != null) {
+
+            try {
+
+                c.close();
+
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    @Override
+    public void onRevoke() {
+
+        Log.d(
+                TAG,
+                "onRevoke: user revoked VPN permission from system settings."
+        );
+
+        dashboard.logEvent(TAG+
+                        "VPN permission revoked from system settings",
+                VpnEvent.Level.WARNING,
+                VpnEvent.Category.GENERAL
+        );
+
+        stopSelf();
+
+        super.onRevoke();
+    }
+}

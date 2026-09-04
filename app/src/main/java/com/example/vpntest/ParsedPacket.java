@@ -3,13 +3,13 @@ package com.example.vpntest;
 /**
  * Immutable result of parsing a single packet read from the TUN device.
  *
- * Introduced so that MediatorVpnService / TcpForwarder / UdpForwarder can
+ * Introduced so that AppOpenMediatorVpnService / TcpForwarder / UdpForwarder can
  * share one parsing pipeline for both IPv4 and IPv6 instead of duplicating
  * header-parsing logic per address family.
  */
-final class ParsedPacket {
+public final class ParsedPacket {
 
-    enum Status {
+    public enum Status {
         /** Parsing succeeded; transportHeaderOffset/ports are valid (when protocol is TCP/UDP). */
         OK,
         /** Packet was truncated / internally inconsistent and must be dropped. */
@@ -21,30 +21,30 @@ final class ParsedPacket {
         NON_FIRST_FRAGMENT
     }
 
-    final Status status;
-    final String reason; // human readable, only meaningful for MALFORMED / NON_FIRST_FRAGMENT
+    public final Status status;
+    public final String reason; // human readable, only meaningful for MALFORMED / NON_FIRST_FRAGMENT
 
-    final int ipVersion; // 4 or 6 (0 if status == MALFORMED and version could not even be read)
+    public final int ipVersion; // 4 or 6 (0 if status == MALFORMED and version could not even be read)
 
-    final String sourceIp;        // textual representation (dotted-decimal or compressed IPv6)
-    final String destinationIp;
+    public final String sourceIp;        // textual representation (dotted-decimal or compressed IPv6)
+    public final String destinationIp;
 
-    final byte[] sourceIpBytes;      // 4 bytes for IPv4, 16 bytes for IPv6
-    final byte[] destinationIpBytes;
+    public final byte[] sourceIpBytes;      // 4 bytes for IPv4, 16 bytes for IPv6
+    public final byte[] destinationIpBytes;
 
-    final int transportProtocol;     // IPv4 Protocol / IPv6 Next Header of the transport layer (-1 if unknown)
-    final int transportHeaderOffset; // offset into the packet where the TCP/UDP/ICMP header begins (-1 if unavailable)
-    final int ipHeaderLength;        // IPv4: IHL*4. IPv6: 40 + extension headers walked (informational).
+    public final int transportProtocol;     // IPv4 Protocol / IPv6 Next Header of the transport layer (-1 if unknown)
+    public final int transportHeaderOffset; // offset into the packet where the TCP/UDP/ICMP header begins (-1 if unavailable)
+    public final int ipHeaderLength;        // IPv4: IHL*4. IPv6: 40 + extension headers walked (informational).
 
-    final int sourcePort;      // -1 if not TCP/UDP or not available
-    final int destinationPort; // -1 if not TCP/UDP or not available
+    public final int sourcePort;      // -1 if not TCP/UDP or not available
+    public final int destinationPort; // -1 if not TCP/UDP or not available
 
-    final int ttlOrHopLimit;
-    final int payloadLength;   // bytes after the (fixed) IP header: IPv4 = total-IHL*4, IPv6 = Payload Length field
+    public final int ttlOrHopLimit;
+    public final int payloadLength;   // bytes after the (fixed) IP header: IPv4 = total-IHL*4, IPv6 = Payload Length field
 
     final boolean isFirstFragment;
 
-    private ParsedPacket(Status status, String reason, int ipVersion,
+    public ParsedPacket(Status status, String reason, int ipVersion,
                          String sourceIp, String destinationIp,
                          byte[] sourceIpBytes, byte[] destinationIpBytes,
                          int transportProtocol, int transportHeaderOffset, int ipHeaderLength,
@@ -98,7 +98,7 @@ final class ParsedPacket {
         return ipVersion == 6 ? ("[" + ip + "]:" + port) : (ip + ":" + port);
     }
 
-    String connectionKey() {
+    public String connectionKey() {
         return formatHostPort(ipVersion, sourceIp, sourcePort) + "->" + formatHostPort(ipVersion, destinationIp, destinationPort);
     }
 }

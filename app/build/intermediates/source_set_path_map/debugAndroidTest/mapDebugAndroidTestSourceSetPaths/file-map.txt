@@ -1,4 +1,0 @@
-com.example.vpntest.test.app-androidTest-0 C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\build\generated\res\resValues\androidTest\debug
-com.example.vpntest.test.app-mergeDebugAndroidTestResources-1 C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-com.example.vpntest.test.app-mergeDebugAndroidTestResources-2 C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-com.example.vpntest.test.app-debugAndroidTest-3 C:\Users\Asus\Downloads\VpnTestPOC\VpnTestPOC\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

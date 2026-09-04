@@ -1331,6 +1331,8 @@ color dim_foreground_disabled_material_dark
 color dim_foreground_disabled_material_light
 color dim_foreground_material_dark
 color dim_foreground_material_light
+color divider_color
+color dot_neutral
 color error_color_material_dark
 color error_color_material_light
 color foreground_material_dark
@@ -1995,6 +1997,7 @@ color notification_action_color_filter
 color notification_icon_bg_color
 color on_surface_primary
 color on_surface_secondary
+color primary
 color primary_dark_material_dark
 color primary_dark_material_light
 color primary_material_dark
@@ -2003,6 +2006,7 @@ color primary_text_default_material_dark
 color primary_text_default_material_light
 color primary_text_disabled_material_dark
 color primary_text_disabled_material_light
+color primary_variant
 color ripple_material_dark
 color ripple_material_light
 color secondary_text_default_material_dark
@@ -2014,7 +2018,7 @@ color status_info
 color status_success
 color status_warning
 color surface_dark
-color surface_dark_elevated
+color surface_elevated
 color switch_thumb_disabled_material_dark
 color switch_thumb_disabled_material_light
 color switch_thumb_material_dark
@@ -2105,6 +2109,11 @@ dimen abc_text_size_subtitle_material_toolbar
 dimen abc_text_size_title_material
 dimen abc_text_size_title_material_toolbar
 dimen appcompat_dialog_background_inset
+dimen button_corner_radius
+dimen button_height
+dimen card_corner_radius
+dimen card_elevation
+dimen card_stroke_width
 dimen cardview_compat_inset_shadow
 dimen cardview_default_elevation
 dimen cardview_default_radius
@@ -2116,6 +2125,7 @@ dimen compat_button_padding_vertical_material
 dimen compat_control_corner_material
 dimen compat_notification_large_icon_max_height
 dimen compat_notification_large_icon_max_width
+dimen console_height
 dimen def_drawer_elevation
 dimen design_appbar_elevation
 dimen design_bottom_navigation_active_item_max_width
@@ -2177,6 +2187,7 @@ dimen hint_alpha_material_dark
 dimen hint_alpha_material_light
 dimen hint_pressed_alpha_material_dark
 dimen hint_pressed_alpha_material_light
+dimen input_corner_radius
 dimen item_touch_helper_max_drag_scroll_per_frame
 dimen item_touch_helper_swipe_escape_max_velocity
 dimen item_touch_helper_swipe_escape_velocity
@@ -2818,6 +2829,19 @@ dimen notification_small_icon_size_as_large
 dimen notification_subtext_size
 dimen notification_top_pad
 dimen notification_top_pad_large_text
+dimen spacing_12
+dimen spacing_16
+dimen spacing_20
+dimen spacing_24
+dimen spacing_4
+dimen spacing_8
+dimen text_body_secondary
+dimen text_card_label
+dimen text_screen_subtitle
+dimen text_screen_title
+dimen text_section_heading
+dimen text_value_large
+dimen text_value_medium
 dimen tooltip_corner_radius
 dimen tooltip_horizontal_padding
 dimen tooltip_margin
@@ -2907,6 +2931,8 @@ drawable abc_textfield_search_material
 drawable abc_vector_test
 drawable avd_hide_password
 drawable avd_show_password
+drawable bg_input_field
+drawable bg_status_dot
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -2920,6 +2946,7 @@ drawable design_ic_visibility
 drawable design_ic_visibility_off
 drawable design_password_eye
 drawable design_snackbar_background
+drawable ic_app_logo
 drawable ic_arrow_back_black_24
 drawable ic_call_answer
 drawable ic_call_answer_low
@@ -2941,6 +2968,7 @@ drawable ic_mtrl_checked_circle
 drawable ic_mtrl_chip_checked_black
 drawable ic_mtrl_chip_checked_circle
 drawable ic_mtrl_chip_close_circle
+drawable ic_pulse
 drawable ic_search
 drawable ic_search_black_24
 drawable ic_success
@@ -3111,6 +3139,7 @@ id beginning
 id blocking
 id bottom
 id bounce
+id btnPerformAppOpenTest
 id btnStartVpn
 id btnStopVpn
 id buttonPanel
@@ -3398,6 +3427,7 @@ id snap
 id snapMargins
 id spacer
 id special_effects_controller_view_tag
+id spinnerAppSelect
 id spline
 id split_action_bar
 id spread
@@ -3616,6 +3646,7 @@ layout abc_search_dropdown_item_icons_2line
 layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
+layout activity_app_open_test
 layout activity_vpn_test
 layout custom_dialog
 layout design_bottom_navigation_item
@@ -3698,6 +3729,8 @@ layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
 mipmap ic_launcher
+mipmap ic_launcher_foreground
+mipmap ic_launcher_monochrome
 mipmap ic_launcher_round
 plurals mtrl_badge_content_description
 string abc_action_bar_home_description
@@ -4162,6 +4195,14 @@ style DashboardCardContent
 style DashboardCardLabel
 style DashboardCardSmall
 style DashboardCardValue
+style DashboardCardValueLarge
+style DestructiveActionButton
+style EyebrowLabel
+style FieldCaption
+style KvDivider
+style KvLabel
+style KvRow
+style KvValue
 style MaterialAlertDialog_Material3
 style MaterialAlertDialog_Material3_Animation
 style MaterialAlertDialog_Material3_Body_Text
@@ -4196,6 +4237,9 @@ style Platform_V21_AppCompat_Light
 style Platform_V25_AppCompat
 style Platform_V25_AppCompat_Light
 style Platform_Widget_AppCompat_Spinner
+style PremiumCard
+style PremiumCardBody
+style PrimaryActionButton
 style RtlOverlay_DialogWindowTitle_AppCompat
 style RtlOverlay_Widget_AppCompat_ActionBar_TitleItem
 style RtlOverlay_Widget_AppCompat_DialogTitle_Icon
@@ -4213,6 +4257,10 @@ style RtlOverlay_Widget_AppCompat_Search_DropDown_Text
 style RtlOverlay_Widget_AppCompat_SearchView_MagIcon
 style RtlUnderlay_Widget_AppCompat_ActionButton
 style RtlUnderlay_Widget_AppCompat_ActionButton_Overflow
+style ScreenSubtitle
+style ScreenTitle
+style SecondaryActionButton
+style SectionHeading
 style ShapeAppearance_M3_Comp_Badge_Large_Shape
 style ShapeAppearance_M3_Comp_Badge_Shape
 style ShapeAppearance_M3_Comp_BottomAppBar_Container_Shape

@@ -15,27 +15,36 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AlertDialog;
+
 import java.io.File;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import android.content.pm.PackageManager;
 import android.net.Uri;
+
 import androidx.core.content.FileProvider;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import com.example.vpntest.appOpen.AppOpenVpnTestActivity;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
 import com.example.vpntest.ui.VpnEventAdapter;
+import com.example.vpntest.utils.TestSessionManager;
 import com.example.vpntest.utils.VpnLogFileManager;
 import com.example.vpntest.webTest.WebViewHelper;
 
@@ -47,6 +56,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private WebView webView;
     private Button btnStartVpn;
     private Button btnStopVpn;
+    private Button btnPerformAppOpenTest;
 
     // Dashboard views
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
@@ -59,12 +69,11 @@ public class VpnTestActivity extends AppCompatActivity {
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
 
-
-    private final ExecutorService websiteDnsExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService websiteDnsExecutor =
+            Executors.newSingleThreadExecutor();
 
     private boolean pendingUrlLoad = false;
     private String pendingTargetUrl = null;
-
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -97,7 +106,10 @@ public class VpnTestActivity extends AppCompatActivity {
                             );
 
                             resolveAndSetWebsiteTarget(urlToLoad);
-                            websiteDnsExecutor.execute(() -> webViewHelper.runWebTest(urlToLoad));
+
+                            websiteDnsExecutor.execute(
+                                    () -> webViewHelper.runWebTest(urlToLoad)
+                            );
                         }
                     })
             );
@@ -115,28 +127,63 @@ public class VpnTestActivity extends AppCompatActivity {
     private VpnEventAdapter eventAdapter;
 
     private VpnDashboardViewModel viewModel;
-    private final VpnEventRepository dashboardRepo = VpnEventRepository.getInstance();
 
-    private final WebViewHelper webViewHelper = new WebViewHelper();
+    private final VpnEventRepository dashboardRepo =
+            VpnEventRepository.getInstance();
+
+    private final WebViewHelper webViewHelper =
+            new WebViewHelper();
+
     private final ActivityResultLauncher<Intent> vpnPermissionLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
                     result -> {
+
                         if (result.getResultCode() == RESULT_OK) {
-                            Log.d(TAG, "VPN permission granted by user.");
+
+                            Log.d(
+                                    TAG,
+                                    "VPN permission granted by user."
+                            );
+
                             dashboardRepo.setPermissionStatus("Granted");
-                            dashboardRepo.logEvent(TAG+"VPN permission granted",
-                                    VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
+
+                            dashboardRepo.logEvent(
+                                    TAG + "VPN permission granted",
+                                    VpnEvent.Level.SUCCESS,
+                                    VpnEvent.Category.GENERAL
+                            );
+
                             startVpnServiceAndLoadWebView();
+
                         } else {
-                            Log.d(TAG, "VPN permission denied by user.");
+
+                            Log.d(
+                                    TAG,
+                                    "VPN permission denied by user."
+                            );
+
                             dashboardRepo.setPermissionStatus("Denied");
-                            dashboardRepo.logEvent(TAG+"VPN permission denied",
-                                    VpnEvent.Level.ERROR, VpnEvent.Category.ERROR);
+
+                            dashboardRepo.logEvent(
+                                    TAG + "VPN permission denied",
+                                    VpnEvent.Level.ERROR,
+                                    VpnEvent.Category.ERROR
+                            );
+
                             updateStatus("VPN permission denied.");
-                            Toast.makeText(this,
+
+                            // Session was acquired before permission dialog.
+                            // Release it if user denies permission.
+                            TestSessionManager.stopTest();
+
+                            updateTestButtons();
+
+                            Toast.makeText(
+                                    this,
                                     "VPN permission was denied.",
-                                    Toast.LENGTH_SHORT).show();
+                                    Toast.LENGTH_SHORT
+                            ).show();
                         }
                     }
             );
@@ -144,14 +191,17 @@ public class VpnTestActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_vpn_test);
 
         tvStatus = findViewById(R.id.tvStatus);
         webView = findViewById(R.id.webView);
         etTargetUrl = findViewById(R.id.etTargetUrl);
+
         btnStartVpn = findViewById(R.id.btnStartVpn);
         btnStopVpn = findViewById(R.id.btnStopVpn);
-
+        btnPerformAppOpenTest =
+                findViewById(R.id.btnPerformAppOpenTest);
 
         bindDashboardViews();
         setupEventConsole();
@@ -159,116 +209,282 @@ public class VpnTestActivity extends AppCompatActivity {
         webView.getSettings().setJavaScriptEnabled(true);
         webView.setWebViewClient(new WebViewClient());
 
-        // WebViewHelper now does the fetch manually (no more WebViewClient.onPageFinished()),
-        // so it tells us via this listener when the "page" has finished loading.
-        webViewHelper.setWebTestListener((success, loadedUrl) -> runOnUiThread(() -> {
-            if (success) {
-                updateStatus("WebView Loaded: " + loadedUrl);
-                tvLastTtfbWeb.setText(webViewHelper.getTtfbTime() + " ms");
-            } else {
-                updateStatus("WebView Load Failed: " + loadedUrl);
-                tvLastTtfbWeb.setText("-");
-            }
-        }));
+        // WebViewHelper now does the fetch manually.
+        webViewHelper.setWebTestListener(
+                (success, loadedUrl) ->
+                        runOnUiThread(() -> {
 
-        btnStartVpn.setOnClickListener(v -> onStartVpnClicked());
-        btnStopVpn.setOnClickListener(v -> onStopVpnClicked());
+                            if (success) {
 
-        viewModel = new ViewModelProvider(this).get(VpnDashboardViewModel.class);
+                                updateStatus(
+                                        "WebView Loaded: "
+                                                + loadedUrl
+                                );
 
+                                tvLastTtfbWeb.setText(
+                                        webViewHelper.getTtfbTime()
+                                                + " ms"
+                                );
 
-        viewModel.getLatestEvent().observe(this, this::onNewEvent);
+                            } else {
+
+                                updateStatus(
+                                        "WebView Load Failed: "
+                                                + loadedUrl
+                                );
+
+                                tvLastTtfbWeb.setText("-");
+                            }
+                        })
+        );
+
+        btnStartVpn.setOnClickListener(
+                v -> onStartVpnClicked()
+        );
+
+        btnStopVpn.setOnClickListener(
+                v -> onStopVpnClicked()
+        );
+
+        btnPerformAppOpenTest.setOnClickListener(v -> {
+
+            Intent intent =
+                    new Intent(
+                            VpnTestActivity.this,
+                            AppOpenVpnTestActivity.class
+                    );
+
+            startActivity(intent);
+        });
+
+        viewModel =
+                new ViewModelProvider(this)
+                        .get(VpnDashboardViewModel.class);
+
+        viewModel.getLatestEvent()
+                .observe(this, this::onNewEvent);
+
         viewModel.getStats().observe(this, stats -> {
+
             tvVpnStatus.setText(stats.vpnStatus);
             tvPermissionStatus.setText(stats.permissionStatus);
             tvInterfaceStatus.setText(stats.interfaceStatus);
             tvReaderStatus.setText(stats.readerStatus);
 
-            tvTotalPackets.setText(String.valueOf(stats.totalPackets));
-            tvTcpCount.setText(String.valueOf(stats.tcpCount));
-            tvUdpCount.setText(String.valueOf(stats.udpCount));
-            tvIpv6Skipped.setText(String.valueOf(stats.ipv6SkippedCount));
+            tvTotalPackets.setText(
+                    String.valueOf(stats.totalPackets)
+            );
 
-            tvLastProtocol.setText(stats.lastProtocol);
-            tvLastSource.setText(stats.lastSourceIp);
-            tvLastDest.setText(stats.lastDestIp);
-            tvLastSize.setText(stats.lastPacketSize > 0 ? stats.lastPacketSize + " bytes" : "-");
-            tvLastTimestamp.setText(stats.lastPacketTimestamp > 0
-                    ? android.text.format.DateFormat.format("HH:mm:ss", stats.lastPacketTimestamp)
-                    : "-");
-            tvLastTtfb.setText(stats.lastTtfbMs >= 0 ? stats.lastTtfbMs + " ms" : "-");
+            tvTcpCount.setText(
+                    String.valueOf(stats.tcpCount)
+            );
 
+            tvUdpCount.setText(
+                    String.valueOf(stats.udpCount)
+            );
 
-            // TTFB END
+            tvIpv6Skipped.setText(
+                    String.valueOf(stats.ipv6SkippedCount)
+            );
+
+            tvLastProtocol.setText(
+                    stats.lastProtocol
+            );
+
+            tvLastSource.setText(
+                    stats.lastSourceIp
+            );
+
+            tvLastDest.setText(
+                    stats.lastDestIp
+            );
+
+            tvLastSize.setText(
+                    stats.lastPacketSize > 0
+                            ? stats.lastPacketSize + " bytes"
+                            : "-"
+            );
+
+            tvLastTimestamp.setText(
+                    stats.lastPacketTimestamp > 0
+                            ? android.text.format.DateFormat.format(
+                            "HH:mm:ss",
+                            stats.lastPacketTimestamp
+                    )
+                            : "-"
+            );
+
+            tvLastTtfb.setText(
+                    stats.lastTtfbMs >= 0
+                            ? stats.lastTtfbMs + " ms"
+                            : "-"
+            );
         });
+
+        // Set initial button state.
+        updateTestButtons();
     }
 
     private void bindDashboardViews() {
-        tvVpnStatus = findViewById(R.id.tvVpnStatus);
-        tvPermissionStatus = findViewById(R.id.tvPermissionStatus);
-        tvInterfaceStatus = findViewById(R.id.tvInterfaceStatus);
-        tvReaderStatus = findViewById(R.id.tvReaderStatus);
 
-        tvTotalPackets = findViewById(R.id.tvTotalPackets);
-        tvTcpCount = findViewById(R.id.tvTcpCount);
-        tvUdpCount = findViewById(R.id.tvUdpCount);
-        tvIpv6Skipped = findViewById(R.id.tvIpv6Skipped);
+        tvVpnStatus =
+                findViewById(R.id.tvVpnStatus);
 
-        tvLastProtocol = findViewById(R.id.tvLastProtocol);
-        tvLastSource = findViewById(R.id.tvLastSource);
-        tvLastDest = findViewById(R.id.tvLastDest);
-        tvLastSize = findViewById(R.id.tvLastSize);
-        tvLastTimestamp = findViewById(R.id.tvLastTimestamp);
-        tvLastTtfb = findViewById(R.id.tvLastTtfb); // TTFB
-        tvLastTtfbWeb = findViewById(R.id.tvLastTtfbWeb); // WEB TEST TTFB
+        tvPermissionStatus =
+                findViewById(R.id.tvPermissionStatus);
+
+        tvInterfaceStatus =
+                findViewById(R.id.tvInterfaceStatus);
+
+        tvReaderStatus =
+                findViewById(R.id.tvReaderStatus);
+
+        tvTotalPackets =
+                findViewById(R.id.tvTotalPackets);
+
+        tvTcpCount =
+                findViewById(R.id.tvTcpCount);
+
+        tvUdpCount =
+                findViewById(R.id.tvUdpCount);
+
+        tvIpv6Skipped =
+                findViewById(R.id.tvIpv6Skipped);
+
+        tvLastProtocol =
+                findViewById(R.id.tvLastProtocol);
+
+        tvLastSource =
+                findViewById(R.id.tvLastSource);
+
+        tvLastDest =
+                findViewById(R.id.tvLastDest);
+
+        tvLastSize =
+                findViewById(R.id.tvLastSize);
+
+        tvLastTimestamp =
+                findViewById(R.id.tvLastTimestamp);
+
+        tvLastTtfb =
+                findViewById(R.id.tvLastTtfb);
+
+        tvLastTtfbWeb =
+                findViewById(R.id.tvLastTtfbWeb);
     }
 
     private void setupEventConsole() {
-        rvEventConsole = findViewById(R.id.rvEventConsole);
-        eventAdapter = new VpnEventAdapter();
-        rvEventConsole.setLayoutManager(new LinearLayoutManager(this));
-        rvEventConsole.setAdapter(eventAdapter);
-        // Fixed-size rows -> RecyclerView can skip some layout recalculation work.
+
+        rvEventConsole =
+                findViewById(R.id.rvEventConsole);
+
+        eventAdapter =
+                new VpnEventAdapter();
+
+        rvEventConsole.setLayoutManager(
+                new LinearLayoutManager(this)
+        );
+
+        rvEventConsole.setAdapter(
+                eventAdapter
+        );
+
         rvEventConsole.setHasFixedSize(true);
     }
 
     private void onNewEvent(VpnEvent event) {
+
         eventAdapter.addEvent(event);
-        rvEventConsole.scrollToPosition(eventAdapter.getLastIndex());
+
+        rvEventConsole.scrollToPosition(
+                eventAdapter.getLastIndex()
+        );
     }
 
     private void onStartVpnClicked() {
-        updateStatus("Requesting VPN permission...");
-        dashboardRepo.setPermissionStatus("Requesting");
-        dashboardRepo.logEvent(TAG+"Requesting VPN permission",
-                VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
-        Intent prepareIntent = VpnService.prepare(this);
+        // Prevent Web Test from starting if another test is running.
+        if (!TestSessionManager.startTest(
+                TestSessionManager.TestType.WEB)) {
+
+            Toast.makeText(
+                    this,
+                    "Another test is already running.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            updateTestButtons();
+
+            return;
+        }
+
+        updateTestButtons();
+
+        updateStatus(
+                "Requesting VPN permission..."
+        );
+
+        dashboardRepo.setPermissionStatus(
+                "Requesting"
+        );
+
+        dashboardRepo.logEvent(
+                TAG + "Requesting VPN permission",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
+
+        Intent prepareIntent =
+                VpnService.prepare(this);
 
         if (prepareIntent != null) {
 
-            vpnPermissionLauncher.launch(prepareIntent);
+            vpnPermissionLauncher.launch(
+                    prepareIntent
+            );
+
         } else {
 
-            Log.d(TAG, "VPN permission already granted.");
-            dashboardRepo.setPermissionStatus("Granted");
-            dashboardRepo.logEvent(TAG+"VPN permission already granted",
-                    VpnEvent.Level.SUCCESS, VpnEvent.Category.GENERAL);
+            Log.d(
+                    TAG,
+                    "VPN permission already granted."
+            );
+
+            dashboardRepo.setPermissionStatus(
+                    "Granted"
+            );
+
+            dashboardRepo.logEvent(
+                    TAG + "VPN permission already granted",
+                    VpnEvent.Level.SUCCESS,
+                    VpnEvent.Category.GENERAL
+            );
+
             startVpnServiceAndLoadWebView();
         }
     }
 
-
     private void startVpnServiceAndLoadWebView() {
-        String targetUrl = resolveTargetUrl();
 
-        updateStatus("Starting MediatorVpnService...");
+        String targetUrl =
+                resolveTargetUrl();
+
+        updateStatus(
+                "Starting AppOpenMediatorVpnService..."
+        );
 
         Intent serviceIntent =
-                new Intent(this, MediatorVpnService.class);
+                new Intent(
+                        this,
+                        MediatorVpnService.class
+                );
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
+        if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O) {
+
+            startForegroundService(
+                    serviceIntent
+            );
         }
 
         bindService(
@@ -277,8 +493,11 @@ public class VpnTestActivity extends AppCompatActivity {
                 Context.BIND_AUTO_CREATE
         );
 
-        pendingTargetUrl = targetUrl;
-        pendingUrlLoad = true;
+        pendingTargetUrl =
+                targetUrl;
+
+        pendingUrlLoad =
+                true;
 
         updateStatus(
                 "VPN service starting. Waiting for VPN establishment before loading "
@@ -288,22 +507,38 @@ public class VpnTestActivity extends AppCompatActivity {
 
         btnStartVpn.setEnabled(false);
         btnStopVpn.setEnabled(true);
+
+        // While Web Test is running,
+        // App Open navigation button is disabled.
+        btnPerformAppOpenTest.setEnabled(false);
     }
 
     private void onStopVpnClicked() {
-        updateStatus("Stopping VPN...");
-        dashboardRepo.logEvent(TAG+"Stopping VPN (user requested)",
-                VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
 
+        updateStatus(
+                "Stopping VPN..."
+        );
+
+        dashboardRepo.logEvent(
+                TAG + "Stopping VPN (user requested)",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
 
         pendingUrlLoad = false;
         pendingTargetUrl = null;
 
-        if (isServiceBound && mediatorVpnService != null) {
-            mediatorVpnService.setWebsiteTarget(null, null);
+        if (isServiceBound &&
+                mediatorVpnService != null) {
+
+            mediatorVpnService.setWebsiteTarget(
+                    null,
+                    null
+            );
         }
 
-        if (isServiceBound && mediatorVpnService != null) {
+        if (isServiceBound &&
+                mediatorVpnService != null) {
 
             mediatorVpnService.clearVpnReadyCallback();
 
@@ -312,177 +547,339 @@ public class VpnTestActivity extends AppCompatActivity {
             unbindService(connection);
 
             isServiceBound = false;
+
             mediatorVpnService = null;
         }
 
-        Intent serviceIntent = new Intent(this, MediatorVpnService.class);
+        Intent serviceIntent =
+                new Intent(
+                        this,
+                        MediatorVpnService.class
+                );
+
         stopService(serviceIntent);
 
-//        webView.stopLoading();
-//        webView.loadUrl("about:blank");
+        dashboardRepo.setVpnStatus(
+                "Stopped"
+        );
 
-        dashboardRepo.setVpnStatus("Stopped");
-        dashboardRepo.setInterfaceStatus("Closed");
-        dashboardRepo.setReaderStatus("Stopped");
-        dashboardRepo.logEvent(TAG+"VPN stopped by user",
-                VpnEvent.Level.INFO, VpnEvent.Category.GENERAL);
+        dashboardRepo.setInterfaceStatus(
+                "Closed"
+        );
 
-        updateStatus("VPN stopped.");
+        dashboardRepo.setReaderStatus(
+                "Stopped"
+        );
+
+        dashboardRepo.logEvent(
+                TAG + "VPN stopped by user",
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
+
+        updateStatus(
+                "VPN stopped."
+        );
 
         VpnLogFileManager
                 .getInstance()
                 .endSession();
 
-        File logFile = VpnLogFileManager
-                .getInstance()
-                .getCurrentLogFile();
+        File logFile =
+                VpnLogFileManager
+                        .getInstance()
+                        .getCurrentLogFile();
 
         showShareLogDialog(logFile);
 
         btnStartVpn.setEnabled(true);
         btnStopVpn.setEnabled(false);
+
+        // Release shared session.
+        TestSessionManager.stopTest();
+
+        // App Open can now be opened again.
+        btnPerformAppOpenTest.setEnabled(true);
     }
 
     private String resolveTargetUrl() {
-        String input = etTargetUrl.getText() != null
-                ? etTargetUrl.getText().toString().trim()
-                : "";
+
+        String input =
+                etTargetUrl.getText() != null
+                        ? etTargetUrl
+                        .getText()
+                        .toString()
+                        .trim()
+                        : "";
 
         if (input.isEmpty()) {
-            input = "https://www.google.com";
+            input =
+                    "https://www.google.com";
         }
 
-        if (!input.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
-            input = "https://" + input;
+        if (!input.matches(
+                "^[a-zA-Z][a-zA-Z0-9+.-]*://.*")) {
+
+            input =
+                    "https://" + input;
         }
 
         return input;
     }
 
-
     private String extractHostname(String url) {
-        Uri uri = Uri.parse(url);
+
+        Uri uri =
+                Uri.parse(url);
+
         return uri.getHost();
     }
 
+    private void resolveAndSetWebsiteTarget(
+            String urlToLoad) {
 
-    private void resolveAndSetWebsiteTarget(String urlToLoad) {
-        String hostname = extractHostname(urlToLoad);
+        String hostname =
+                extractHostname(urlToLoad);
 
-        if (hostname == null || hostname.isEmpty()) {
+        if (hostname == null ||
+                hostname.isEmpty()) {
+
             return;
         }
 
         websiteDnsExecutor.execute(() -> {
+
             try {
-                InetAddress[] addresses = InetAddress.getAllByName(hostname);
 
-                Set<String> resolvedIps = new HashSet<>();
-                for (InetAddress address : addresses) {
-                    resolvedIps.add(address.getHostAddress());
+                InetAddress[] addresses =
+                        InetAddress.getAllByName(
+                                hostname
+                        );
+
+                Set<String> resolvedIps =
+                        new HashSet<>();
+
+                for (InetAddress address :
+                        addresses) {
+
+                    resolvedIps.add(
+                            address.getHostAddress()
+                    );
                 }
 
-                if (isServiceBound && mediatorVpnService != null) {
-                    mediatorVpnService.setWebsiteTarget(hostname, resolvedIps);
+                if (isServiceBound &&
+                        mediatorVpnService != null) {
+
+                    mediatorVpnService.setWebsiteTarget(
+                            hostname,
+                            resolvedIps
+                    );
                 }
 
-                Log.d(TAG, "Resolved website " + hostname + " -> " + resolvedIps);
+                Log.d(
+                        TAG,
+                        "Resolved website "
+                                + hostname
+                                + " -> "
+                                + resolvedIps
+                );
 
             } catch (UnknownHostException e) {
-                Log.w(TAG, "DNS resolution failed for " + hostname + ": " + e.getMessage());
+
+                Log.w(
+                        TAG,
+                        "DNS resolution failed for "
+                                + hostname
+                                + ": "
+                                + e.getMessage()
+                );
             }
         });
     }
 
     private void updateStatus(String message) {
-        Log.d(TAG, message);
+
+        Log.d(
+                TAG,
+                message
+        );
+
         if (tvStatus != null) {
-            tvStatus.setText("Status: " + message);
+
+            tvStatus.setText(
+                    "Status: " + message
+            );
         }
     }
+
+    /**
+     * Keeps Web Test and App Open Test mutually exclusive
+     * at the UI level.
+     */
+    private void updateTestButtons() {
+
+        TestSessionManager.TestType active =
+                TestSessionManager.getActiveTest();
+
+        if (btnStartVpn != null) {
+            btnStartVpn.setEnabled(
+                    active == TestSessionManager.TestType.NONE
+            );
+        }
+
+        if (btnStopVpn != null) {
+            btnStopVpn.setEnabled(
+                    active == TestSessionManager.TestType.WEB
+            );
+        }
+
+        if (btnPerformAppOpenTest != null) {
+            btnPerformAppOpenTest.setEnabled(
+                    active == TestSessionManager.TestType.NONE
+            );
+        }
+    }
+
     private void showShareLogDialog(File logFile) {
 
-        if (logFile == null || !logFile.exists()) {
-            Toast.makeText(this, "Log file not found.", Toast.LENGTH_SHORT).show();
+        if (logFile == null ||
+                !logFile.exists()) {
+
+            Toast.makeText(
+                    this,
+                    "Log file not found.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
             return;
         }
 
         new AlertDialog.Builder(this)
                 .setTitle("Share Log")
-                .setMessage("Do you want to share the VPN log file?")
+                .setMessage(
+                        "Do you want to share the VPN log file?"
+                )
                 .setCancelable(false)
-                .setPositiveButton("Yes", (dialog, which) -> {
+                .setPositiveButton(
+                        "Yes",
+                        (dialog, which) -> {
 
-                    // Next step
-                    shareLogFile(logFile);
+                            shareLogFile(
+                                    logFile
+                            );
+                        }
+                )
+                .setNegativeButton(
+                        "No",
+                        (dialog, which) -> {
 
-                })
-                .setNegativeButton("No", (dialog, which) -> {
+                            VpnLogFileManager
+                                    .getInstance()
+                                    .deleteCurrentLogFile();
 
-                    VpnLogFileManager.getInstance().deleteCurrentLogFile();
-
-                    Toast.makeText(
-                            this,
-                            "Log file deleted.",
-                            Toast.LENGTH_SHORT
-                    ).show();
-
-                })
+                            Toast.makeText(
+                                    this,
+                                    "Log file deleted.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
+                        }
+                )
                 .show();
     }
+
     private void shareLogFile(File file) {
 
-        Uri uri = FileProvider.getUriForFile(
-                this,
-                getPackageName() + ".fileprovider",
-                file
+        Uri uri =
+                FileProvider.getUriForFile(
+                        this,
+                        getPackageName()
+                                + ".fileprovider",
+                        file
+                );
+
+        Intent shareIntent =
+                new Intent(
+                        Intent.ACTION_SEND
+                );
+
+        shareIntent.setType(
+                "text/plain"
         );
 
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        shareIntent.putExtra(
+                Intent.EXTRA_STREAM,
+                uri
+        );
 
-        PackageManager pm = getPackageManager();
+        shareIntent.addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+
+        PackageManager pm =
+                getPackageManager();
 
         try {
 
-            // Try WhatsApp Business first
-            pm.getPackageInfo("com.whatsapp.w4b", 0);
+            pm.getPackageInfo(
+                    "com.whatsapp.w4b",
+                    0
+            );
 
-            shareIntent.setPackage("com.whatsapp.w4b");
-            startActivity(shareIntent);
+            shareIntent.setPackage(
+                    "com.whatsapp.w4b"
+            );
 
-        } catch (PackageManager.NameNotFoundException e1) {
+            startActivity(
+                    shareIntent
+            );
+
+        } catch (
+                PackageManager.NameNotFoundException e1) {
 
             try {
 
-                // Fall back to regular WhatsApp
-                pm.getPackageInfo("com.whatsapp", 0);
+                pm.getPackageInfo(
+                        "com.whatsapp",
+                        0
+                );
 
-                shareIntent.setPackage("com.whatsapp");
+                shareIntent.setPackage(
+                        "com.whatsapp"
+                );
 
-                deleteLogAfterShare = true;
-                startActivity(shareIntent);
-            } catch (PackageManager.NameNotFoundException e2) {
+                deleteLogAfterShare =
+                        true;
 
-                // Final fallback
-                startActivity(Intent.createChooser(
-                        shareIntent,
-                        "Share VPN Log"));
+                startActivity(
+                        shareIntent
+                );
 
+            } catch (
+                    PackageManager.NameNotFoundException e2) {
+
+                startActivity(
+                        Intent.createChooser(
+                                shareIntent,
+                                "Share VPN Log"
+                        )
+                );
             }
         }
     }
+
     @Override
     protected void onResume() {
+
         super.onResume();
 
         if (deleteLogAfterShare) {
 
-            deleteLogAfterShare = false;
+            deleteLogAfterShare =
+                    false;
 
-            VpnLogFileManager.getInstance().deleteCurrentLogFile();
+            VpnLogFileManager
+                    .getInstance()
+                    .deleteCurrentLogFile();
 
             Toast.makeText(
                     this,
@@ -490,5 +887,8 @@ public class VpnTestActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT
             ).show();
         }
+
+        // Important when returning from App Open Test.
+        updateTestButtons();
     }
 }

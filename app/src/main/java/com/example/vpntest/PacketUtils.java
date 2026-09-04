@@ -3,7 +3,7 @@ package com.example.vpntest;
 import java.nio.ByteBuffer;
 
 
-final class PacketUtils {
+public final class PacketUtils {
 
     private PacketUtils() {}
 
@@ -26,8 +26,8 @@ final class PacketUtils {
     }
 
     /** Builds a 20-byte IPv4 header (no options). */
-    static void writeIPv4Header(ByteBuffer buf, int totalLength, int protocol,
-                                byte[] srcIp, byte[] dstIp) {
+    public static void writeIPv4Header(ByteBuffer buf, int totalLength, int protocol,
+                                       byte[] srcIp, byte[] dstIp) {
         int start = buf.position();
         buf.put((byte) 0x45);       // version=4, IHL=5
         buf.put((byte) 0x00);       // DSCP/ECN
@@ -55,8 +55,8 @@ final class PacketUtils {
      * @param srcIp         16-byte source address
      * @param dstIp         16-byte destination address
      */
-    static void writeIPv6Header(ByteBuffer buf, int payloadLength, int nextHeader,
-                                byte[] srcIp, byte[] dstIp) {
+    public static void writeIPv6Header(ByteBuffer buf, int payloadLength, int nextHeader,
+                                       byte[] srcIp, byte[] dstIp) {
         // Version=6, Traffic Class=0, Flow Label=0 -> first 4 bytes are 0x60000000.
         buf.putInt(0x60000000);
         buf.putShort((short) payloadLength);
@@ -67,7 +67,7 @@ final class PacketUtils {
     }
 
     /** Builds an 8-byte UDP header. Checksum is left as a placeholder (0); patch it afterwards if needed. */
-    static void writeUdpHeader(ByteBuffer buf, int srcPort, int dstPort, int udpLength) {
+    public static void writeUdpHeader(ByteBuffer buf, int srcPort, int dstPort, int udpLength) {
         buf.putShort((short) srcPort);
         buf.putShort((short) dstPort);
         buf.putShort((short) udpLength);
@@ -78,8 +78,8 @@ final class PacketUtils {
      * Builds a 20-byte TCP header (no options).
      * flags: use the TCP flag bit constants below (FIN|SYN|RST|PSH|ACK).
      */
-    static void writeTcpHeader(ByteBuffer buf, int srcPort, int dstPort,
-                               long seq, long ack, int flags, int window) {
+    public static void writeTcpHeader(ByteBuffer buf, int srcPort, int dstPort,
+                                      long seq, long ack, int flags, int window) {
         buf.putShort((short) srcPort);
         buf.putShort((short) dstPort);
         buf.putInt((int) seq);
@@ -122,8 +122,8 @@ final class PacketUtils {
     }
 
     /** Computes TCP checksum over the pseudo header + segment and patches it in. Works for IPv4 or IPv6 addresses. */
-    static void fixTcpChecksum(ByteBuffer packet, int ipHeaderStart, int tcpHeaderStart,
-                               int tcpSegmentLength, byte[] srcIp, byte[] dstIp) {
+    public static void fixTcpChecksum(ByteBuffer packet, int ipHeaderStart, int tcpHeaderStart,
+                                      int tcpSegmentLength, byte[] srcIp, byte[] dstIp) {
         int checksum = transportChecksum(srcIp, dstIp, PROTO_TCP,
                 packet.array(), packet.arrayOffset() + tcpHeaderStart, tcpSegmentLength);
         packet.putShort(tcpHeaderStart + 16, (short) checksum);
@@ -134,8 +134,8 @@ final class PacketUtils {
      * Mandatory for IPv6 (a computed value of 0 is stored as 0xFFFF per RFC 2460 8.1);
      * for IPv4 the caller may skip calling this since UDP checksum is optional there.
      */
-    static void fixUdpChecksum(ByteBuffer packet, int udpHeaderStart,
-                               int udpSegmentLength, byte[] srcIp, byte[] dstIp) {
+    public static void fixUdpChecksum(ByteBuffer packet, int udpHeaderStart,
+                                      int udpSegmentLength, byte[] srcIp, byte[] dstIp) {
         int checksum = transportChecksum(srcIp, dstIp, PROTO_UDP,
                 packet.array(), packet.arrayOffset() + udpHeaderStart, udpSegmentLength);
         if (checksum == 0) {
@@ -145,14 +145,14 @@ final class PacketUtils {
     }
 
     // TCP flag bits
-    static final int TCP_FIN = 0x01;
-    static final int TCP_SYN = 0x02;
-    static final int TCP_RST = 0x04;
-    static final int TCP_PSH = 0x08;
-    static final int TCP_ACK = 0x10;
+    public static final int TCP_FIN = 0x01;
+    public static final int TCP_SYN = 0x02;
+    public static final int TCP_RST = 0x04;
+    public static final int TCP_PSH = 0x08;
+    public static final int TCP_ACK = 0x10;
 
-    static final int PROTO_TCP = 6;
-    static final int PROTO_UDP = 17;
+    public static final int PROTO_TCP = 6;
+    public static final int PROTO_UDP = 17;
     static final int PROTO_ICMPV4 = 1;
     static final int PROTO_ICMPV6 = 58;
 }

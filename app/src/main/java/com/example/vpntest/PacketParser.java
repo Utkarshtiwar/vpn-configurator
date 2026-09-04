@@ -4,13 +4,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 
-final class PacketParser {
+public final class PacketParser {
 
     // Protocol / Next Header numbers this parser understands as "transport".
-    static final int PROTO_ICMPV4 = 1;
-    static final int PROTO_TCP = 6;
-    static final int PROTO_UDP = 17;
-    static final int PROTO_ICMPV6 = 58;
+    public static final int PROTO_ICMPV4 = 1;
+    public static final int PROTO_TCP = 6;
+    public static final int PROTO_UDP = 17;
+    public static final int PROTO_ICMPV6 = 58;
 
     // IPv6 extension header type numbers.
     private static final int EXT_HOP_BY_HOP = 0;
@@ -20,7 +20,7 @@ final class PacketParser {
 
     private PacketParser() {}
 
-    static ParsedPacket parse(byte[] packet, int length) {
+    public static ParsedPacket parse(byte[] packet, int length) {
         if (packet == null || length < 1) {
             return ParsedPacket.malformed("Empty packet");
         }
@@ -192,7 +192,7 @@ final class PacketParser {
         return (ip[0] & 0xFF) + "." + (ip[1] & 0xFF) + "." + (ip[2] & 0xFF) + "." + (ip[3] & 0xFF);
     }
 
-    static String protocolName(int protocol) {
+    public static String protocolName(int protocol) {
         switch (protocol) {
             case PROTO_TCP: return "TCP";
             case PROTO_UDP: return "UDP";

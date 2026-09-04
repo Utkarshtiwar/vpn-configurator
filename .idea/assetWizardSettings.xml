@@ -79,6 +79,7 @@
                                             <option name="values">
                                               <map>
                                                 <entry key="color" value="000000" />
+                                                <entry key="imagePath" value="C:\Users\Asus\Downloads\ic_app_logo.png" />
                                               </map>
                                             </option>
                                           </PersistentState>
@@ -123,6 +124,7 @@
                                             <option name="values">
                                               <map>
                                                 <entry key="color" value="000000" />
+                                                <entry key="imagePath" value="C:\Users\Asus\Downloads\ic_app_logo.png" />
                                               </map>
                                             </option>
                                           </PersistentState>

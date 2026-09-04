@@ -1,35 +1,190 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- ===================== TEXT ===================== -->
+
+    <style name="ScreenTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_primary</item>
+        <item name="android:textSize">@dimen/text_screen_title</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="ScreenSubtitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="android:textSize">@dimen/text_screen_subtitle</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <style name="EyebrowLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/primary</item>
+        <item name="android:textSize">@dimen/text_section_heading</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="SectionHeading">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="android:textSize">@dimen/text_section_heading</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:textAllCaps">true</item>
+    </style>
+
+    <style name="FieldCaption">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="android:textSize">@dimen/text_body_secondary</item>
+    </style>
+
+    <!-- ===================== CARDS ===================== -->
+
+    <!-- Full-width premium card (selector, control, status, last-packet, url, etc.) -->
+    <style name="PremiumCard">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">@dimen/spacing_20</item>
+        <item name="android:layout_marginEnd">@dimen/spacing_20</item>
+        <item name="android:layout_marginTop">@dimen/spacing_12</item>
+        <item name="cardBackgroundColor">@color/surface_dark</item>
+        <item name="cardCornerRadius">@dimen/card_corner_radius</item>
+        <item name="cardElevation">@dimen/card_elevation</item>
+        <item name="strokeColor">@color/divider_color</item>
+        <item name="strokeWidth">@dimen/card_stroke_width</item>
+    </style>
+
+    <style name="PremiumCardBody">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">@dimen/spacing_16</item>
+    </style>
+
+    <!-- Compact card used in 2x2 grids (health + stats) -->
     <style name="DashboardCard">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">4dp</item>
+        <item name="android:layout_margin">@dimen/spacing_4</item>
+        <item name="cardBackgroundColor">@color/surface_dark</item>
+        <item name="cardCornerRadius">@dimen/card_corner_radius</item>
+        <item name="cardElevation">@dimen/card_elevation</item>
+        <item name="strokeColor">@color/divider_color</item>
+        <item name="strokeWidth">@dimen/card_stroke_width</item>
     </style>
 
-    <style name="DashboardCardSmall" parent="DashboardCard"/>
+    <!-- Kept for backwards compatibility with existing layout references -->
+    <style name="DashboardCardSmall" parent="DashboardCard" />
 
     <style name="DashboardCardContent">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:orientation">vertical</item>
-        <item name="android:padding">12dp</item>
+        <item name="android:padding">@dimen/spacing_12</item>
+        <item name="android:minHeight">72dp</item>
     </style>
 
     <style name="DashboardCardLabel">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textSize">12sp</item>
         <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="android:textSize">@dimen/text_card_label</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
     </style>
 
     <style name="DashboardCardValue">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textSize">16sp</item>
-        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginTop">4dp</item>
         <item name="android:textColor">@color/on_surface_primary</item>
+        <item name="android:textSize">@dimen/text_value_medium</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <!-- Larger numeric value, used for packet-count and TTFB stat cards -->
+    <style name="DashboardCardValueLarge" parent="DashboardCardValue">
+        <item name="android:textSize">@dimen/text_value_large</item>
+    </style>
+
+    <!-- Key/value rows inside the Last Packet card -->
+    <style name="KvRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingTop">@dimen/spacing_8</item>
+        <item name="android:paddingBottom">@dimen/spacing_8</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <style name="KvLabel">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="android:textSize">@dimen/text_body_secondary</item>
+    </style>
+
+    <style name="KvValue">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/on_surface_primary</item>
+        <item name="android:textSize">@dimen/text_body_secondary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:gravity">end</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">middle</item>
+    </style>
+
+    <style name="KvDivider">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="dividerColor">@color/divider_color</item>
+    </style>
+
+    <!-- ===================== BUTTONS ===================== -->
+
+    <style name="PrimaryActionButton" parent="Widget.Material3.Button">
+        <item name="android:layout_height">@dimen/button_height</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/on_surface_primary</item>
+        <item name="cornerRadius">@dimen/button_corner_radius</item>
+        <item name="backgroundTint">@color/primary</item>
+    </style>
+
+    <style name="DestructiveActionButton" parent="Widget.Material3.Button">
+        <item name="android:layout_height">@dimen/button_height</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/on_surface_primary</item>
+        <item name="cornerRadius">@dimen/button_corner_radius</item>
+        <item name="backgroundTint">@color/status_error</item>
+    </style>
+
+    <style name="SecondaryActionButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">@dimen/button_height</item>
+        <item name="android:layout_marginTop">@dimen/spacing_12</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/on_surface_secondary</item>
+        <item name="cornerRadius">@dimen/button_corner_radius</item>
+        <item name="strokeColor">@color/divider_color</item>
     </style>
 
 </resources>

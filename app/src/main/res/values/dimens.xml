@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Spacing scale -->
+    <dimen name="spacing_4">4dp</dimen>
+    <dimen name="spacing_8">8dp</dimen>
+    <dimen name="spacing_12">12dp</dimen>
+    <dimen name="spacing_16">16dp</dimen>
+    <dimen name="spacing_20">20dp</dimen>
+    <dimen name="spacing_24">24dp</dimen>
+
+    <!-- Cards -->
+    <dimen name="card_corner_radius">16dp</dimen>
+    <dimen name="card_stroke_width">1dp</dimen>
+    <dimen name="card_elevation">2dp</dimen>
+
+    <!-- Buttons -->
+    <dimen name="button_height">52dp</dimen>
+    <dimen name="button_corner_radius">14dp</dimen>
+
+    <!-- Inputs -->
+    <dimen name="input_corner_radius">12dp</dimen>
+
+    <!-- Type scale -->
+    <dimen name="text_screen_title">22sp</dimen>
+    <dimen name="text_screen_subtitle">13sp</dimen>
+    <dimen name="text_section_heading">12sp</dimen>
+    <dimen name="text_card_label">11sp</dimen>
+    <dimen name="text_value_medium">16sp</dimen>
+    <dimen name="text_value_large">26sp</dimen>
+    <dimen name="text_body_secondary">13sp</dimen>
+
+    <!-- Console -->
+    <dimen name="console_height">420dp</dimen>
+
+</resources>

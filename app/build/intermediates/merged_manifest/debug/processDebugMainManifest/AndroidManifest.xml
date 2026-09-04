@@ -13,6 +13,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- Required so Android can resolve the apps used by App Open Test -->
+    <queries>
+        <package android:name="com.instagram.android" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.android.chrome" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.spotify.music" />
+    </queries>
+
     <permission
         android:name="com.example.vpntest.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         android:protectionLevel="signature" />
@@ -26,8 +37,12 @@
         android:extractNativeLibs="false"
         android:icon="@mipmap/ic_launcher"
         android:label="VpnTestPOC"
-        android:theme="@style/Theme.AppCompat.DayNight"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar"
         android:usesCleartextTraffic="false" >
+
+        <!-- ==================== WEB TEST ACTIVITY ==================== -->
+
         <activity
             android:name="com.example.vpntest.VpnTestActivity"
             android:exported="true"
@@ -39,28 +54,8 @@
             </intent-filter>
         </activity>
 
-        <!--
-            This <service> block is the most important manifest entry for
-            this whole POC. Three things make a service usable as a VPN:
+        <!-- ==================== WEB TEST VPN SERVICE ==================== -->
 
-            1. android:name points to our class extending VpnService.
-
-            2. android:permission="android.permission.BIND_VPN_SERVICE"
-               This tells Android: "only the system is allowed to bind to
-               this service." Apps cannot bind to it directly — only the
-               OS VPN subsystem can, after the user has approved the VPN
-               permission dialog. This is a security requirement enforced
-               by the OS, not something we can skip.
-
-            3. The <intent-filter> with action "android.net.VpnService"
-               is what makes the system recognize this service as a valid
-               VPN implementation when we call VpnService.prepare() and
-               later start the service.
-
-            Without any one of these three, VpnService.prepare() or
-            establish() will fail or the service will never be
-            recognized as a VPN by the OS.
-        -->
         <service
             android:name="com.example.vpntest.MediatorVpnService"
             android:exported="true"
@@ -74,6 +69,31 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn" />
         </service>
+
+        <!-- ==================== APP OPEN TEST ACTIVITY ==================== -->
+
+        <activity
+            android:name="com.example.vpntest.appOpen.AppOpenVpnTestActivity"
+            android:exported="false"
+            android:label="App Open Test" />
+
+        <!-- ==================== APP OPEN TEST VPN SERVICE ==================== -->
+
+        <service
+            android:name="com.example.vpntest.appOpen.AppOpenMediatorVpnService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE" >
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
+
+        <!-- ==================== FILE PROVIDER ==================== -->
 
         <provider
             android:name="androidx.core.content.FileProvider"

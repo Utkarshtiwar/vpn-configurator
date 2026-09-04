@@ -248,7 +248,7 @@ public class MediatorVpnService extends VpnService {
 
         VpnService.Builder builder = new Builder();
 
-        builder.setSession("MediatorVpnService-POC");
+        builder.setSession("AppOpenMediatorVpnService-POC");
 
         /*
          * VPN/TUN address.
