@@ -48,7 +48,7 @@ import com.example.vpntest.utils.VpnLogFileManager;
 public class AppOpenVpnTestActivity extends AppCompatActivity {
 
     private static final String TAG =
-            "VpnTestActivity : ";
+            "AppOpen_VpnTestActivity : ";
 
     private static final String STATE_SELECTED_PACKAGE =
             "selected_package_name";

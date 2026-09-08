@@ -33,6 +33,9 @@
     <dimen name="text_section_heading">12sp</dimen>
     <dimen name="text_value_large">26sp</dimen>
     <dimen name="text_value_medium">16sp</dimen>
+    <item name="btnYoutubeStart" type="id"/>
+    <item name="btnYoutubeStop" type="id"/>
+    <item name="webViewYoutube" type="id"/>
     <string name="app_name">VpnTestPOC</string>
     <style name="DashboardCard">
         <item name="android:layout_width">0dp</item>

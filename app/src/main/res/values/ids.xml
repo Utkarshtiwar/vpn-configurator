@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="btnYoutubeStart" type="id" />
+    <item name="btnYoutubeStop" type="id" />
+    <item name="webViewYoutube" type="id" />
+</resources>

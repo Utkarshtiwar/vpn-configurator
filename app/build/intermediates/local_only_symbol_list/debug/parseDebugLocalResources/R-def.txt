@@ -47,8 +47,11 @@ drawable ic_tcp
 drawable ic_udp
 drawable ic_warning
 id btnPerformAppOpenTest
+id btnPerformYoutubeTest
 id btnStartVpn
 id btnStopVpn
+id btnYoutubeStart
+id btnYoutubeStop
 id etTargetUrl
 id ivEventIcon
 id rvEventConsole
@@ -72,7 +75,9 @@ id tvTotalPackets
 id tvUdpCount
 id tvVpnStatus
 id webView
+id webViewYoutube
 layout activity_app_open_test
+layout activity_app_open_youtube_test
 layout activity_vpn_test
 layout item_vpn_event
 mipmap ic_launcher

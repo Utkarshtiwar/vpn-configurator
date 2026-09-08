@@ -27,7 +27,7 @@ import com.example.vpntest.repo.VpnEventRepository;
 
 class AppOpenTcpForwarder {
 
-    private static final String TAG = "VPN_TcpForwarder : ";
+    private static final String TAG = "AppOpen_TcpForwarder : ";
 
     private final VpnService vpnService;
     private final FileOutputStream tunOut;
@@ -138,8 +138,13 @@ class AppOpenTcpForwarder {
     private volatile String globalTtfbRequestResolvedIp = null;
     private volatile int globalTtfbRequestPayloadSize = 0;
 
+    private volatile boolean youtubeTestRunning = false;
+
+    private final java.util.concurrent.atomic.AtomicInteger youtubePacketCounter =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
     AppOpenTcpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock,
-                 Network underlyingNetwork) {
+                        Network underlyingNetwork) {
         this.vpnService = vpnService;
         this.tunOut = tunOut;
         this.tunWriteLock = tunWriteLock;
@@ -324,7 +329,6 @@ class AppOpenTcpForwarder {
         boolean isPsh = (flags & PacketUtils.TCP_PSH) != 0;
 
         if (payloadLen > 0
-                && isPsh
                 && session.state == TcpSession.State.ESTABLISHED) {
 
             byte[] data = new byte[payloadLen];
@@ -570,6 +574,7 @@ class AppOpenTcpForwarder {
 
                 int sentCount = totalPacketsSent.incrementAndGet();
 
+                logYoutubePacket(true, srcIp, dstIp, srcPort, dstPort, flags, length, payloadLen);
                 Log.d(TAG, "Payload written successfully.");
 
                 Log.d(
@@ -943,6 +948,42 @@ class AppOpenTcpForwarder {
     }
 
 
+    void startYoutubeTest() {
+        youtubeTestRunning = true;
+        youtubePacketCounter.set(0);
+        Log.d(TAG, "YouTube Test packet logging ENABLED");
+    }
+
+    void stopYoutubeTest() {
+        youtubeTestRunning = false;
+        Log.d(TAG, "YouTube Test packet logging DISABLED");
+    }
+
+    private void logYoutubePacket(boolean isTx, byte[] logSrcIp, byte[] logDstIp,
+                                  int logSrcPort, int logDstPort,
+                                  int flags, int packetLen, int payloadLen) {
+        if (!youtubeTestRunning) return;
+
+        int count = youtubePacketCounter.incrementAndGet();
+        String direction = isTx ? "TX" : "RX";
+
+        String log =
+                "========== YOUTUBE " + direction + " PACKET ==========\n"
+                        + "Source IP       : " + ipStr(logSrcIp) + "\n"
+                        + "Destination IP  : " + ipStr(logDstIp) + "\n"
+                        + "Source Port     : " + logSrcPort + "\n"
+                        + "Destination Port: " + logDstPort + "\n"
+                        + (flags >= 0 ? "TCP Flags       : 0x" + Integer.toHexString(flags) + "\n" : "")
+                        + "Packet Length   : " + packetLen + "\n"
+                        + "Payload Length  : " + payloadLen + "\n"
+                        + "Packet Count    : " + count + "\n"
+                        + "Timestamp       : " + formatTimestamp(System.currentTimeMillis()) + "\n"
+                        + "=======================================";
+
+        dashboard.logToFile(TAG + log);
+        dashboard.logEvent(TAG + log, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
+    }
+
     void resetGlobalTtfb() {
 
         /*
@@ -1242,6 +1283,7 @@ class AppOpenTcpForwarder {
 
                             forwarder.dashboard.logEvent(TAG+rxHeaderLog, VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
+                            forwarder.logYoutubePacket(false, dstIp, srcIp, dstPort, srcPort, -1, n, n);
                             String incomingIp = AppOpenTcpForwarder.ipStr(dstIp);
 
                             /*

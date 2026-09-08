@@ -66,6 +66,7 @@
             android:name="com.example.vpntest.appOpen.AppOpenVpnTestActivity"
             android:exported="false"
             android:label="App Open Test" />
+        <activity android:name=".appOpen.AppOpenYoutubeTestActivity" android:exported="false" />
 
 
         <!-- ==================== APP OPEN TEST VPN SERVICE ==================== -->

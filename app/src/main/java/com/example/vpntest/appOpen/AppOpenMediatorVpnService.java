@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AppOpenMediatorVpnService extends VpnService {
 
-    private static final String TAG = "VPN_MediatorVpnService : ";
+    private static final String TAG = "AppOpen_MediatorVpnService : ";
     private static final String CHANNEL_ID = "vpn_test_channel";
     private static final int NOTIFICATION_ID = 1001;
 
@@ -1081,6 +1081,18 @@ public class AppOpenMediatorVpnService extends VpnService {
         stopVpn();
 
         super.onDestroy();
+    }
+
+    public void startYoutubeTest() {
+        if (tcpForwarder != null) {
+            tcpForwarder.startYoutubeTest();
+        }
+    }
+
+    public void stopYoutubeTestLogging() {
+        if (tcpForwarder != null) {
+            tcpForwarder.stopYoutubeTest();
+        }
     }
 
     public void stopVpn() {

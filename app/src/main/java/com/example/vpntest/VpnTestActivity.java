@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.example.vpntest.appOpen.AppOpenVpnTestActivity;
+import com.example.vpntest.appOpen.AppOpenYoutubeTestActivity;
 import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 import com.example.vpntest.ui.VpnDashboardViewModel;
@@ -57,6 +58,7 @@ public class VpnTestActivity extends AppCompatActivity {
     private Button btnStartVpn;
     private Button btnStopVpn;
     private Button btnPerformAppOpenTest;
+    private Button btnPerformYoutubeTest;
 
     // Dashboard views
     private TextView tvVpnStatus, tvPermissionStatus, tvInterfaceStatus, tvReaderStatus;
@@ -203,6 +205,8 @@ public class VpnTestActivity extends AppCompatActivity {
         btnPerformAppOpenTest =
                 findViewById(R.id.btnPerformAppOpenTest);
 
+        btnPerformYoutubeTest =
+                findViewById(R.id.btnPerformYoutubeTest);
         bindDashboardViews();
         setupEventConsole();
 
@@ -252,6 +256,17 @@ public class VpnTestActivity extends AppCompatActivity {
                     new Intent(
                             VpnTestActivity.this,
                             AppOpenVpnTestActivity.class
+                    );
+
+            startActivity(intent);
+        });
+
+        btnPerformYoutubeTest.setOnClickListener(v -> {
+
+            Intent intent =
+                    new Intent(
+                            VpnTestActivity.this,
+                            AppOpenYoutubeTestActivity.class
                     );
 
             startActivity(intent);
@@ -511,6 +526,7 @@ public class VpnTestActivity extends AppCompatActivity {
         // While Web Test is running,
         // App Open navigation button is disabled.
         btnPerformAppOpenTest.setEnabled(false);
+        btnPerformYoutubeTest.setEnabled(false);
     }
 
     private void onStopVpnClicked() {
@@ -600,6 +616,7 @@ public class VpnTestActivity extends AppCompatActivity {
 
         // App Open can now be opened again.
         btnPerformAppOpenTest.setEnabled(true);
+        btnPerformYoutubeTest.setEnabled(true);
     }
 
     private String resolveTargetUrl() {
@@ -735,6 +752,12 @@ public class VpnTestActivity extends AppCompatActivity {
 
         if (btnPerformAppOpenTest != null) {
             btnPerformAppOpenTest.setEnabled(
+                    active == TestSessionManager.TestType.NONE
+            );
+        }
+
+        if (btnPerformYoutubeTest != null) {
+            btnPerformYoutubeTest.setEnabled(
                     active == TestSessionManager.TestType.NONE
             );
         }

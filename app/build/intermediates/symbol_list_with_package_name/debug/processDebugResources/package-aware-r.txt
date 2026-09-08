@@ -3140,8 +3140,11 @@ id blocking
 id bottom
 id bounce
 id btnPerformAppOpenTest
+id btnPerformYoutubeTest
 id btnStartVpn
 id btnStopVpn
+id btnYoutubeStart
+id btnYoutubeStop
 id buttonPanel
 id cancel_button
 id center
@@ -3527,6 +3530,7 @@ id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
 id webView
+id webViewYoutube
 id withText
 id with_icon
 id withinBounds
@@ -3647,6 +3651,7 @@ layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_app_open_test
+layout activity_app_open_youtube_test
 layout activity_vpn_test
 layout custom_dialog
 layout design_bottom_navigation_item

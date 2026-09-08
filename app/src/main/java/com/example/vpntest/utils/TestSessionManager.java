@@ -5,7 +5,8 @@ public final class TestSessionManager {
     public enum TestType {
         NONE,
         WEB,
-        APP_OPEN
+        APP_OPEN,
+        YOUTUBE
     }
 
     private static TestType activeTest = TestType.NONE;

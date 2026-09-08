@@ -22,7 +22,7 @@ import com.example.vpntest.repo.VpnEventRepository;
 
 
 class AppOpenUdpForwarder {
-    private static final String TAG = "VPN_UdpForwarder : ";
+    private static final String TAG = "AppOpen_UdpForwarder : ";
     private static final long SESSION_IDLE_TIMEOUT_MS = 60_000;
 
     private final VpnService vpnService;

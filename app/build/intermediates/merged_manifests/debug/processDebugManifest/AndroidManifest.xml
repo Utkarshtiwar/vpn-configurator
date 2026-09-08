@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.vpntest"
     android:versionCode="1"
-    android:versionName="1.1.10" >
+    android:versionName="1.1.12" >
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -76,6 +76,9 @@
             android:name="com.example.vpntest.appOpen.AppOpenVpnTestActivity"
             android:exported="false"
             android:label="App Open Test" />
+        <activity
+            android:name="com.example.vpntest.appOpen.AppOpenYoutubeTestActivity"
+            android:exported="false" />
 
         <!-- ==================== APP OPEN TEST VPN SERVICE ==================== -->
 

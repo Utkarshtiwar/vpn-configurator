@@ -117,6 +117,11 @@
                     android:id="@+id/btnPerformAppOpenTest"
                     style="@style/SecondaryActionButton"
                     android:text="Perform App Open Test" />
+                <Button
+                    android:id="@+id/btnPerformYoutubeTest"
+                    style="@style/SecondaryActionButton"
+                    android:layout_marginTop="8dp"
+                    android:text="Perform YouTube Test" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
