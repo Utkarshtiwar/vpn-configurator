@@ -25,7 +25,6 @@ class UdpForwarder {
     private final VpnService vpnService;
     private final FileOutputStream tunOut;
     private final Object tunWriteLock;
-
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
     private final ScheduledExecutorService cleanupExecutor =
             Executors.newSingleThreadScheduledExecutor();
@@ -70,8 +69,26 @@ class UdpForwarder {
         try {
             DatagramPacket out = new DatagramPacket(
                     payload, payload.length, session.destAddress, dstPort);
-            if (dstPort == 53) {
-                session.dnsRequestTime = System.currentTimeMillis();
+
+            int dnsTransactionId = -1;
+            long dnsStartTime = 0L;
+
+            if (dstPort == 53 && payload.length >= 2) {
+
+                dnsTransactionId =
+                        ((payload[0] & 0xFF) << 8) |
+                                (payload[1] & 0xFF);
+
+                /*
+                 * Record timestamp immediately before the packet
+                 * is sent to the DNS server.
+                 */
+                dnsStartTime = System.nanoTime();
+
+                session.dnsRequestTimes.put(
+                        dnsTransactionId,
+                        dnsStartTime
+                );
             }
 
             session.socket.send(out);
@@ -80,18 +97,34 @@ class UdpForwarder {
             String udpTxLog =
                     "========== [TX] UDP ==========\n" +
                             "IP Version          : IPv" + parsed.ipVersion + "\n" +
-                            "Source IP          : " + ipStr(srcIp) + "\n" +
-                            "Destination IP     : " + ipStr(dstIp) + "\n" +
-                            "Source Port        : " + srcPort + "\n" +
-                            "Destination Port   : " + dstPort + "\n" +
-                            "Packet Length      : " + payload.length + "\n" +
-                            "==============================";
+                            "Source IP           : " + ipStr(srcIp) + "\n" +
+                            "Destination IP      : " + ipStr(dstIp) + "\n" +
+                            "Source Port         : " + srcPort + "\n" +
+                            "Destination Port    : " + dstPort + "\n" +
+                            "Packet Length       : " + payload.length + "\n";
 
-            dashboard.logEvent(TAG+
-                    udpTxLog,
+            /*
+             * Add DNS timing information to the log
+             * when this is a DNS request.
+             */
+            if (dstPort == 53 && dnsTransactionId >= 0) {
+                udpTxLog +=
+                        "DNS Packet          : REQUEST\n" +
+                                "DNS Transaction ID  : 0x" +
+                                String.format("%04X", dnsTransactionId) + "\n" +
+                                "DNS Start Time (ns) : " +
+                                dnsStartTime + "\n";
+            }
+
+            udpTxLog +=
+                    "==============================";
+
+            dashboard.logEvent(
+                    TAG + udpTxLog,
                     VpnEvent.Level.INFO,
                     VpnEvent.Category.UDP
             );
+
         } catch (IOException e) {
             Log.w(TAG, "UDP send failed for " + key + ": " + e.getMessage());
             closeSession(key, session);
@@ -132,7 +165,79 @@ class UdpForwarder {
         t.start();
     }
 
-    private void writeUdpReplyToTun(Session session, byte[] data, int dataLength) {
+    private void writeUdpReplyToTun(
+            Session session,
+            byte[] data,
+            int dataLength) {
+
+        /*
+         * DNS RESPONSE
+         *
+         * The response comes from the DNS server.
+         * Therefore the original destination port was 53.
+         *
+         * Match the response with the original request
+         * using the DNS transaction ID.
+         */
+        if (session.dstPort == 53 && dataLength >= 2) {
+
+            int dnsTransactionId =
+                    ((data[0] & 0xFF) << 8) |
+                            (data[1] & 0xFF);
+
+            Long dnsStartTime =
+                    session.dnsRequestTimes.remove(dnsTransactionId);
+
+            if (dnsStartTime != null) {
+
+                /*
+                 * Record DNS response arrival time.
+                 */
+                long dnsEndTime = System.nanoTime();
+
+                /*
+                 * DNS Lookup Time
+                 *
+                 * = DNS End Time - DNS Start Time
+                 */
+                long dnsLookupTimeNanos =
+                        dnsEndTime - dnsStartTime;
+
+                double dnsLookupTimeMs =
+                        dnsLookupTimeNanos / 1_000_000.0;
+
+                dashboard.recordDnsLookup(
+                        Math.round(dnsLookupTimeMs)
+                );
+                String dnsTimingLog =
+                        "========== DNS LOOKUP ==========\n" +
+                                "DNS Transaction ID  : 0x" +
+                                String.format("%04X", dnsTransactionId) + "\n" +
+                                "DNS Start Time (ns) : " +
+                                dnsStartTime + "\n" +
+                                "DNS End Time (ns)   : " +
+                                dnsEndTime + "\n" +
+                                "DNS Lookup Time     : " +
+                                dnsLookupTimeNanos + " ns\n" +
+                                "DNS Lookup Time     : " +
+                                String.format("%.3f", dnsLookupTimeMs) +
+                                " ms\n" +
+                                "================================";
+
+                /*
+                 * Write DNS timing to the same dashboard/file
+                 * logging mechanism already being used.
+                 */
+                dashboard.logEvent(
+                        TAG + dnsTimingLog,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.UDP
+                );
+
+                Log.d(TAG, dnsTimingLog);
+            }
+        }
+
         boolean ipv6 = session.dstIp.length == 16;
         int ipHeaderLen = ipv6 ? 40 : 20;
         int udpHeaderLen = 8;
@@ -224,19 +329,36 @@ class UdpForwarder {
         final int srcPort;
         final byte[] dstIp;
         final int dstPort;
+
         volatile long lastActivity;
 
-        // DNS lookup measurement
-        long dnsRequestTime;
+        /*
+         * DNS lookup measurement.
+         *
+         * Key   = DNS transaction ID
+         * Value = DNS request start timestamp
+         *
+         * ConcurrentHashMap allows multiple DNS requests
+         * to be tracked safely.
+         */
+        final Map<Integer, Long> dnsRequestTimes =
+                new ConcurrentHashMap<>();
 
-        Session(DatagramSocket socket, InetAddress destAddress,
-                byte[] srcIp, int srcPort, byte[] dstIp, int dstPort) {
+        Session(
+                DatagramSocket socket,
+                InetAddress destAddress,
+                byte[] srcIp,
+                int srcPort,
+                byte[] dstIp,
+                int dstPort) {
+
             this.socket = socket;
             this.destAddress = destAddress;
             this.srcIp = srcIp;
             this.srcPort = srcPort;
             this.dstIp = dstIp;
             this.dstPort = dstPort;
+
             touch();
         }
 

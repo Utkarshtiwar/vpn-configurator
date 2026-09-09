@@ -91,6 +91,21 @@ public class TcpForwarder {
 //    private volatile long globalFirstByteReceivedWallTime = 0L;
 //
 //    private volatile long globalTtfbMs = -1L;
+    private volatile long tcpHandshakeSynSentNano = 0L;
+
+    private volatile long tcpHandshakeSynAckReceivedNano = 0L;
+
+    private volatile long tcpHandshakeNano = -1L;
+
+    private volatile long tcpHandshakeMs = -1L;
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            tcpHandshakeSynCaptured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            tcpHandshakeCaptured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
     private volatile long globalOutgoingIpMatchTime = 0L;
 
     private static volatile long webViewT0Nano = 0L;
@@ -157,7 +172,6 @@ public class TcpForwarder {
         int dataOffsetBytes = ((packet[tcpHeaderOffset + 12] >> 4) & 0x0F) * 4;
 
         int flags = packet[tcpHeaderOffset + 13] & 0xFF;
-
         int windowSize = ((packet[tcpHeaderOffset + 14] & 0xFF) << 8)
                 | (packet[tcpHeaderOffset + 15] & 0xFF);
 
@@ -171,12 +185,17 @@ public class TcpForwarder {
         int payloadLen = length - payloadOffset;
         if (payloadLen < 0) payloadLen = 0;
 
+        String key = parsed.connectionKey();
+        TcpSession session = sessions.get(key);
         StringBuilder tcpHeaderLog = new StringBuilder();
         tcpHeaderLog.append("========== [TX] TCP/IP HEADER ==========\n")
 
                 .append("IP Version         : IPv").append(version).append("\n")
                 .append("Source IP          : ").append(ipStr(srcIp)).append("\n")
                 .append("Destination IP     : ").append(ipStr(dstIp)).append("\n")
+                .append("Host Name          : ")
+                .append(session != null ? session.serverName : "Unknown")
+                .append("\n")
                 .append("Source Port        : ").append(srcPort).append("\n")
                 .append("Destination Port   : ").append(dstPort).append("\n");
 
@@ -203,7 +222,7 @@ public class TcpForwarder {
         Log.d(TAG, tcpHeaderLog.toString());
         dashboard.logEvent(TAG+tcpHeaderLog.toString(), VpnEvent.Level.INFO, VpnEvent.Category.TCP);
 
-        String key = parsed.connectionKey();
+
 
         boolean isSyn = (flags & PacketUtils.TCP_SYN) != 0;
         boolean isAck = (flags & PacketUtils.TCP_ACK) != 0;
@@ -212,7 +231,7 @@ public class TcpForwarder {
 
         Log.d(TAG, "Flags: SYN=" + isSyn + " ACK=" + isAck + " FIN=" + isFin + " RST=" + isRst);
 
-        TcpSession session = sessions.get(key);
+
 
         if (session != null) {
             dashboard.logEvent(
@@ -225,12 +244,32 @@ public class TcpForwarder {
 
         if (flags == 0x02) {
 
-            String txSynLog =
-                    "========== TX SYN ==========\n"
-                            + "Flags = 0x02\n"
-                            + "================================";
-            Log.i(TAG, txSynLog);
-            dashboard.logToFile(TAG + txSynLog);
+            /*
+             * Capture the first transmitted SYN timestamp.
+             */
+            if (tcpHandshakeSynCaptured.compareAndSet(false, true)) {
+
+                tcpHandshakeSynSentNano = System.nanoTime();
+
+                long synSentWallTime = System.currentTimeMillis();
+
+                String txSynLog =
+                        "========== TX SYN ==========\n"
+                                + "Flags              : 0x02\n"
+                                + "Handshake T0       : "
+                                + tcpHandshakeSynSentNano
+                                + " ns\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synSentWallTime)
+                                + "\n"
+                                + "================================";
+
+                Log.i(TAG, txSynLog);
+
+                dashboard.logToFile(
+                        TAG + txSynLog
+                );
+            }
         }
         if (isSyn && !isAck) {
 
@@ -668,6 +707,8 @@ public class TcpForwarder {
                             VpnEvent.Level.INFO, VpnEvent.Category.TCP
                     );
                 }
+                session.serverIp = serverIp;
+                session.serverName = serverName;
 
                 Log.d(TAG, "Creating TCP session");
 //                dashboard.logEvent(TAG+
@@ -711,15 +752,49 @@ public class TcpForwarder {
         int flags = PacketUtils.TCP_SYN | PacketUtils.TCP_ACK;
         if (flags == 0x12) {
 
+            // Capture SYN + ACK receive timestamp
+            tcpHandshakeSynAckReceivedNano = System.nanoTime();
+
+            // Calculate handshake duration
+            if (tcpHandshakeSynSentNano > 0) {
+
+                tcpHandshakeNano =
+                        tcpHandshakeSynAckReceivedNano
+                                - tcpHandshakeSynSentNano;
+
+                tcpHandshakeMs =
+                        (long) (tcpHandshakeNano / 1_000_000.0);
+                dashboard.recordTcpHandshake(tcpHandshakeNano);
+            }
+
+            long synAckReceivedWallTime = System.currentTimeMillis();
+
             String rxSynAckLog =
                     "========== RX SYN + ACK ==========\n"
-                            + "Flags = 0x12\n"
+                            + "Flags              : 0x12\n"
+                            + "Handshake T0       : "
+                            + tcpHandshakeSynSentNano
+                            + " ns\n"
+                            + "Handshake T1       : "
+                            + tcpHandshakeSynAckReceivedNano
+                            + " ns\n"
+                            + "T1 - T0            : "
+                            + tcpHandshakeSynAckReceivedNano
+                            + " - "
+                            + tcpHandshakeSynSentNano
+                            + " = "
+                            + tcpHandshakeNano
+                            + " ns\n"
+                            + "Handshake Time     : "
+                            + tcpHandshakeMs
+                            + " ms\n"
+                            + "Timestamp          : "
+                            + formatTimestamp(synAckReceivedWallTime)
+                            + "\n"
                             + "========================================";
 
-            // Logcat
             Log.i(TAG, rxSynAckLog);
 
-            // Log file
             dashboard.logToFile(TAG + rxSynAckLog);
         }
         writeTcpPacket(
@@ -943,6 +1018,8 @@ public class TcpForwarder {
         long deviceSeq;
 
 
+        String serverIp;
+        String serverName;
         Socket realSocket;
 
         OutputStream realOut;
@@ -1160,6 +1237,8 @@ public class TcpForwarder {
                                     "========== [RX] TCP HEADER ==========\n"
                                             + "Source IP          : " + TcpForwarder.ipStr(dstIp) + "\n"
                                             + "Destination IP     : " + TcpForwarder.ipStr(srcIp) + "\n"
+                                            + "Host Name          : " + serverName + "\n"
+                                            + "Server IP          : " + serverIp + "\n"
                                             + "Source Port        : " + dstPort + "\n"
                                             + "Destination Port   : " + srcPort + "\n"
                                             + "Payload Length     : " + n + "\n"

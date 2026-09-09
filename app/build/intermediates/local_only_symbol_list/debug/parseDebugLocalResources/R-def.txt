@@ -56,6 +56,7 @@ id etTargetUrl
 id ivEventIcon
 id rvEventConsole
 id spinnerAppSelect
+id tvDnsLookup
 id tvEventMessage
 id tvEventTimestamp
 id tvInterfaceStatus
@@ -71,6 +72,7 @@ id tvPermissionStatus
 id tvReaderStatus
 id tvStatus
 id tvTcpCount
+id tvTcpHandshake
 id tvTotalPackets
 id tvUdpCount
 id tvVpnStatus

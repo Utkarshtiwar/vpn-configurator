@@ -170,7 +170,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===================== PERFORMANCE (TTFB) ===================== -->
+        <!-- ===================== PERFORMANCE ===================== -->
         <TextView
             style="@style/SectionHeading"
             android:layout_marginStart="@dimen/spacing_20"
@@ -178,6 +178,7 @@
             android:layout_marginBottom="@dimen/spacing_8"
             android:text="Performance" />
 
+        <!-- Row 1 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -185,30 +186,91 @@
             android:paddingStart="@dimen/spacing_16"
             android:paddingEnd="@dimen/spacing_16">
 
-            <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
                 <LinearLayout style="@style/DashboardCardContent">
-                    <TextView style="@style/DashboardCardLabel" android:text="VPN TTFB" />
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="VPN TTFB" />
+
                     <TextView
                         android:id="@+id/tvLastTtfb"
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_success"
                         android:text="-" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
                 <LinearLayout style="@style/DashboardCardContent">
-                    <TextView style="@style/DashboardCardLabel" android:text="Web Test TTFB" />
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="Web Test TTFB" />
+
                     <TextView
                         android:id="@+id/tvLastTtfbWeb"
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_info"
                         android:text="-" />
+
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
 
+        <!-- Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_16"
+            android:paddingEnd="@dimen/spacing_16">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="TCP Handshake" />
+
+                    <TextView
+                        android:id="@+id/tvTcpHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_success"
+                        android:text="-" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="DNS Lookup" />
+
+                    <TextView
+                        android:id="@+id/tvDnsLookup"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_info"
+                        android:text="-" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
         <!-- ===================== VPN HEALTH ===================== -->
         <TextView
             style="@style/SectionHeading"

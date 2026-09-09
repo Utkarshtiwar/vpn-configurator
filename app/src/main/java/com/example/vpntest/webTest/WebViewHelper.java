@@ -123,6 +123,9 @@ public class WebViewHelper {
             long t0Nano =
                     System.nanoTime();
 
+
+            dashboard.logToFile("Url test T0 : "+t0Nano);
+
             com.example.vpntest.TcpForwarder.setWebViewT0(t0Nano);
 //            dashboard.logToFile(
 //                    TAG

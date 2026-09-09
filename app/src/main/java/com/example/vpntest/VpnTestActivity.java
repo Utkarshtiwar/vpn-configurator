@@ -35,6 +35,7 @@ import androidx.core.content.FileProvider;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -67,6 +68,8 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvLastTtfb;
     private TextView tvLastTtfbWeb;
 
+    private TextView tvTcpHandshake;
+    private TextView tvDnsLookup;
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
@@ -334,6 +337,40 @@ public class VpnTestActivity extends AppCompatActivity {
                             ? stats.lastTtfbMs + " ms"
                             : "-"
             );
+            // TCP HANDSHAKE
+            if (stats.tcpHandshakeNano >= 0) {
+
+                double handshakeMs =
+                        stats.tcpHandshakeNano / 1_000_000.0;
+
+                tvTcpHandshake.setText(
+                        String.format(
+                                Locale.US,
+                                "%.2f ms",
+                                handshakeMs
+                        )
+                );
+
+            } else {
+
+                tvTcpHandshake.setText("-");
+
+            }
+            if (stats.lastDnsLookupMs >= 0) {
+
+                tvDnsLookup.setText(
+                        String.format(
+                                Locale.US,
+                                "%.3f ms",
+                                stats.lastDnsLookupMs
+                        )
+                );
+
+            } else {
+
+                tvDnsLookup.setText("-");
+            }
+
         });
 
         // Set initial button state.
@@ -386,6 +423,10 @@ public class VpnTestActivity extends AppCompatActivity {
 
         tvLastTtfbWeb =
                 findViewById(R.id.tvLastTtfbWeb);
+        tvTcpHandshake =
+                findViewById(R.id.tvTcpHandshake);
+        tvDnsLookup =
+                findViewById(R.id.tvDnsLookup);
     }
 
     private void setupEventConsole() {

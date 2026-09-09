@@ -118,6 +118,21 @@ public final class VpnEventRepository {
     public void resetTtfb() {
         updateStats(s -> s.withTtfb(-1L));
     }
+
+    public void recordTcpHandshake(long handshakeNano) {
+        updateStats(s -> s.withTcpHandshake(handshakeNano));
+    }
+
+    public void resetTcpHandshake() {
+        updateStats(s -> s.withTcpHandshake(-1L));
+    }
+    public void recordDnsLookup(long dnsLookupMs) {
+        updateStats(s -> s.withDnsLookup(dnsLookupMs));
+    }
+
+    public void resetDnsLookup() {
+        updateStats(s -> s.withDnsLookup(-1L));
+    }
     private String getCurrentTimestamp() {
 
         return new SimpleDateFormat(
