@@ -117,6 +117,7 @@ public class TcpForwarder {
 
     private volatile long globalOutgoingIpMatchWallTime = 0L;
 
+    private volatile long globalDnsT0Nano = 0L;
     private volatile long globalIncomingIpMatchWallTime = 0L;
 
     private volatile long globalTtfbMs = -1L;
@@ -335,6 +336,7 @@ public class TcpForwarder {
 //        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
         boolean isPsh = (flags & PacketUtils.TCP_PSH) != 0;
 
+
         if (payloadLen > 0
                 && isPsh
                 && session.state == TcpSession.State.ESTABLISHED) {
@@ -393,6 +395,8 @@ public class TcpForwarder {
 
                     globalOutgoingIpMatchTime = System.nanoTime();
 
+                    globalDnsT0Nano =
+                            UdpForwarder.getLatestDnsStartTimeNano();
                     globalOutgoingIpMatchWallTime = System.currentTimeMillis();
 
                     globalTtfbRequestDestinationIp = destinationIp;
@@ -687,7 +691,7 @@ public class TcpForwarder {
                 socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
 
                 Log.d(TAG, "Socket connected successfully.");
-                dashboard.logEvent(TAG+"Socket connected successfully.", VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
+                dashboard.logEvent(TAG+"Socket connected successfully."+"\nDst IP : "+dstIp+"\nDst Port : "+dstPort, VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
 
                 session.realSocket = socket;
 
@@ -926,6 +930,7 @@ public class TcpForwarder {
         globalOutgoingIpMatchTime = 0L;
         globalIncomingIpMatchTime = 0L;
 
+        globalDnsT0Nano = 0L;
         globalOutgoingIpMatchWallTime = 0L;
         globalIncomingIpMatchWallTime = 0L;
 
@@ -956,6 +961,7 @@ public class TcpForwarder {
         globalOutgoingIpMatchTime = 0L;
         globalIncomingIpMatchTime = 0L;
 
+        globalDnsT0Nano = 0L;
         globalOutgoingIpMatchWallTime = 0L;
         globalIncomingIpMatchWallTime = 0L;
 
@@ -1299,17 +1305,80 @@ public class TcpForwarder {
                                                     + " ns"
                                     );
 
+//                                    /*
+//                                     * =====================================================
+//                                     * NEW TTFB CALCULATION
+//                                     * TTFB = IC_IP_MATCH - OG_IP_MATCH
+//                                     * =====================================================
+//                                     */
+//                                    if (forwarder.webViewT0Nano > 0L) {
+//
+//                                        long ttfbNano =
+//                                                forwarder.globalIncomingIpMatchTime
+//                                                        - forwarder.webViewT0Nano;
+//
+//                                        long ttfbMicros =
+//                                                TimeUnit.NANOSECONDS.toMicros(ttfbNano);
+//
+//                                        forwarder.globalTtfbMs =
+//                                                TimeUnit.NANOSECONDS.toMillis(ttfbNano);
+//
+//                                        String ttfbLog =
+//                                                "========== T2_TTFB ==========\n"
+//                                                        + "Destination IP : "
+//                                                        + forwarder.globalTtfbRequestDestinationIp
+//                                                        + "\n"
+//                                                        + "Resolved IP    : "
+//                                                        + forwarder.globalTtfbRequestResolvedIp
+//                                                        + "\n"
+//                                                        + "\n"
+//                                                        + "WebView T0 Nano: "
+//                                                        + forwarder.webViewT0Nano
+//                                                        + " ns\n"
+//                                                        + "IC_IP_MATCH T1 Nano: "
+//                                                        + forwarder.globalIncomingIpMatchTime
+//                                                        + " ns\n"
+//                                                        + "\n"
+//                                                        + "TTFB = IC_IP_MATCH T1 - WebView T0\n"
+//                                                        + "     = "
+//                                                        + ttfbNano
+//                                                        + " ns\n"
+//                                                        + "     = "
+//                                                        + ttfbMicros
+//                                                        + " µs\n"
+//                                                        + "     = "
+//                                                        + forwarder.globalTtfbMs
+//                                                        + " ms\n"
+//                                                        + "==========================";
+//                                        Log.i(TAG, ttfbLog);
+//
+//                                        forwarder.dashboard.logEvent(
+//                                                TAG + ttfbLog,
+//                                                VpnEvent.Level.SUCCESS,
+//                                                VpnEvent.Category.TCP
+//                                        );
+//
+//                                        forwarder.reportTtfb(
+//                                                this,
+//                                                forwarder.globalTtfbMs,
+//                                                key
+//                                        );
+//                                    }
                                     /*
                                      * =====================================================
-                                     * NEW TTFB CALCULATION
-                                     * TTFB = IC_IP_MATCH - OG_IP_MATCH
+                                     * TTFB CALCULATION
+                                     *
+                                     * T0 = DNS request start time
+                                     * T1 = IC_IP_MATCH
+                                     *
+                                     * TTFB = T1 - DNS T0
                                      * =====================================================
                                      */
-                                    if (forwarder.webViewT0Nano > 0L) {
+                                    if (forwarder.globalDnsT0Nano > 0L) {
 
                                         long ttfbNano =
                                                 forwarder.globalIncomingIpMatchTime
-                                                        - forwarder.webViewT0Nano;
+                                                        - forwarder.globalDnsT0Nano;
 
                                         long ttfbMicros =
                                                 TimeUnit.NANOSECONDS.toMicros(ttfbNano);
@@ -1326,14 +1395,14 @@ public class TcpForwarder {
                                                         + forwarder.globalTtfbRequestResolvedIp
                                                         + "\n"
                                                         + "\n"
-                                                        + "WebView T0 Nano: "
-                                                        + forwarder.webViewT0Nano
+                                                        + "DNS T0 Nano       : "
+                                                        + forwarder.globalDnsT0Nano
                                                         + " ns\n"
                                                         + "IC_IP_MATCH T1 Nano: "
                                                         + forwarder.globalIncomingIpMatchTime
                                                         + " ns\n"
                                                         + "\n"
-                                                        + "TTFB = IC_IP_MATCH T1 - WebView T0\n"
+                                                        + "TTFB = IC_IP_MATCH T1 - DNS T0\n"
                                                         + "     = "
                                                         + ttfbNano
                                                         + " ns\n"
@@ -1344,6 +1413,7 @@ public class TcpForwarder {
                                                         + forwarder.globalTtfbMs
                                                         + " ms\n"
                                                         + "==========================";
+
                                         Log.i(TAG, ttfbLog);
 
                                         forwarder.dashboard.logEvent(

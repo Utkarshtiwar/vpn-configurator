@@ -364,6 +364,9 @@ public class MediatorVpnService extends VpnService {
                     builder.addDnsServer(
                             dnsServer
                     );
+//                    builder.addDnsServer(
+//                            "8.8.8.8"
+//                    );
                 }
 
                 Log.d(
@@ -790,6 +793,10 @@ public class MediatorVpnService extends VpnService {
         if (!matchedIpsLoggedThisSession.add(parsed.destinationIp)) {
             return;
         }
+
+        String destinationIp = parsed.destinationIp;
+
+        dashboard.setDnsDestinationIp(destinationIp);
 
         String matchLog =
                 "[MATCH] Requested website destination IP matched\n"

@@ -3147,6 +3147,7 @@ id btnYoutubeStart
 id btnYoutubeStop
 id buttonPanel
 id cancel_button
+id cardTcpHandshake
 id center
 id centerCrop
 id centerInside
@@ -3499,7 +3500,9 @@ id transition_position
 id transition_scene_layoutid_cache
 id transition_transform
 id triangle
+id tvDnsDestinationIp
 id tvDnsLookup
+id tvDnsServerIp
 id tvEventMessage
 id tvEventTimestamp
 id tvInterfaceStatus

@@ -20,7 +20,13 @@ public final class VpnStats {
 
     public final long lastTtfbMs;
     public final long tcpHandshakeNano;
+
+    // DNS metrics
     public final double lastDnsLookupMs;
+    public final String lastDnsServerIp;
+
+    // ADD: Destination IP from [MATCH] event
+    public final String lastDnsDestinationIp;
 
 
     public VpnStats() {
@@ -40,7 +46,9 @@ public final class VpnStats {
                 0L,
                 -1L,
                 -1L,
-                -1.0
+                -1.0,
+                "-",
+                "-"
         );
     }
 
@@ -61,7 +69,9 @@ public final class VpnStats {
             long lastPacketTimestamp,
             long lastTtfbMs,
             long tcpHandshakeNano,
-            double lastDnsLookupMs
+            double lastDnsLookupMs,
+            String lastDnsServerIp,
+            String lastDnsDestinationIp
     ) {
         this.vpnStatus = vpnStatus;
         this.permissionStatus = permissionStatus;
@@ -81,7 +91,12 @@ public final class VpnStats {
 
         this.lastTtfbMs = lastTtfbMs;
         this.tcpHandshakeNano = tcpHandshakeNano;
+
         this.lastDnsLookupMs = lastDnsLookupMs;
+        this.lastDnsServerIp = lastDnsServerIp;
+
+        // ADD
+        this.lastDnsDestinationIp = lastDnsDestinationIp;
     }
 
 
@@ -102,7 +117,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -124,7 +141,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -146,7 +165,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -168,7 +189,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -207,7 +230,9 @@ public final class VpnStats {
                 packetTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -229,7 +254,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -251,7 +278,9 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 ttfbMs,
                 tcpHandshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
@@ -273,12 +302,17 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 handshakeNano,
-                lastDnsLookupMs
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp
         );
     }
 
 
-    public VpnStats withDnsLookup(double dnsLookupMs) {
+    public VpnStats withDnsLookup(
+            double dnsLookupMs,
+            String dnsServerIp
+    ) {
         return new VpnStats(
                 vpnStatus,
                 permissionStatus,
@@ -295,7 +329,34 @@ public final class VpnStats {
                 lastPacketTimestamp,
                 lastTtfbMs,
                 tcpHandshakeNano,
-                dnsLookupMs
+                dnsLookupMs,
+                dnsServerIp,
+                lastDnsDestinationIp
+        );
+    }
+
+
+    // ADD: Store Destination IP from [MATCH] event
+    public VpnStats withDnsDestinationIp(String destinationIp) {
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+                lastTtfbMs,
+                tcpHandshakeNano,
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                destinationIp
         );
     }
 }

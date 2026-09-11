@@ -70,6 +70,8 @@ public class VpnTestActivity extends AppCompatActivity {
 
     private TextView tvTcpHandshake;
     private TextView tvDnsLookup;
+    private TextView tvDnsServerIp;
+    private TextView tvDnsDestinationIp;
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
@@ -366,10 +368,32 @@ public class VpnTestActivity extends AppCompatActivity {
                         )
                 );
 
+                tvDnsServerIp.setText(
+                        "Server: " + stats.lastDnsServerIp
+                );
+
             } else {
 
                 tvDnsLookup.setText("-");
+                tvDnsServerIp.setText("Server: -");
             }
+
+// ADD: Destination IP
+            if (stats.lastDestIp != null
+                    && !stats.lastDestIp.isEmpty()
+                    && !stats.lastDestIp.equals("-")) {
+
+                tvDnsDestinationIp.setText(
+                        "Destination IP: " + stats.lastDnsDestinationIp
+                );
+
+            } else {
+
+                tvDnsDestinationIp.setText(
+                        "Destination IP: -"
+                );
+            }
+
 
         });
 
@@ -427,6 +451,10 @@ public class VpnTestActivity extends AppCompatActivity {
                 findViewById(R.id.tvTcpHandshake);
         tvDnsLookup =
                 findViewById(R.id.tvDnsLookup);
+        tvDnsServerIp =
+                findViewById(R.id.tvDnsServerIp);
+        tvDnsDestinationIp =
+                findViewById(R.id.tvDnsDestinationIp);
     }
 
     private void setupEventConsole() {
@@ -474,6 +502,9 @@ public class VpnTestActivity extends AppCompatActivity {
             return;
         }
 
+        dashboardRepo.resetDnsLookup();
+        dashboardRepo.resetDnsDestinationIp();
+        tvDnsDestinationIp.setText("Destination IP: -");
         updateTestButtons();
 
         updateStatus(
@@ -628,6 +659,7 @@ public class VpnTestActivity extends AppCompatActivity {
                 "Stopped"
         );
 
+
         dashboardRepo.logEvent(
                 TAG + "VPN stopped by user",
                 VpnEvent.Level.INFO,
@@ -647,7 +679,10 @@ public class VpnTestActivity extends AppCompatActivity {
                         .getInstance()
                         .getCurrentLogFile();
 
+
+
         showShareLogDialog(logFile);
+
 
         btnStartVpn.setEnabled(true);
         btnStopVpn.setEnabled(false);
@@ -734,12 +769,12 @@ public class VpnTestActivity extends AppCompatActivity {
                     );
                 }
 
-                Log.d(
-                        TAG,
-                        "Resolved website "
-                                + hostname
-                                + " -> "
-                                + resolvedIps
+                dashboardRepo.logToFile(
+                        TAG+
+                        "Resolved website "+
+                                 hostname+
+                                 " -> "+
+                                 resolvedIps
                 );
 
             } catch (UnknownHostException e) {

@@ -126,12 +126,41 @@ public final class VpnEventRepository {
     public void resetTcpHandshake() {
         updateStats(s -> s.withTcpHandshake(-1L));
     }
-    public void recordDnsLookup(long dnsLookupMs) {
-        updateStats(s -> s.withDnsLookup(dnsLookupMs));
+    public void recordDnsLookup(
+            double dnsLookupMs,
+            String dnsServerIp
+    ) {
+        updateStats(s -> s.withDnsLookup(
+                dnsLookupMs,
+                dnsServerIp
+        ));
+    }
+
+    // ADD: Destination IP from [MATCH] event
+    public void setDnsDestinationIp(String destinationIp) {
+        updateStats(s -> {
+
+            if (s.lastDnsDestinationIp != null
+                    && !s.lastDnsDestinationIp.equals("-")
+                    && !s.lastDnsDestinationIp.isEmpty()) {
+
+                return s;
+            }
+
+            return s.withDnsDestinationIp(destinationIp);
+        });
+    }
+
+    // ADD: Reset Destination IP for new VPN session
+    public void resetDnsDestinationIp() {
+        updateStats(s -> s.withDnsDestinationIp("-"));
     }
 
     public void resetDnsLookup() {
-        updateStats(s -> s.withDnsLookup(-1L));
+        updateStats(s -> s.withDnsLookup(
+                -1.0,
+                "-"
+        ));
     }
     private String getCurrentTimestamp() {
 

@@ -233,9 +233,15 @@
             android:paddingEnd="@dimen/spacing_16">
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardTcpHandshake"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
                 style="@style/DashboardCard">
 
+
                 <LinearLayout style="@style/DashboardCardContent">
+
 
                     <TextView
                         style="@style/DashboardCardLabel"
@@ -254,7 +260,9 @@
             <com.google.android.material.card.MaterialCardView
                 style="@style/DashboardCard">
 
-                <LinearLayout style="@style/DashboardCardContent">
+                <LinearLayout
+                    style="@style/DashboardCardContent"
+                    android:orientation="vertical">
 
                     <TextView
                         style="@style/DashboardCardLabel"
@@ -265,6 +273,27 @@
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_info"
                         android:text="-" />
+
+                    <TextView
+                        android:id="@+id/tvDnsServerIp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Server: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="11sp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+                    <TextView
+                        android:id="@+id/tvDnsDestinationIp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Destination IP: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="11sp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
 
                 </LinearLayout>
 

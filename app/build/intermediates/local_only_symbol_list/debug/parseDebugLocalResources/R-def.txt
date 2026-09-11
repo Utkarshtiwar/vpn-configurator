@@ -52,11 +52,14 @@ id btnStartVpn
 id btnStopVpn
 id btnYoutubeStart
 id btnYoutubeStop
+id cardTcpHandshake
 id etTargetUrl
 id ivEventIcon
 id rvEventConsole
 id spinnerAppSelect
+id tvDnsDestinationIp
 id tvDnsLookup
+id tvDnsServerIp
 id tvEventMessage
 id tvEventTimestamp
 id tvInterfaceStatus
