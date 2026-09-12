@@ -395,6 +395,21 @@ public class TcpForwarder {
 
                     globalOutgoingIpMatchTime = System.nanoTime();
 
+                    UdpForwarder.recordDnsLookupForResolvedIp(
+                            destinationIp
+                    );
+                    dashboard.logToFile(
+                            TAG
+                                    + "DNS UI CORRELATION REQUEST\n"
+                                    + "TCP Destination IP : "
+                                    + destinationIp
+                                    + "\n"
+                                    + "Resolved IP Set    : "
+                                    + websiteResolvedIps
+                                    + "\n"
+                                    + "DNS UI Match       : "
+                                    + "CHECKED_BY_UDP_FORWARDER"
+                    );
                     globalDnsT0Nano =
                             UdpForwarder.getLatestDnsStartTimeNano();
                     globalOutgoingIpMatchWallTime = System.currentTimeMillis();

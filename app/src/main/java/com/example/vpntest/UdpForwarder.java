@@ -14,6 +14,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -22,12 +23,35 @@ import com.example.vpntest.repo.VpnEventRepository;
 
 
 class UdpForwarder {
+
     private static final String TAG = "VPN_UdpForwarder : ";
+
     private static volatile long latestDnsStartTimeNano = 0L;
+
+    /*
+     * Completed DNS transactions.
+     *
+     * Every DNS response is stored here after T0/T1/resolution
+     * has been calculated.
+     *
+     * TCP will later use the actual destination/resolved IP
+     * to find the DNS transaction whose Answer IP matches.
+     */
+    private static final ConcurrentLinkedDeque<DnsTransactionInfo>
+            completedDnsTransactions =
+            new ConcurrentLinkedDeque<>();
+
+    /*
+     * Keep only recent DNS transactions.
+     * This prevents old DNS transactions from being matched
+     * against a later TCP connection.
+     */
+    private static final long DNS_TRANSACTION_MAX_AGE_MS = 60_000;
 
     static long getLatestDnsStartTimeNano() {
         return latestDnsStartTimeNano;
     }
+
     private static final long SESSION_IDLE_TIMEOUT_MS = 60_000;
 
     private final VpnService vpnService;
@@ -259,14 +283,44 @@ class UdpForwarder {
 
                 double dnsLookupTimeMs =
                         dnsLookupTimeNanos / 1_000_000.0;
+
                 String answerIps = parseDnsAnswerIps(data);
 
                 String dnsServerIp = ipStr(session.dstIp);
 
-                dashboard.recordDnsLookup(
-                        dnsLookupTimeMs,
-                        dnsServerIp
-                );
+                /*
+                 * IMPORTANT:
+                 *
+                 * Do NOT update the DNS UI here.
+                 *
+                 * Every DNS transaction is calculated and logged,
+                 * but the UI must receive only the DNS transaction
+                 * whose Answer IP matches the TCP resolved/destination IP.
+                 */
+                DnsTransactionInfo completedTransaction =
+                        new DnsTransactionInfo(
+                                dnsTransactionId,
+                                dnsRequest.queryName,
+                                dnsRequest.queryType,
+                                answerIps,
+                                dnsStartTime,
+                                dnsEndTime,
+                                dnsStartClockMillis,
+                                dnsEndClockMillis,
+                                dnsLookupTimeMs,
+                                dnsServerIp
+                        );
+
+                /*
+                 * Store every completed DNS transaction.
+                 */
+                completedDnsTransactions.addLast(completedTransaction);
+
+                /*
+                 * Remove old DNS transactions.
+                 */
+                cleanupOldDnsTransactions();
+
                 String dnsTimingLog =
                         "========== DNS TRANSACTION ==========\n" +
                                 "DNS Transaction ID  : 0x" +
@@ -288,6 +342,7 @@ class UdpForwarder {
                                 "DNS Resolution      : " +
                                 String.format(Locale.US, "%.3f", dnsLookupTimeMs) +
                                 " ms\n" +
+                                "UI Match Status     : WAITING_FOR_IP_MATCH\n" +
                                 "======================================";
                 /*
                  * Write DNS timing to the same dashboard/file
@@ -499,6 +554,213 @@ class UdpForwarder {
                 return "TYPE_" + type;
         }
     }
+    /**
+     * Called by TcpForwarder when the actual TCP destination IP
+     * matches one of the website's resolved IPs.
+     *
+     * IMPORTANT:
+     *
+     * The DNS UI is updated ONLY when a DNS transaction's
+     * Answer IP(s) contain this resolved/destination IP.
+     *
+     * All DNS transactions are calculated and logged separately.
+     */
+    static void recordDnsLookupForResolvedIp(String resolvedIp) {
+
+        if (resolvedIp == null || resolvedIp.trim().isEmpty()) {
+
+            Log.d(
+                    TAG,
+                    "DNS UI MATCH -> invalid resolved IP: " + resolvedIp
+            );
+
+            return;
+        }
+
+        String normalizedResolvedIp =
+                resolvedIp.trim();
+
+        /*
+         * Remove transactions that are too old before matching.
+         */
+        cleanupOldDnsTransactions();
+
+        /*
+         * Search newest DNS transactions first.
+         *
+         * This is important when multiple DNS queries returned
+         * the same IP.
+         */
+        java.util.Iterator<DnsTransactionInfo> iterator =
+                completedDnsTransactions.descendingIterator();
+
+        while (iterator.hasNext()) {
+
+            DnsTransactionInfo transaction =
+                    iterator.next();
+
+            if (transaction.answerIps == null
+                    || transaction.answerIps.isEmpty()) {
+
+                continue;
+            }
+
+            String[] answerIpArray =
+                    transaction.answerIps.split(",");
+
+            for (String answerIp : answerIpArray) {
+
+                String normalizedAnswerIp =
+                        answerIp.trim();
+
+                if (normalizedResolvedIp.equals(normalizedAnswerIp)) {
+
+                    /*
+                     * MATCH FOUND
+                     *
+                     * This is the DNS transaction whose
+                     * Answer IP corresponds to the actual
+                     * TCP destination/resolved IP.
+                     */
+
+                    VpnEventRepository
+                            .getInstance()
+                            .recordDnsLookup(
+                                    transaction.dnsLookupTimeMs,
+                                    transaction.dnsServerIp
+                            );
+
+                    Log.d(
+                            TAG,
+                            "DNS UI MATCH FOUND -> "
+                                    + "Resolved IP = "
+                                    + normalizedResolvedIp
+                                    + ", Answer IP = "
+                                    + normalizedAnswerIp
+                                    + ", Transaction ID = 0x"
+                                    + String.format(
+                                    Locale.US,
+                                    "%04X",
+                                    transaction.transactionId
+                            )
+                                    + ", DNS Resolution = "
+                                    + String.format(
+                                    Locale.US,
+                                    "%.3f",
+                                    transaction.dnsLookupTimeMs
+                            )
+                                    + " ms"
+                    );
+
+                    /*
+                     * Explicit file log for the successful match.
+                     */
+                    VpnEventRepository
+                            .getInstance()
+                            .logToFile(
+                                    TAG
+                                            + "DNS ANSWER IP MATCHED RESOLVED IP\n"
+                                            + "DNS Transaction ID : 0x"
+                                            + String.format(
+                                            Locale.US,
+                                            "%04X",
+                                            transaction.transactionId
+                                    )
+                                            + "\n"
+                                            + "Query Name         : "
+                                            + transaction.queryName
+                                            + "\n"
+                                            + "Query Type         : "
+                                            + transaction.queryType
+                                            + "\n"
+                                            + "Answer IP(s)       : "
+                                            + transaction.answerIps
+                                            + "\n"
+                                            + "Matched Answer IP  : "
+                                            + normalizedAnswerIp
+                                            + "\n"
+                                            + "Resolved IP        : "
+                                            + normalizedResolvedIp
+                                            + "\n"
+                                            + "DNS Server IP      : "
+                                            + transaction.dnsServerIp
+                                            + "\n"
+                                            + "DNS Resolution     : "
+                                            + String.format(
+                                            Locale.US,
+                                            "%.3f",
+                                            transaction.dnsLookupTimeMs
+                                    )
+                                            + " ms\n"
+                                            + "UI Update          : YES"
+                            );
+
+                    /*
+                     * Remove this transaction after using it.
+                     *
+                     * This prevents the same DNS transaction
+                     * from being reused for another TCP match.
+                     */
+                    completedDnsTransactions.remove(transaction);
+
+                    return;
+                }
+            }
+        }
+
+        /*
+         * No DNS transaction matched this TCP destination IP.
+         *
+         * IMPORTANT:
+         * Do NOT update UI.
+         */
+        Log.d(
+                TAG,
+                "DNS UI MATCH NOT FOUND -> "
+                        + "Resolved IP = "
+                        + normalizedResolvedIp
+        );
+
+        VpnEventRepository
+                .getInstance()
+                .logToFile(
+                        TAG
+                                + "DNS ANSWER IP MATCH NOT FOUND\n"
+                                + "Resolved IP        : "
+                                + normalizedResolvedIp
+                                + "\n"
+                                + "UI Update          : NO"
+                );
+    }
+    /**
+     * Remove DNS transactions older than the allowed matching window.
+     */
+    private static void cleanupOldDnsTransactions() {
+
+        long now = System.currentTimeMillis();
+
+        while (true) {
+
+            DnsTransactionInfo oldest =
+                    completedDnsTransactions.peekFirst();
+
+            if (oldest == null) {
+                break;
+            }
+
+            long age =
+                    now - oldest.endClockMillis;
+
+            if (age > DNS_TRANSACTION_MAX_AGE_MS) {
+
+                completedDnsTransactions.pollFirst();
+
+            } else {
+
+                break;
+            }
+        }
+    }
     private static String parseDnsAnswerIps(byte[] data) {
 
         try {
@@ -656,6 +918,51 @@ class UdpForwarder {
             this.startClockMillis = startClockMillis;
             this.queryName = queryName;
             this.queryType = queryType;
+        }
+    }
+    private static class DnsTransactionInfo {
+
+        final int transactionId;
+        final String queryName;
+        final String queryType;
+        final String answerIps;
+
+        final long startTime;
+        final long endTime;
+
+        final long startClockMillis;
+        final long endClockMillis;
+
+        final double dnsLookupTimeMs;
+
+        final String dnsServerIp;
+
+        DnsTransactionInfo(
+                int transactionId,
+                String queryName,
+                String queryType,
+                String answerIps,
+                long startTime,
+                long endTime,
+                long startClockMillis,
+                long endClockMillis,
+                double dnsLookupTimeMs,
+                String dnsServerIp) {
+
+            this.transactionId = transactionId;
+            this.queryName = queryName;
+            this.queryType = queryType;
+            this.answerIps = answerIps;
+
+            this.startTime = startTime;
+            this.endTime = endTime;
+
+            this.startClockMillis = startClockMillis;
+            this.endClockMillis = endClockMillis;
+
+            this.dnsLookupTimeMs = dnsLookupTimeMs;
+
+            this.dnsServerIp = dnsServerIp;
         }
     }
     private static class Session {

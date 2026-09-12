@@ -38,6 +38,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="VpnTestPOC"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:testOnly="true"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar"
         android:usesCleartextTraffic="false" >
 
