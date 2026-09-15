@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.vpntest"
     android:versionCode="1"
-    android:versionName="1.1.13" >
+    android:versionName="1.1.14" >
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -38,7 +38,6 @@
         android:icon="@mipmap/ic_launcher"
         android:label="VpnTestPOC"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:testOnly="true"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar"
         android:usesCleartextTraffic="false" >
 
