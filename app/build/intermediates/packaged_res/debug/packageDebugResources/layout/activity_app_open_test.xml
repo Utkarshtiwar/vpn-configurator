@@ -156,20 +156,150 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===================== VPN HEALTH ===================== -->
-        <TextView
-            style="@style/SectionHeading"
-            android:layout_marginStart="@dimen/spacing_20"
-            android:layout_marginTop="@dimen/spacing_20"
-            android:layout_marginBottom="@dimen/spacing_8"
-            android:text="VPN Health" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
+
+    <!-- ===================== PERFORMANCE ===================== -->
+    <TextView
+        style="@style/SectionHeading"
+        android:layout_marginStart="@dimen/spacing_20"
+        android:layout_marginTop="@dimen/spacing_20"
+        android:layout_marginBottom="@dimen/spacing_8"
+        android:text="Performance" />
+
+    <!-- ===================== PERFORMANCE ROW 1 ===================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/spacing_16"
+        android:paddingEnd="@dimen/spacing_16">
+
+        <!-- VPN TTFB -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/DashboardCard">
+
+            <LinearLayout style="@style/DashboardCardContent">
+
+                <TextView
+                    style="@style/DashboardCardLabel"
+                    android:text="VPN TTFB" />
+
+                <TextView
+                    android:id="@+id/tvPerformanceTtfb"
+                    style="@style/DashboardCardValueLarge"
+                    android:textColor="@color/status_success"
+                    android:text="-" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- DNS Lookup -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/DashboardCard">
+
+            <LinearLayout
+                style="@style/DashboardCardContent"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/DashboardCardLabel"
+                    android:text="DNS Lookup" />
+
+                <TextView
+                    android:id="@+id/tvPerformanceDnsLookup"
+                    style="@style/DashboardCardValueLarge"
+                    android:textColor="@color/status_info"
+                    android:text="-" />
+
+                <TextView
+                    android:id="@+id/tvPerformanceDnsServerIp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Server: -"
+                    android:textColor="@color/on_surface_secondary"
+                    android:textSize="11sp"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+    <!-- ===================== PERFORMANCE ROW 2 ===================== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/spacing_16"
+        android:paddingEnd="@dimen/spacing_16">
+
+        <!-- Source IP -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/DashboardCard">
+
+            <LinearLayout
+                style="@style/DashboardCardContent"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/DashboardCardLabel"
+                    android:text="Source IP" />
+
+                <TextView
+                    android:id="@+id/tvPerformanceSourceIp"
+                    style="@style/DashboardCardValue"
+                    android:text="-"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Destination IP -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/DashboardCard">
+
+            <LinearLayout
+                style="@style/DashboardCardContent"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/DashboardCardLabel"
+                    android:text="Destination IP" />
+
+                <TextView
+                    android:id="@+id/tvPerformanceDestinationIp"
+                    style="@style/DashboardCardValue"
+                    android:text="-"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+
+    <!-- ===================== VPN HEALTH ===================== -->
+    <TextView
+        style="@style/SectionHeading"
+        android:layout_marginStart="@dimen/spacing_20"
+        android:layout_marginTop="@dimen/spacing_20"
+        android:layout_marginBottom="@dimen/spacing_8"
+        android:text="VPN Health" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/spacing_16"
+        android:paddingEnd="@dimen/spacing_16">
 
             <LinearLayout
                 android:layout_width="match_parent"

@@ -71,6 +71,11 @@ id tvLastSource
 id tvLastTimestamp
 id tvLastTtfb
 id tvLastTtfbWeb
+id tvPerformanceDestinationIp
+id tvPerformanceDnsLookup
+id tvPerformanceDnsServerIp
+id tvPerformanceSourceIp
+id tvPerformanceTtfb
 id tvPermissionStatus
 id tvReaderStatus
 id tvStatus

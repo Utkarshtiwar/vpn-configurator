@@ -22,7 +22,7 @@ import com.example.vpntest.model.VpnEvent;
 import com.example.vpntest.repo.VpnEventRepository;
 
 
-class UdpForwarder {
+public class UdpForwarder {
 
     private static final String TAG = "VPN_UdpForwarder : ";
 
@@ -48,9 +48,6 @@ class UdpForwarder {
      */
     private static final long DNS_TRANSACTION_MAX_AGE_MS = 60_000;
 
-    static long getLatestDnsStartTimeNano() {
-        return latestDnsStartTimeNano;
-    }
 
     private static final long SESSION_IDLE_TIMEOUT_MS = 60_000;
 
@@ -123,10 +120,7 @@ class UdpForwarder {
                  * DNS T0.
                  * Keep this immediately before sending the packet.
                  */
-                /*
-                 * DNS T0.
-                 * Keep this immediately before sending the packet.
-                 */
+
                 dnsStartTime = System.nanoTime();
 
                 latestDnsStartTimeNano = dnsStartTime;
@@ -565,7 +559,7 @@ class UdpForwarder {
      *
      * All DNS transactions are calculated and logged separately.
      */
-    static void recordDnsLookupForResolvedIp(String resolvedIp) {
+    static long recordDnsLookupForResolvedIp(String resolvedIp) {
 
         if (resolvedIp == null || resolvedIp.trim().isEmpty()) {
 
@@ -574,23 +568,14 @@ class UdpForwarder {
                     "DNS UI MATCH -> invalid resolved IP: " + resolvedIp
             );
 
-            return;
+            return 0L;
         }
 
         String normalizedResolvedIp =
                 resolvedIp.trim();
 
-        /*
-         * Remove transactions that are too old before matching.
-         */
         cleanupOldDnsTransactions();
 
-        /*
-         * Search newest DNS transactions first.
-         *
-         * This is important when multiple DNS queries returned
-         * the same IP.
-         */
         java.util.Iterator<DnsTransactionInfo> iterator =
                 completedDnsTransactions.descendingIterator();
 
@@ -613,27 +598,31 @@ class UdpForwarder {
                 String normalizedAnswerIp =
                         answerIp.trim();
 
+                /*
+                 * =====================================================
+                 * DNS ANSWER IP == TCP RESOLVED / DESTINATION IP
+                 * =====================================================
+                 */
                 if (normalizedResolvedIp.equals(normalizedAnswerIp)) {
 
                     /*
                      * MATCH FOUND
                      *
-                     * This is the DNS transaction whose
-                     * Answer IP corresponds to the actual
-                     * TCP destination/resolved IP.
+                     * This is the EXACT DNS transaction whose
+                     * Answer IP matches the TCP destination IP.
+                     *
+                     * Therefore use THIS transaction's T0.
                      */
+                    long matchedDnsT0 =
+                            transaction.startTime;
 
-                    VpnEventRepository
-                            .getInstance()
-                            .recordDnsLookup(
-                                    transaction.dnsLookupTimeMs,
-                                    transaction.dnsServerIp
-                            );
+                    long matchedDnsT1 =
+                            transaction.endTime;
 
                     Log.d(
                             TAG,
-                            "DNS UI MATCH FOUND -> "
-                                    + "Resolved IP = "
+                            "DNS TRANSACTION MATCH FOUND"
+                                    + " -> Resolved IP = "
                                     + normalizedResolvedIp
                                     + ", Answer IP = "
                                     + normalizedAnswerIp
@@ -643,17 +632,24 @@ class UdpForwarder {
                                     "%04X",
                                     transaction.transactionId
                             )
-                                    + ", DNS Resolution = "
-                                    + String.format(
-                                    Locale.US,
-                                    "%.3f",
-                                    transaction.dnsLookupTimeMs
-                            )
-                                    + " ms"
+                                    + ", DNS T0 = "
+                                    + matchedDnsT0
+                                    + " ns"
                     );
 
                     /*
-                     * Explicit file log for the successful match.
+                     * Existing DNS UI update.
+                     */
+                    VpnEventRepository
+                            .getInstance()
+                            .recordDnsLookup(
+                                    transaction.dnsLookupTimeMs,
+                                    transaction.dnsServerIp,
+                                    normalizedResolvedIp
+                            );
+
+                    /*
+                     * Existing file log.
                      */
                     VpnEventRepository
                             .getInstance()
@@ -685,6 +681,12 @@ class UdpForwarder {
                                             + "DNS Server IP      : "
                                             + transaction.dnsServerIp
                                             + "\n"
+                                            + "DNS T0             : "
+                                            + matchedDnsT0
+                                            + " ns\n"
+                                            + "DNS T1             : "
+                                            + matchedDnsT1
+                                            + " ns\n"
                                             + "DNS Resolution     : "
                                             + String.format(
                                             Locale.US,
@@ -696,23 +698,21 @@ class UdpForwarder {
                             );
 
                     /*
-                     * Remove this transaction after using it.
-                     *
-                     * This prevents the same DNS transaction
-                     * from being reused for another TCP match.
+                     * Prevent same DNS transaction from being reused.
                      */
                     completedDnsTransactions.remove(transaction);
 
-                    return;
+                    /*
+                     * IMPORTANT:
+                     * Return the T0 of THIS matched DNS transaction.
+                     */
+                    return matchedDnsT0;
                 }
             }
         }
 
         /*
          * No DNS transaction matched this TCP destination IP.
-         *
-         * IMPORTANT:
-         * Do NOT update UI.
          */
         Log.d(
                 TAG,
@@ -731,6 +731,11 @@ class UdpForwarder {
                                 + "\n"
                                 + "UI Update          : NO"
                 );
+
+        /*
+         * 0 means no matching DNS transaction.
+         */
+        return 0L;
     }
     /**
      * Remove DNS transactions older than the allowed matching window.
@@ -920,7 +925,7 @@ class UdpForwarder {
             this.queryType = queryType;
         }
     }
-    private static class DnsTransactionInfo {
+    public static class DnsTransactionInfo {
 
         final int transactionId;
         final String queryName;

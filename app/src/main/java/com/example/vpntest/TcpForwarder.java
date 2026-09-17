@@ -425,11 +425,26 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
                 if (isFirstOutgoingMatch) {
 
-                    globalOutgoingIpMatchTime = System.nanoTime();
+                    globalOutgoingIpMatchTime =
+                            System.nanoTime();
 
-                    UdpForwarder.recordDnsLookupForResolvedIp(
-                            destinationIp
-                    );
+                    /*
+                     * =========================================================
+                     * DNS TRANSACTION CORRELATION
+                     * =========================================================
+                     *
+                     * Search completed DNS transactions.
+                     *
+                     * Only the DNS transaction whose Answer IP matches
+                     * this TCP destination IP is selected.
+                     *
+                     * The returned value is that EXACT transaction's T0.
+                     */
+                    long matchedDnsT0 =
+                            UdpForwarder.recordDnsLookupForResolvedIp(
+                                    destinationIp
+                            );
+
                     dashboard.logToFile(
                             TAG
                                     + "DNS UI CORRELATION REQUEST\n"
@@ -439,17 +454,64 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                                     + "Resolved IP Set    : "
                                     + websiteResolvedIps
                                     + "\n"
+                                    + "Matched DNS T0     : "
+                                    + matchedDnsT0
+                                    + " ns\n"
                                     + "DNS UI Match       : "
-                                    + "CHECKED_BY_UDP_FORWARDER"
+                                    + (matchedDnsT0 > 0L
+                                    ? "FOUND"
+                                    : "NOT_FOUND")
                     );
-                    globalDnsT0Nano =
-                            UdpForwarder.getLatestDnsStartTimeNano();
-                    globalOutgoingIpMatchWallTime = System.currentTimeMillis();
 
-                    globalTtfbRequestDestinationIp = destinationIp;
-                    globalTtfbRequestResolvedIp = destinationIp;
-                    globalTtfbRequestPayloadSize = payloadLen;
-                    globalTtfbRequestConnectionKey = key;
+                    /*
+                     * =========================================================
+                     * USE ONLY MATCHED DNS TRANSACTION T0
+                     * =========================================================
+                     */
+                    if (matchedDnsT0 > 0L) {
+
+                        globalDnsT0Nano =
+                                matchedDnsT0;
+
+                        Log.d(
+                                TAG,
+                                "MATCHED DNS T0 SELECTED = "
+                                        + globalDnsT0Nano
+                                        + " ns"
+                        );
+
+                    } else {
+
+                        /*
+                         * No DNS transaction had an Answer IP matching
+                         * this TCP destination IP.
+                         *
+                         * Therefore DO NOT use latest DNS T0.
+                         */
+                        globalDnsT0Nano = 0L;
+
+                        Log.d(
+                                TAG,
+                                "NO MATCHED DNS TRANSACTION -> "
+                                        + "DNS T0 will NOT be used for TTFB"
+                        );
+                    }
+
+                    globalOutgoingIpMatchWallTime =
+                            System.currentTimeMillis();
+
+                    globalTtfbRequestDestinationIp =
+                            destinationIp;
+
+                    globalTtfbRequestResolvedIp =
+                            destinationIp;
+
+                    globalTtfbRequestPayloadSize =
+                            payloadLen;
+
+                    globalTtfbRequestConnectionKey =
+                            key;
+
 
 //                    dashboard.logToFile(
 //                            TAG +
@@ -457,29 +519,29 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 //                                    + globalOutgoingIpMatchTime
 //                                    + " ns"
 //                    );
-                    dashboard.logToFile(
-                            TAG +
-                                    "OG_IP_MATCH T0_Time timestamp captured = "
-                                    + globalOutgoingIpMatchTime
-                                    + " ns\n"
-                                    + "Source IP       : " + ipStr(srcIp) + "\n"
-                                    + "Destination IP  : " + ipStr(dstIp) + "\n"
-                                    + "Source Port     : " + srcPort + "\n"
-                                    + "Destination Port: " + dstPort + "\n"
-                                    + "Connection Key : " + key + "\n"
-                                    + "Session State  : " + session.state + "\n"
-                                    + "Match Count    : " + matchCount + "\n"
-                                    + "Protocol        : TCP\n"
-                                    + "Packet Length   : " + length + " bytes\n"
-                                    + "Payload Length  : " + payloadLen + " bytes\n"
-                                    + "Timestamp       : "
-                                    + formatTimestamp(globalOutgoingIpMatchWallTime)
-                                    + "\n"
-                                    + "Timestamp Nano  : "
-                                    + globalOutgoingIpMatchTime
-                                    + " ns\n"
-                                    + "============================================"
-                    );
+//                    dashboard.logToFile(
+//                            TAG +
+//                                    "OG_IP_MATCH T0_Time timestamp captured = "
+//                                    + globalOutgoingIpMatchTime
+//                                    + " ns\n"
+//                                    + "Source IP       : " + ipStr(srcIp) + "\n"
+//                                    + "Destination IP  : " + ipStr(dstIp) + "\n"
+//                                    + "Source Port     : " + srcPort + "\n"
+//                                    + "Destination Port: " + dstPort + "\n"
+//                                    + "Connection Key : " + key + "\n"
+//                                    + "Session State  : " + session.state + "\n"
+//                                    + "Match Count    : " + matchCount + "\n"
+//                                    + "Protocol        : TCP\n"
+//                                    + "Packet Length   : " + length + " bytes\n"
+//                                    + "Payload Length  : " + payloadLen + " bytes\n"
+//                                    + "Timestamp       : "
+//                                    + formatTimestamp(globalOutgoingIpMatchWallTime)
+//                                    + "\n"
+//                                    + "Timestamp Nano  : "
+//                                    + globalOutgoingIpMatchTime
+//                                    + " ns\n"
+//                                    + "============================================"
+//                    );
                 } else {
                     String ipMatchLog =
                         "========== " + evtName + " ==========\n"
@@ -581,6 +643,61 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 //                            VpnEvent.Category.TCP
 //                    );
 //                }  this is old ttfb logic
+
+                /*
+                 * ================================================
+                 * TLS RECORD TYPE - SENT / TX
+                 * ================================================
+                 */
+                if (data != null && data.length >= 5) {
+
+                    int tlsRecordType = data[0] & 0xFF;
+
+                    String tlsRecordName;
+
+                    switch (tlsRecordType) {
+                        case 0x14:
+                            tlsRecordName = "Change Cipher Spec";
+                            break;
+
+                        case 0x15:
+                            tlsRecordName = "Alert";
+                            break;
+
+                        case 0x16:
+                            tlsRecordName = "Handshake";
+                            break;
+
+                        case 0x17:
+                            tlsRecordName = "Application Data";
+                            break;
+
+                        default:
+                            tlsRecordName = "Unknown / Non-standard TLS Record";
+                            break;
+                    }
+
+                    String tlsSentLog =
+                            "========== TLS RECORD [TX/SENT] ==========\n"
+                                    + "Source IP        : " + ipStr(srcIp) + "\n"
+                                    + "Destination IP   : " + ipStr(dstIp) + "\n"
+                                    + "Source Port      : " + srcPort + "\n"
+                                    + "Destination Port : " + dstPort + "\n"
+                                    + "TLS Record Type  : 0x"
+                                    + String.format("%02X", tlsRecordType) + "\n"
+                                    + "Record Type      : " + tlsRecordName + "\n"
+                                    + "Sent Bytes       : " + data.length + " bytes\n"
+                                    + "Timestamp        : "
+                                    + formatTimestamp(System.currentTimeMillis())
+                                    + "\n"
+                                    + "Connection Key   : " + key + "\n"
+                                    + "============================================";
+
+                    Log.i(TAG, tlsSentLog);
+
+                    dashboard.logToFile(TAG + tlsSentLog);
+                }
+
 
                 /*
                  * ================================================
@@ -1147,6 +1264,7 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                         Log.d(TAG, "First byte condition checking");
 
 
+
                         /*
                          * ====================================================
                          * T1 = FIRST TLS APPLICATION DATA RECORD
@@ -1163,6 +1281,54 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                          * T1 must be captured from the first received
                          * TLS Application Data record (0x17).
                          */
+                        if (n >= 5) {
+
+                            int tlsRecordType = buf[0] & 0xFF;
+
+                            String tlsRecordName;
+
+                            switch (tlsRecordType) {
+                                case 0x14:
+                                    tlsRecordName = "Change Cipher Spec";
+                                    break;
+                                case 0x15:
+                                    tlsRecordName = "Alert";
+                                    break;
+                                case 0x16:
+                                    tlsRecordName = "Handshake";
+                                    break;
+                                case 0x17:
+                                    tlsRecordName = "Application Data";
+                                    break;
+                                default:
+                                    tlsRecordName = "Unknown / Non-standard TLS Record";
+                                    break;
+                            }
+
+                            String tlsRecordLog =
+                                    "========== TLS RECORD [RX/RECEIVED] ==========\n"
+                                            + "Source IP        : " + TcpForwarder.ipStr(dstIp) + "\n"
+                                            + "Destination IP   : " + TcpForwarder.ipStr(srcIp) + "\n"
+                                            + "Source Port      : " + dstPort + "\n"
+                                            + "Destination Port : " + srcPort + "\n"
+                                            + "TLS Record Type  : 0x"
+                                            + String.format("%02X", tlsRecordType) + "\n"
+                                            + "Record Type      : " + tlsRecordName + "\n"
+                                            + "Received Bytes   : " + n + " bytes\n"
+                                            + "Timestamp        : "
+                                            + new java.text.SimpleDateFormat(
+                                            "HH:mm:ss.SSS",
+                                            java.util.Locale.US
+                                    ).format(new java.util.Date())
+                                            + "\n"
+                                            + "Connection Key   : " + key + "\n"
+                                            + "==============================================";
+
+                            Log.d(TAG, tlsRecordLog);
+
+                            forwarder.dashboard.logToFile(TAG + tlsRecordLog);
+                        }
+
                         if (n >= 5
                                 && !forwarder.tlsRecordType17Captured.get()
                                 && isTlsApplicationDataRecord(buf, n)) {

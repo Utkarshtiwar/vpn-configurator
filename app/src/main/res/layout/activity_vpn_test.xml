@@ -71,7 +71,7 @@
                     android:inputType="textUri"
                     android:singleLine="true"
                     android:hint="https://example.com"
-                    android:text="https://www.google.com"
+                    android:text="https://www.netflix.com"
                     android:textColor="@color/on_surface_primary"
                     android:textColorHint="@color/on_surface_secondary"
                     android:textSize="14sp" />

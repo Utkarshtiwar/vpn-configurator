@@ -127,13 +127,19 @@ public final class VpnEventRepository {
         updateStats(s -> s.withTcpHandshake(-1L));
     }
     public void recordDnsLookup(
-            double dnsLookupMs,
-            String dnsServerIp
-    ) {
-        updateStats(s -> s.withDnsLookup(
-                dnsLookupMs,
-                dnsServerIp
-        ));
+            double dnsLookupTimeMs,
+            String dnsServerIp,
+            String destinationIp) {
+
+        updateStats(s -> s
+                .withDnsLookup(
+                        dnsLookupTimeMs,
+                        dnsServerIp
+                )
+                .withDnsDestinationIp(
+                        destinationIp
+                )
+        );
     }
 
     // ADD: Destination IP from [MATCH] event

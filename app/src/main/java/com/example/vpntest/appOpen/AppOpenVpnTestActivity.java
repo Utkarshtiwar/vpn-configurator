@@ -35,6 +35,7 @@ import androidx.core.content.FileProvider;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import com.example.vpntest.R;
 import com.example.vpntest.VpnTestActivity;
@@ -76,6 +77,13 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
             tvLastTimestamp;
 
     private TextView tvLastTtfb;
+
+    // Performance views
+    private TextView tvPerformanceTtfb,
+            tvPerformanceDnsLookup,
+            tvPerformanceDnsServerIp,
+            tvPerformanceSourceIp,
+            tvPerformanceDestinationIp;
 
     private AppOpenMediatorVpnService
             appOpenMediatorVpnService;
@@ -390,11 +398,42 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                                     : "-"
                     );
 
-                    tvLastTtfb.setText(
+                    tvPerformanceTtfb.setText(
                             stats.lastTtfbMs >= 0
-                                    ? stats.lastTtfbMs
-                                    + " ms"
+                                    ? stats.lastTtfbMs + " ms"
                                     : "-"
+                    );
+
+                    tvPerformanceSourceIp.setText(
+                            stats.lastSourceIp != null
+                                    ? stats.lastSourceIp
+                                    : "-"
+                    );
+
+                    tvPerformanceDestinationIp.setText(
+                            stats.lastDnsDestinationIp != null
+                                    && !stats.lastDnsDestinationIp.isEmpty()
+                                    && !stats.lastDnsDestinationIp.equals("-")
+                                    ? stats.lastDnsDestinationIp
+                                    : "-"
+                    );
+
+                    tvPerformanceDnsLookup.setText(
+                            stats.lastDnsLookupMs >= 0
+                                    ? String.format(
+                                    Locale.US,
+                                    "%.3f ms",
+                                    stats.lastDnsLookupMs
+                            )
+                                    : "-"
+                    );
+
+                    tvPerformanceDnsServerIp.setText(
+                            stats.lastDnsServerIp != null
+                                    && !stats.lastDnsServerIp.isEmpty()
+                                    && !stats.lastDnsServerIp.equals("-")
+                                    ? "Server: " + stats.lastDnsServerIp
+                                    : "Server: -"
                     );
                 });
 
@@ -445,6 +484,22 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
         tvLastTtfb =
                 findViewById(R.id.tvLastTtfb);
+
+// Performance views
+        tvPerformanceTtfb =
+                findViewById(R.id.tvPerformanceTtfb);
+
+        tvPerformanceDnsLookup =
+                findViewById(R.id.tvPerformanceDnsLookup);
+
+        tvPerformanceDnsServerIp =
+                findViewById(R.id.tvPerformanceDnsServerIp);
+
+        tvPerformanceSourceIp =
+                findViewById(R.id.tvPerformanceSourceIp);
+
+        tvPerformanceDestinationIp =
+                findViewById(R.id.tvPerformanceDestinationIp);
     }
 
     private void setupEventConsole() {
