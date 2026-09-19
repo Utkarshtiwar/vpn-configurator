@@ -55,7 +55,9 @@
         </LinearLayout>
 
         <!-- ===================== TARGET URL ===================== -->
-        <com.google.android.material.card.MaterialCardView style="@style/PremiumCard">
+        <com.google.android.material.card.MaterialCardView
+            style="@style/PremiumCard">
+
             <LinearLayout style="@style/PremiumCardBody">
 
                 <TextView
@@ -77,10 +79,13 @@
                     android:textSize="14sp" />
 
             </LinearLayout>
+
         </com.google.android.material.card.MaterialCardView>
 
         <!-- ===================== WEB TEST CONTROL ===================== -->
-        <com.google.android.material.card.MaterialCardView style="@style/PremiumCard">
+        <com.google.android.material.card.MaterialCardView
+            style="@style/PremiumCard">
+
             <LinearLayout style="@style/PremiumCardBody">
 
                 <TextView
@@ -117,6 +122,7 @@
                     android:id="@+id/btnPerformAppOpenTest"
                     style="@style/SecondaryActionButton"
                     android:text="Perform App Open Test" />
+
                 <Button
                     android:id="@+id/btnPerformYoutubeTest"
                     style="@style/SecondaryActionButton"
@@ -124,6 +130,7 @@
                     android:text="Perform YouTube Test" />
 
             </LinearLayout>
+
         </com.google.android.material.card.MaterialCardView>
 
         <!-- ===================== STATUS BANNER ===================== -->
@@ -167,7 +174,9 @@
                         android:text="Status: idle" />
 
                 </LinearLayout>
+
             </LinearLayout>
+
         </com.google.android.material.card.MaterialCardView>
 
         <!-- ===================== PERFORMANCE ===================== -->
@@ -178,7 +187,7 @@
             android:layout_marginBottom="@dimen/spacing_8"
             android:text="Performance" />
 
-        <!-- Row 1 -->
+        <!-- Row 1: VPN TTFB + WEB TEST TTFB -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -202,6 +211,7 @@
                         android:text="-" />
 
                 </LinearLayout>
+
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
@@ -220,11 +230,13 @@
                         android:text="-" />
 
                 </LinearLayout>
+
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
 
-        <!-- Row 2 -->
+
+        <!-- Row 2: TCP HANDSHAKE + DNS LOOKUP -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -232,16 +244,15 @@
             android:paddingStart="@dimen/spacing_16"
             android:paddingEnd="@dimen/spacing_16">
 
+            <!-- TCP HANDSHAKE -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardTcpHandshake"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:visibility="gone"
+                android:layout_weight="1"
                 style="@style/DashboardCard">
 
-
                 <LinearLayout style="@style/DashboardCardContent">
-
 
                     <TextView
                         style="@style/DashboardCardLabel"
@@ -257,8 +268,13 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+
+            <!-- DNS LOOKUP -->
             <com.google.android.material.card.MaterialCardView
-                style="@style/DashboardCard">
+                style="@style/DashboardCard"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
 
                 <LinearLayout
                     style="@style/DashboardCardContent"
@@ -284,6 +300,7 @@
                         android:textSize="11sp"
                         android:maxLines="1"
                         android:ellipsize="end" />
+
                     <TextView
                         android:id="@+id/tvDnsDestinationIp"
                         android:layout_width="match_parent"
@@ -295,11 +312,58 @@
                         android:maxLines="1"
                         android:ellipsize="end" />
 
+                    <TextView
+                        android:id="@+id/tvDnsHostName"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Host Name: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="11sp"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
+
+
+        <!-- Row 3: TLS HANDSHAKE -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_16"
+            android:paddingEnd="@dimen/spacing_16">
+
+            <!-- TLS HANDSHAKE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <TextView
+                        style="@style/DashboardCardLabel"
+                        android:text="TLS Handshake" />
+
+                    <TextView
+                        android:id="@+id/tvTlsHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_success"
+                        android:text="-" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
         <!-- ===================== VPN HEALTH ===================== -->
         <TextView
             style="@style/SectionHeading"
@@ -320,24 +384,40 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="VPN Status" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="VPN Status" />
+
                         <TextView
                             android:id="@+id/tvVpnStatus"
                             style="@style/DashboardCardValue"
                             android:text="Stopped" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="Permission" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="Permission" />
+
                         <TextView
                             android:id="@+id/tvPermissionStatus"
                             style="@style/DashboardCardValue"
                             android:text="Not requested" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
@@ -347,28 +427,46 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="Interface" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="Interface" />
+
                         <TextView
                             android:id="@+id/tvInterfaceStatus"
                             style="@style/DashboardCardValue"
                             android:text="Not established" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="Packet Reader" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="Packet Reader" />
+
                         <TextView
                             android:id="@+id/tvReaderStatus"
                             style="@style/DashboardCardValue"
                             android:text="Stopped" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
+
         </LinearLayout>
+
 
         <!-- ===================== PACKET STATISTICS ===================== -->
         <TextView
@@ -390,25 +488,41 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="Total" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="Total" />
+
                         <TextView
                             android:id="@+id/tvTotalPackets"
                             style="@style/DashboardCardValueLarge"
                             android:text="0" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="TCP" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="TCP" />
+
                         <TextView
                             android:id="@+id/tvTcpCount"
                             style="@style/DashboardCardValueLarge"
                             android:textColor="@color/status_success"
                             android:text="0" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
@@ -418,33 +532,53 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="UDP" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="UDP" />
+
                         <TextView
                             android:id="@+id/tvUdpCount"
                             style="@style/DashboardCardValueLarge"
                             android:textColor="@color/status_info"
                             android:text="0" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
-                <com.google.android.material.card.MaterialCardView style="@style/DashboardCard">
+                <com.google.android.material.card.MaterialCardView
+                    style="@style/DashboardCard">
+
                     <LinearLayout style="@style/DashboardCardContent">
-                        <TextView style="@style/DashboardCardLabel" android:text="IPv6 Skip" />
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="IPv6 Skip" />
+
                         <TextView
                             android:id="@+id/tvIpv6Skipped"
                             style="@style/DashboardCardValueLarge"
                             android:textColor="@color/status_warning"
                             android:text="0" />
+
                     </LinearLayout>
+
                 </com.google.android.material.card.MaterialCardView>
 
             </LinearLayout>
+
         </LinearLayout>
 
+
         <!-- ===================== LAST PACKET ===================== -->
-        <com.google.android.material.card.MaterialCardView style="@style/PremiumCard">
+        <com.google.android.material.card.MaterialCardView
+            style="@style/PremiumCard">
+
             <LinearLayout style="@style/PremiumCardBody">
 
                 <TextView
@@ -453,38 +587,83 @@
                     android:text="Last Packet" />
 
                 <LinearLayout style="@style/KvRow">
-                    <TextView style="@style/KvLabel" android:text="Protocol" />
-                    <TextView android:id="@+id/tvLastProtocol" style="@style/KvValue" />
+
+                    <TextView
+                        style="@style/KvLabel"
+                        android:text="Protocol" />
+
+                    <TextView
+                        android:id="@+id/tvLastProtocol"
+                        style="@style/KvValue" />
+
                 </LinearLayout>
-                <com.google.android.material.divider.MaterialDivider style="@style/KvDivider" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
 
                 <LinearLayout style="@style/KvRow">
-                    <TextView style="@style/KvLabel" android:text="Source IP" />
-                    <TextView android:id="@+id/tvLastSource" style="@style/KvValue" />
+
+                    <TextView
+                        style="@style/KvLabel"
+                        android:text="Source IP" />
+
+                    <TextView
+                        android:id="@+id/tvLastSource"
+                        style="@style/KvValue" />
+
                 </LinearLayout>
-                <com.google.android.material.divider.MaterialDivider style="@style/KvDivider" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
 
                 <LinearLayout style="@style/KvRow">
-                    <TextView style="@style/KvLabel" android:text="Destination IP" />
-                    <TextView android:id="@+id/tvLastDest" style="@style/KvValue" />
+
+                    <TextView
+                        style="@style/KvLabel"
+                        android:text="Destination IP" />
+
+                    <TextView
+                        android:id="@+id/tvLastDest"
+                        style="@style/KvValue" />
+
                 </LinearLayout>
-                <com.google.android.material.divider.MaterialDivider style="@style/KvDivider" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
 
                 <LinearLayout style="@style/KvRow">
-                    <TextView style="@style/KvLabel" android:text="Packet Size" />
-                    <TextView android:id="@+id/tvLastSize" style="@style/KvValue" />
+
+                    <TextView
+                        style="@style/KvLabel"
+                        android:text="Packet Size" />
+
+                    <TextView
+                        android:id="@+id/tvLastSize"
+                        style="@style/KvValue" />
+
                 </LinearLayout>
-                <com.google.android.material.divider.MaterialDivider style="@style/KvDivider" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
 
                 <LinearLayout
                     style="@style/KvRow"
                     android:paddingBottom="0dp">
-                    <TextView style="@style/KvLabel" android:text="Timestamp" />
-                    <TextView android:id="@+id/tvLastTimestamp" style="@style/KvValue" />
+
+                    <TextView
+                        style="@style/KvLabel"
+                        android:text="Timestamp" />
+
+                    <TextView
+                        android:id="@+id/tvLastTimestamp"
+                        style="@style/KvValue" />
+
                 </LinearLayout>
 
             </LinearLayout>
+
         </com.google.android.material.card.MaterialCardView>
+
 
         <!-- WebView kept in the tree for the backend, hidden from the UI -->
         <WebView
@@ -494,6 +673,7 @@
             android:layout_margin="4dp"
             android:visibility="gone"
             tools:ignore="WebViewLayout" />
+
 
         <!-- ===================== LIVE EVENT CONSOLE ===================== -->
         <LinearLayout
@@ -529,6 +709,7 @@
                 android:text="LIVE" />
 
         </LinearLayout>
+
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"

@@ -69,9 +69,11 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvLastTtfbWeb;
 
     private TextView tvTcpHandshake;
+    private TextView tvTlsHandshake;
     private TextView tvDnsLookup;
     private TextView tvDnsServerIp;
     private TextView tvDnsDestinationIp;
+    private TextView tvDnsHostName;
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
@@ -358,6 +360,23 @@ public class VpnTestActivity extends AppCompatActivity {
                 tvTcpHandshake.setText("-");
 
             }
+            // TLS HANDSHAKE
+            if (stats.tlsHandshakeMs >= 0) {
+
+                tvTlsHandshake.setText(
+                        String.format(
+                                Locale.US,
+                                "%.3f ms",
+                                stats.tlsHandshakeMs
+                        )
+                );
+
+            } else {
+
+                tvTlsHandshake.setText("-");
+            }
+
+// DNS LOOKUP
             if (stats.lastDnsLookupMs >= 0) {
 
                 tvDnsLookup.setText(
@@ -391,6 +410,58 @@ public class VpnTestActivity extends AppCompatActivity {
 
                 tvDnsDestinationIp.setText(
                         "Destination IP: -"
+                );
+            }
+            // DNS LOOKUP
+            if (stats.lastDnsLookupMs >= 0) {
+
+                tvDnsLookup.setText(
+                        String.format(
+                                Locale.US,
+                                "%.3f ms",
+                                stats.lastDnsLookupMs
+                        )
+                );
+
+                tvDnsServerIp.setText(
+                        "Server: " + stats.lastDnsServerIp
+                );
+
+            } else {
+
+                tvDnsLookup.setText("-");
+                tvDnsServerIp.setText("Server: -");
+            }
+
+// Destination IP
+            if (stats.lastDestIp != null
+                    && !stats.lastDestIp.isEmpty()
+                    && !stats.lastDestIp.equals("-")) {
+
+                tvDnsDestinationIp.setText(
+                        "Destination IP: " + stats.lastDnsDestinationIp
+                );
+
+            } else {
+
+                tvDnsDestinationIp.setText(
+                        "Destination IP: -"
+                );
+            }
+
+// Host Name
+            if (stats.lastDnsHostName != null
+                    && !stats.lastDnsHostName.isEmpty()
+                    && !stats.lastDnsHostName.equals("-")) {
+
+                tvDnsHostName.setText(
+                        "Host Name: " + stats.lastDnsHostName
+                );
+
+            } else {
+
+                tvDnsHostName.setText(
+                        "Host Name: -"
                 );
             }
 
@@ -449,12 +520,18 @@ public class VpnTestActivity extends AppCompatActivity {
                 findViewById(R.id.tvLastTtfbWeb);
         tvTcpHandshake =
                 findViewById(R.id.tvTcpHandshake);
+
+        tvTlsHandshake =
+                findViewById(R.id.tvTlsHandshake);
+
         tvDnsLookup =
                 findViewById(R.id.tvDnsLookup);
         tvDnsServerIp =
                 findViewById(R.id.tvDnsServerIp);
         tvDnsDestinationIp =
                 findViewById(R.id.tvDnsDestinationIp);
+        tvDnsHostName =
+                findViewById(R.id.tvDnsHostName);
     }
 
     private void setupEventConsole() {
@@ -504,7 +581,15 @@ public class VpnTestActivity extends AppCompatActivity {
 
         dashboardRepo.resetDnsLookup();
         dashboardRepo.resetDnsDestinationIp();
+        dashboardRepo.resetTlsHandshake();
+
         tvDnsDestinationIp.setText("Destination IP: -");
+
+        tvDnsHostName.setText("Host Name: -");
+        if (tvTlsHandshake != null) {
+            tvTlsHandshake.setText("-");
+        }
+
         updateTestButtons();
 
         updateStatus(
@@ -768,6 +853,7 @@ public class VpnTestActivity extends AppCompatActivity {
                             resolvedIps
                     );
                 }
+                dashboardRepo.setDnsHostName(hostname);
 
                 dashboardRepo.logToFile(
                         TAG+

@@ -126,6 +126,23 @@ public final class VpnEventRepository {
     public void resetTcpHandshake() {
         updateStats(s -> s.withTcpHandshake(-1L));
     }
+
+    /*
+     * TLS Handshake
+     *
+     * T0 = first TX TLS 0x16
+     * T1 = first RX TLS 0x17
+     *
+     * Value is stored in milliseconds.
+     */
+    public void recordTlsHandshake(double handshakeMs) {
+        updateStats(s -> s.withTlsHandshake(handshakeMs));
+    }
+
+    public void resetTlsHandshake() {
+        updateStats(s -> s.withTlsHandshake(-1.0));
+    }
+
     public void recordDnsLookup(
             double dnsLookupTimeMs,
             String dnsServerIp,
@@ -158,8 +175,19 @@ public final class VpnEventRepository {
     }
 
     // ADD: Reset Destination IP for new VPN session
+    // ADD: Reset Destination IP for new VPN session
     public void resetDnsDestinationIp() {
         updateStats(s -> s.withDnsDestinationIp("-"));
+    }
+
+    // ADD: Store hostname associated with DNS resolved IP
+    public void setDnsHostName(String hostName) {
+        updateStats(s -> s.withDnsHostName(hostName));
+    }
+
+    // ADD: Reset hostname for new VPN session
+    public void resetDnsHostName() {
+        updateStats(s -> s.withDnsHostName("-"));
     }
 
     public void resetDnsLookup() {
