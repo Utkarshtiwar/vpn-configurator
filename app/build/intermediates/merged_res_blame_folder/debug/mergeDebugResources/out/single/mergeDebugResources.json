@@ -44,10 +44,6 @@
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\drawable\\bg_status_dot.xml"
     },
     {
-        "merged": "com.example.vpntest.app-debug-33:/layout_activity_app_open_test.xml.flat",
-        "source": "com.example.vpntest.app-main-35:/layout/activity_app_open_test.xml"
-    },
-    {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\mipmap-xxxhdpi_ic_launcher_monochrome.webp.flat",
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\mipmap-xxxhdpi\\ic_launcher_monochrome.webp"
     },
@@ -154,6 +150,10 @@
     {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\drawable_bg_input_field.xml.flat",
         "source": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-main-35:\\drawable\\bg_input_field.xml"
+    },
+    {
+        "merged": "com.example.vpntest.app-debug-33:/layout_activity_vpn_test.xml.flat",
+        "source": "com.example.vpntest.app-main-35:/layout/activity_vpn_test.xml"
     },
     {
         "merged": "C:\\Users\\Asus\\.gradle\\daemon\\9.0.0\\com.example.vpntest.app-debug-33:\\mipmap-mdpi_ic_launcher_monochrome.webp.flat",
