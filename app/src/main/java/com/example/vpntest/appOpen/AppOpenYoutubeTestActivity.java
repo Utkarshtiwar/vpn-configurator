@@ -167,6 +167,11 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
         btnStop = findViewById(R.id.btnYoutubeStop);
         webView = findViewById(R.id.webViewYoutube);
 
+        View btnBack = findViewById(R.id.btnBack);
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> onBackPressed());
+        }
+
         bindDashboardViews();
 
         setupEventConsole();

@@ -1,29 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Surfaces -->
-    <color name="background_dark">#0B1020</color>
-    <color name="surface_dark">#121A2B</color>
-    <color name="surface_elevated">#182238</color>
+    <!-- Surfaces & Backgrounds -->
+    <color name="background_dark">#090D16</color>
+    <color name="surface_dark">#101726</color>
+    <color name="surface_card">#101726</color>
+    <color name="surface_elevated">#172033</color>
+    <color name="surface_input">#0D1322</color>
+    <color name="surface_terminal">#070B14</color>
+    <color name="surface_terminal_header">#0C1220</color>
+    <color name="surface_pill">#182338</color>
+    <color name="surface_tile">#131B2E</color>
+    <color name="surface_tile_stroke">#22304A</color>
 
-    <!-- Brand -->
-    <color name="primary">#5B7CFA</color>
-    <color name="primary_variant">#4863D6</color>
+    <!-- Primary Brand (Antigravity Indigo & Electric Blue) -->
+    <color name="primary">#6366F1</color>
+    <color name="primary_variant">#4F46E5</color>
+    <color name="primary_light">#818CF8</color>
+    <color name="primary_glow">#266366F1</color>
+    <color name="accent_cyan">#38BDF8</color>
 
-    <!-- Semantic status -->
-    <color name="status_success">#35D07F</color>
-    <color name="status_warning">#F5B942</color>
-    <color name="status_error">#FF5C6C</color>
-    <color name="status_info">#4DB8FF</color>
+    <!-- Semantic Status Colors -->
+    <color name="status_success">#10B981</color>
+    <color name="status_success_glow">#2610B981</color>
+    <color name="status_warning">#F59E0B</color>
+    <color name="status_warning_glow">#26F59E0B</color>
+    <color name="status_error">#EF4444</color>
+    <color name="status_error_glow">#26EF4444</color>
+    <color name="status_info">#38BDF8</color>
+    <color name="status_info_glow">#2638BDF8</color>
 
-    <!-- Text -->
-    <color name="on_surface_primary">#F5F7FF</color>
-    <color name="on_surface_secondary">#98A2B8</color>
+    <!-- Text Hierarchy -->
+    <color name="on_surface_primary">#F8FAFC</color>
+    <color name="on_surface_secondary">#94A3B8</color>
+    <color name="on_surface_muted">#64748B</color>
 
-    <!-- Lines / borders -->
-    <color name="divider_color">#26324A</color>
+    <!-- Lines / Borders / Dividers -->
+    <color name="divider_color">#1E293B</color>
+    <color name="border_card">#1F2B42</color>
+    <color name="border_focused">#6366F1</color>
 
-    <!-- Misc -->
-    <color name="dot_neutral">#FFFFFF</color>
+    <!-- Misc / Dots / Badges -->
+    <color name="dot_neutral">#CBD5E1</color>
+    <color name="terminal_dot_red">#FF5F56</color>
+    <color name="terminal_dot_yellow">#FFBD2E</color>
+    <color name="terminal_dot_green">#27C93F</color>
 
 </resources>

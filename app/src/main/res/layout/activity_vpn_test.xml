@@ -12,9 +12,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="@dimen/spacing_24">
+        android:paddingBottom="@dimen/spacing_32">
 
-        <!-- ===================== HEADER ===================== -->
+        <!-- ===================== TOP BAR / HEADER ===================== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -22,37 +22,136 @@
             android:paddingStart="@dimen/spacing_20"
             android:paddingEnd="@dimen/spacing_20"
             android:paddingTop="@dimen/spacing_24"
-            android:paddingBottom="@dimen/spacing_8">
+            android:paddingBottom="@dimen/spacing_12">
 
+            <!-- Eyebrow & Status Chip -->
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:layout_marginEnd="6dp"
-                    android:contentDescription="@null"
-                    android:src="@drawable/ic_pulse" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_chip_pill"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp">
 
-                <TextView
-                    style="@style/EyebrowLabel"
-                    android:text="WEB PERFORMANCE" />
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:layout_marginEnd="6dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_pulse"
+                        app:tint="@color/primary_light" />
+
+                    <TextView
+                        style="@style/EyebrowLabel"
+                        android:textSize="10.5sp"
+                        android:text="WEB PERFORMANCE" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_chip_pill"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp">
+
+                    <View
+                        android:layout_width="7dp"
+                        android:layout_height="7dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/status_success" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="10.5sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="ENGINE READY" />
+
+                </LinearLayout>
+
             </LinearLayout>
 
             <TextView
                 style="@style/ScreenTitle"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="10dp"
+                android:textSize="26sp"
                 android:text="Web Test" />
 
             <TextView
                 style="@style/ScreenSubtitle"
                 android:layout_marginTop="4dp"
-                android:text="Measure website response performance through the VPN connection" />
+                android:text="Real-time network inspection and website response performance through VPN" />
 
         </LinearLayout>
+
+        <!-- ===================== STATUS BANNER ===================== -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/PremiumCard"
+            app:cardBackgroundColor="@color/surface_elevated"
+            app:strokeColor="@color/border_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="@dimen/spacing_14"
+                android:gravity="center_vertical">
+
+                <View
+                    android:layout_width="9dp"
+                    android:layout_height="9dp"
+                    android:layout_marginEnd="12dp"
+                    android:background="@drawable/bg_status_dot"
+                    android:backgroundTint="@color/status_info" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:textSize="9.5sp"
+                        android:textColor="@color/on_surface_muted"
+                        android:text="CURRENT STATE" />
+
+                    <TextView
+                        android:id="@+id/tvStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textColor="@color/on_surface_primary"
+                        android:textSize="13.5sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Status: idle" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ===================== TARGET URL ===================== -->
         <com.google.android.material.card.MaterialCardView
@@ -60,23 +159,56 @@
 
             <LinearLayout style="@style/PremiumCardBody">
 
-                <TextView
-                    style="@style/SectionHeading"
-                    android:layout_marginBottom="10dp"
-                    android:text="Target URL" />
-
-                <EditText
-                    android:id="@+id/etTargetUrl"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_input_field"
-                    android:inputType="textUri"
-                    android:singleLine="true"
-                    android:hint="https://example.com"
-                    android:text="https://www.netflix.com"
-                    android:textColor="@color/on_surface_primary"
-                    android:textColorHint="@color/on_surface_secondary"
-                    android:textSize="14sp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="Target Endpoint URL" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="HTTPS Supported" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_input_field">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="10dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_globe"
+                        app:tint="@color/primary_light" />
+
+                    <EditText
+                        android:id="@+id/etTargetUrl"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        android:inputType="textUri"
+                        android:singleLine="true"
+                        android:hint="https://example.com"
+                        android:text="https://www.netflix.com"
+                        android:textColor="@color/on_surface_primary"
+                        android:textColorHint="@color/on_surface_muted"
+                        android:textSize="14sp"
+                        android:fontFamily="sans-serif" />
+
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -91,7 +223,7 @@
                 <TextView
                     style="@style/SectionHeading"
                     android:layout_marginBottom="12dp"
-                    android:text="Web Test Control" />
+                    android:text="VPN Session Control" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -99,110 +231,126 @@
                     android:orientation="horizontal"
                     android:weightSum="2">
 
-                    <Button
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnStartVpn"
                         style="@style/PrimaryActionButton"
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_marginEnd="6dp"
-                        android:text="Start VPN" />
+                        android:text="Start VPN"
+                        app:icon="@drawable/ic_play"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="@color/on_surface_primary" />
 
-                    <Button
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnStopVpn"
                         style="@style/DestructiveActionButton"
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_marginStart="6dp"
                         android:enabled="false"
-                        android:text="Stop VPN" />
+                        android:text="Stop VPN"
+                        app:icon="@drawable/ic_stop"
+                        app:iconGravity="textStart"
+                        app:iconPadding="8dp"
+                        app:iconTint="@color/on_surface_primary" />
 
                 </LinearLayout>
-
-                <Button
-                    android:id="@+id/btnPerformAppOpenTest"
-                    style="@style/SecondaryActionButton"
-                    android:text="Perform App Open Test" />
-
-                <Button
-                    android:id="@+id/btnPerformYoutubeTest"
-                    style="@style/SecondaryActionButton"
-                    android:layout_marginTop="8dp"
-                    android:text="Perform YouTube Test" />
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- ===================== STATUS BANNER ===================== -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/PremiumCard"
-            app:cardBackgroundColor="@color/surface_elevated">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="@dimen/spacing_16"
-                android:gravity="center_vertical">
 
                 <View
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:layout_marginEnd="10dp"
-                    android:background="@drawable/bg_status_dot"
-                    android:backgroundTint="@color/status_info" />
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/divider_color"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginBottom="12dp" />
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
+                <TextView
+                    style="@style/SectionHeading"
+                    android:textSize="10sp"
+                    android:textColor="@color/on_surface_muted"
+                    android:layout_marginBottom="8dp"
+                    android:text="QUICK SWITCH MODES" />
 
-                    <TextView
-                        style="@style/SectionHeading"
-                        android:textSize="10sp"
-                        android:text="Status" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnPerformAppOpenTest"
+                    style="@style/SecondaryActionButton"
+                    android:text="App Open Test"
+                    app:icon="@drawable/ic_apps"
+                    app:iconGravity="textStart"
+                    app:iconPadding="10dp"
+                    app:iconTint="@color/primary_light" />
 
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/on_surface_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:text="Status: idle" />
-
-                </LinearLayout>
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnPerformYoutubeTest"
+                    style="@style/SecondaryActionButton"
+                    android:text="YouTube Test"
+                    app:icon="@drawable/ic_youtube"
+                    app:iconGravity="textStart"
+                    app:iconPadding="10dp"
+                    app:iconTint="@color/status_error" />
 
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ===================== PERFORMANCE ===================== -->
-        <TextView
-            style="@style/SectionHeading"
-            android:layout_marginStart="@dimen/spacing_20"
-            android:layout_marginTop="@dimen/spacing_20"
-            android:layout_marginBottom="@dimen/spacing_8"
-            android:text="Performance" />
-
-        <!-- Row 1: VPN TTFB + WEB TEST TTFB -->
+        <!-- ===================== PERFORMANCE DASHBOARD ===================== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
+            android:gravity="center_vertical"
+            android:layout_marginStart="@dimen/spacing_20"
+            android:layout_marginEnd="@dimen/spacing_20"
+            android:layout_marginTop="@dimen/spacing_24"
+            android:layout_marginBottom="@dimen/spacing_8">
+
+            <TextView
+                style="@style/SectionHeading"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="Performance Metrics" />
+
+            <TextView
+                style="@style/FieldCaption"
+                android:textColor="@color/primary_light"
+                android:text="Live Benchmarks" />
+
+        </LinearLayout>
+
+        <!-- Performance Row 1: VPN TTFB + Web Test TTFB -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
 
             <com.google.android.material.card.MaterialCardView
                 style="@style/DashboardCard">
 
                 <LinearLayout style="@style/DashboardCardContent">
 
-                    <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="VPN TTFB" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="VPN TTFB" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_timer"
+                            app:tint="@color/status_success" />
+
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tvLastTtfb"
@@ -210,6 +358,10 @@
                         android:textColor="@color/status_success"
                         android:text="-" />
 
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="Tunnel response latency" />
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
@@ -219,9 +371,26 @@
 
                 <LinearLayout style="@style/DashboardCardContent">
 
-                    <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="Web Test TTFB" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="Web Test TTFB" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_globe"
+                            app:tint="@color/status_info" />
+
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tvLastTtfbWeb"
@@ -229,34 +398,51 @@
                         android:textColor="@color/status_info"
                         android:text="-" />
 
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="End-to-end web latency" />
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
 
-
-        <!-- Row 2: TCP HANDSHAKE + DNS LOOKUP -->
+        <!-- Performance Row 2: TCP Handshake + TLS Handshake -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
 
             <!-- TCP HANDSHAKE -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardTcpHandshake"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
                 style="@style/DashboardCard">
 
                 <LinearLayout style="@style/DashboardCardContent">
 
-                    <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="TCP Handshake" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TCP Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_tcp"
+                            app:tint="@color/status_success" />
+
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/tvTcpHandshake"
@@ -264,120 +450,310 @@
                         android:textColor="@color/status_success"
                         android:text="-" />
 
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="SYN -> SYN-ACK -> ACK" />
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
 
 
-            <!-- DNS LOOKUP -->
+            <!-- TLS HANDSHAKE -->
             <com.google.android.material.card.MaterialCardView
-                style="@style/DashboardCard"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1">
+                style="@style/DashboardCard">
 
-                <LinearLayout
-                    style="@style/DashboardCardContent"
-                    android:orientation="vertical">
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TLS Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_shield"
+                            app:tint="@color/primary_light" />
+
+                    </LinearLayout>
 
                     <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="DNS Lookup" />
+                        android:id="@+id/tvTlsHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/primary_light"
+                        android:text="-" />
 
                     <TextView
-                        android:id="@+id/tvDnsLookup"
+                        style="@style/FieldCaption"
+                        android:text="Cryptographic negotiation" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+        <!-- Performance Row 3: TCP Connection + TCP Retransmissions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- TCP CONNECTION TIME -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TCP Connection" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_tcp"
+                            app:tint="@color/status_success" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvTcpConnectionTime"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_success"
+                        android:text="-" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="TCP connection establishment" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+
+            <!-- TCP RETRANSMISSION COUNT -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TCP Retransmissions" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_warning"
+                            app:tint="@color/status_warning" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvTcpRetransmissionCount"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_warning"
+                        android:text="0" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="Detected retransmitted packets" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+        <!-- Performance Row 4: QUIC Handshake -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- QUIC HANDSHAKE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="QUIC Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_udp"
+                            app:tint="@color/status_info" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvQuicHandshake"
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_info"
                         android:text="-" />
 
                     <TextView
-                        android:id="@+id/tvDnsServerIp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Server: -"
-                        android:textColor="@color/on_surface_secondary"
-                        android:textSize="11sp"
-                        android:maxLines="1"
-                        android:ellipsize="end" />
+                        style="@style/FieldCaption"
+                        android:text="QUIC Initial TX -> RX" />
 
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+        <!-- Performance Row 5: DNS LOOKUP & RESOLUTION DETAILS -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/PremiumCard">
+            <LinearLayout style="@style/PremiumCardBody">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:text="DNS Resolution" />
+
+                        <TextView
+                            android:id="@+id/tvDnsLookup"
+                            style="@style/DashboardCardValueLarge"
+                            android:textColor="@color/accent_cyan"
+                            android:text="-" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_chip_pill"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="10.5sp"
+                            android:fontFamily="monospace"
+                            android:text="UDP/53" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout style="@style/KvRow">
+                    <TextView style="@style/KvLabel" android:text="DNS Server" />
+                    <TextView
+                        android:id="@+id/tvDnsServerIp"
+                        style="@style/KvValue"
+                        android:text="Server: -" />
+                </LinearLayout>
+
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
+
+                <LinearLayout style="@style/KvRow">
+                    <TextView style="@style/KvLabel" android:text="Destination IP" />
                     <TextView
                         android:id="@+id/tvDnsDestinationIp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Destination IP: -"
-                        android:textColor="@color/on_surface_secondary"
-                        android:textSize="11sp"
-                        android:maxLines="1"
-                        android:ellipsize="end" />
+                        style="@style/KvValue"
+                        android:text="Destination IP: -" />
+                </LinearLayout>
 
+                <com.google.android.material.divider.MaterialDivider
+                    style="@style/KvDivider" />
+
+                <LinearLayout
+                    style="@style/KvRow"
+                    android:paddingBottom="0dp">
+                    <TextView style="@style/KvLabel" android:text="Host Name" />
                     <TextView
                         android:id="@+id/tvDnsHostName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Host Name: -"
-                        android:textColor="@color/on_surface_secondary"
-                        android:textSize="11sp"
-                        android:maxLines="1"
-                        android:ellipsize="end" />
-
+                        style="@style/KvValue"
+                        android:text="Host Name: -" />
                 </LinearLayout>
 
-            </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
-        </LinearLayout>
-
-
-        <!-- Row 3: TLS HANDSHAKE -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
-
-            <!-- TLS HANDSHAKE -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/DashboardCard"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1">
-
-                <LinearLayout style="@style/DashboardCardContent">
-
-                    <TextView
-                        style="@style/DashboardCardLabel"
-                        android:text="TLS Handshake" />
-
-                    <TextView
-                        android:id="@+id/tvTlsHandshake"
-                        style="@style/DashboardCardValueLarge"
-                        android:textColor="@color/status_success"
-                        android:text="-" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-        </LinearLayout>
-
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- ===================== VPN HEALTH ===================== -->
         <TextView
             style="@style/SectionHeading"
             android:layout_marginStart="@dimen/spacing_20"
-            android:layout_marginTop="@dimen/spacing_20"
+            android:layout_marginTop="@dimen/spacing_24"
             android:layout_marginBottom="@dimen/spacing_8"
-            android:text="VPN Health" />
+            android:text="VPN Tunnel Health" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -396,6 +772,7 @@
                         <TextView
                             android:id="@+id/tvVpnStatus"
                             style="@style/DashboardCardValue"
+                            android:textColor="@color/on_surface_primary"
                             android:text="Stopped" />
 
                     </LinearLayout>
@@ -414,6 +791,7 @@
                         <TextView
                             android:id="@+id/tvPermissionStatus"
                             style="@style/DashboardCardValue"
+                            android:textColor="@color/primary_light"
                             android:text="Not requested" />
 
                     </LinearLayout>
@@ -439,6 +817,7 @@
                         <TextView
                             android:id="@+id/tvInterfaceStatus"
                             style="@style/DashboardCardValue"
+                            android:textColor="@color/on_surface_secondary"
                             android:text="Not established" />
 
                     </LinearLayout>
@@ -457,6 +836,7 @@
                         <TextView
                             android:id="@+id/tvReaderStatus"
                             style="@style/DashboardCardValue"
+                            android:textColor="@color/on_surface_secondary"
                             android:text="Stopped" />
 
                     </LinearLayout>
@@ -467,21 +847,20 @@
 
         </LinearLayout>
 
-
         <!-- ===================== PACKET STATISTICS ===================== -->
         <TextView
             style="@style/SectionHeading"
             android:layout_marginStart="@dimen/spacing_20"
-            android:layout_marginTop="@dimen/spacing_20"
+            android:layout_marginTop="@dimen/spacing_24"
             android:layout_marginBottom="@dimen/spacing_8"
-            android:text="Packet Statistics" />
+            android:text="Packet Telemetry" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="@dimen/spacing_16"
-            android:paddingEnd="@dimen/spacing_16">
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -493,9 +872,26 @@
 
                     <LinearLayout style="@style/DashboardCardContent">
 
-                        <TextView
-                            style="@style/DashboardCardLabel"
-                            android:text="Total" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:text="Total" />
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_packet"
+                                app:tint="@color/dot_neutral" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvTotalPackets"
@@ -511,9 +907,26 @@
 
                     <LinearLayout style="@style/DashboardCardContent">
 
-                        <TextView
-                            style="@style/DashboardCardLabel"
-                            android:text="TCP" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:text="TCP" />
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_tcp"
+                                app:tint="@color/status_success" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvTcpCount"
@@ -537,9 +950,26 @@
 
                     <LinearLayout style="@style/DashboardCardContent">
 
-                        <TextView
-                            style="@style/DashboardCardLabel"
-                            android:text="UDP" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:text="UDP" />
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_udp"
+                                app:tint="@color/status_info" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvUdpCount"
@@ -556,9 +986,26 @@
 
                     <LinearLayout style="@style/DashboardCardContent">
 
-                        <TextView
-                            style="@style/DashboardCardLabel"
-                            android:text="IPv6 Skip" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:text="IPv6 Skip" />
+
+                            <ImageView
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_warning"
+                                app:tint="@color/status_warning" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvIpv6Skipped"
@@ -574,73 +1021,67 @@
 
         </LinearLayout>
 
-
-        <!-- ===================== LAST PACKET ===================== -->
+        <!-- ===================== LAST PACKET INSPECTOR ===================== -->
         <com.google.android.material.card.MaterialCardView
             style="@style/PremiumCard">
 
             <LinearLayout style="@style/PremiumCardBody">
 
-                <TextView
-                    style="@style/SectionHeading"
-                    android:layout_marginBottom="4dp"
-                    android:text="Last Packet" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+
+                    <TextView
+                        style="@style/SectionHeading"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="Last Packet Inspector" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_chip_pill"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp">
+
+                        <TextView
+                            android:id="@+id/tvLastProtocol"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/primary_light"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:textStyle="bold"
+                            android:text="RAW" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
 
                 <LinearLayout style="@style/KvRow">
-
-                    <TextView
-                        style="@style/KvLabel"
-                        android:text="Protocol" />
-
-                    <TextView
-                        android:id="@+id/tvLastProtocol"
-                        style="@style/KvValue" />
-
+                    <TextView style="@style/KvLabel" android:text="Source IP" />
+                    <TextView android:id="@+id/tvLastSource" style="@style/KvValue" />
                 </LinearLayout>
 
                 <com.google.android.material.divider.MaterialDivider
                     style="@style/KvDivider" />
 
                 <LinearLayout style="@style/KvRow">
-
-                    <TextView
-                        style="@style/KvLabel"
-                        android:text="Source IP" />
-
-                    <TextView
-                        android:id="@+id/tvLastSource"
-                        style="@style/KvValue" />
-
+                    <TextView style="@style/KvLabel" android:text="Destination IP" />
+                    <TextView android:id="@+id/tvLastDest" style="@style/KvValue" />
                 </LinearLayout>
 
                 <com.google.android.material.divider.MaterialDivider
                     style="@style/KvDivider" />
 
                 <LinearLayout style="@style/KvRow">
-
-                    <TextView
-                        style="@style/KvLabel"
-                        android:text="Destination IP" />
-
-                    <TextView
-                        android:id="@+id/tvLastDest"
-                        style="@style/KvValue" />
-
-                </LinearLayout>
-
-                <com.google.android.material.divider.MaterialDivider
-                    style="@style/KvDivider" />
-
-                <LinearLayout style="@style/KvRow">
-
-                    <TextView
-                        style="@style/KvLabel"
-                        android:text="Packet Size" />
-
-                    <TextView
-                        android:id="@+id/tvLastSize"
-                        style="@style/KvValue" />
-
+                    <TextView style="@style/KvLabel" android:text="Packet Payload Size" />
+                    <TextView android:id="@+id/tvLastSize" style="@style/KvValue" />
                 </LinearLayout>
 
                 <com.google.android.material.divider.MaterialDivider
@@ -649,21 +1090,13 @@
                 <LinearLayout
                     style="@style/KvRow"
                     android:paddingBottom="0dp">
-
-                    <TextView
-                        style="@style/KvLabel"
-                        android:text="Timestamp" />
-
-                    <TextView
-                        android:id="@+id/tvLastTimestamp"
-                        style="@style/KvValue" />
-
+                    <TextView style="@style/KvLabel" android:text="Capture Timestamp" />
+                    <TextView android:id="@+id/tvLastTimestamp" style="@style/KvValue" />
                 </LinearLayout>
 
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
-
 
         <!-- WebView kept in the tree for the backend, hidden from the UI -->
         <WebView
@@ -674,8 +1107,7 @@
             android:visibility="gone"
             tools:ignore="WebViewLayout" />
 
-
-        <!-- ===================== LIVE EVENT CONSOLE ===================== -->
+        <!-- ===================== LIVE EVENT CONSOLE (TERMINAL) ===================== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -683,14 +1115,14 @@
             android:gravity="center_vertical"
             android:paddingStart="@dimen/spacing_20"
             android:paddingEnd="@dimen/spacing_20"
-            android:paddingTop="@dimen/spacing_24"
+            android:paddingTop="@dimen/spacing_28"
             android:paddingBottom="@dimen/spacing_8">
 
             <TextView
                 style="@style/SectionHeading"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:text="Live Events" />
+                android:text="Console Stream" />
 
             <View
                 android:layout_width="6dp"
@@ -703,32 +1135,89 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/status_success"
-                android:textSize="11sp"
+                android:textSize="10.5sp"
+                android:fontFamily="sans-serif-medium"
                 android:textStyle="bold"
-                android:letterSpacing="0.06"
+                android:letterSpacing="0.08"
                 android:text="LIVE" />
 
         </LinearLayout>
 
-
+        <!-- Terminal Window Card -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/spacing_20"
-            android:layout_marginEnd="@dimen/spacing_20"
-            app:cardBackgroundColor="@color/surface_dark"
+            android:layout_marginStart="@dimen/spacing_16"
+            android:layout_marginEnd="@dimen/spacing_16"
+            app:cardBackgroundColor="@color/surface_terminal"
             app:cardCornerRadius="@dimen/card_corner_radius"
-            app:cardElevation="@dimen/card_elevation"
-            app:strokeColor="@color/divider_color"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/border_card"
             app:strokeWidth="@dimen/card_stroke_width">
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rvEventConsole"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="@dimen/console_height"
-                android:background="@android:color/transparent"
-                android:clipToPadding="false"
-                android:padding="@dimen/spacing_8" />
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Terminal Title Bar -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/bg_terminal_header"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
+
+                    <View
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/terminal_dot_red" />
+
+                    <View
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:layout_marginEnd="6dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/terminal_dot_yellow" />
+
+                    <View
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:background="@drawable/bg_status_dot"
+                        android:backgroundTint="@color/terminal_dot_green" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:textColor="@color/on_surface_muted"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:text="terminal :: vpn.events.log" />
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_terminal"
+                        app:tint="@color/on_surface_muted" />
+
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvEventConsole"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/console_height"
+                    android:background="@android:color/transparent"
+                    android:clipToPadding="false"
+                    android:padding="@dimen/spacing_8" />
+
+            </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 

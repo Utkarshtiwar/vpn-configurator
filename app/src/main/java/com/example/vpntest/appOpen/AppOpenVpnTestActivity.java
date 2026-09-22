@@ -301,6 +301,11 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
         spinnerAppSelect =
                 findViewById(R.id.spinnerAppSelect);
 
+        View btnBack = findViewById(R.id.btnBack);
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> onBackPressed());
+        }
+
         bindDashboardViews();
 
         setupEventConsole();

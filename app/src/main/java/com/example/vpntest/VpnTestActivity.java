@@ -74,6 +74,9 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvDnsServerIp;
     private TextView tvDnsDestinationIp;
     private TextView tvDnsHostName;
+    private TextView tvTcpConnectionTime;
+    private TextView tvTcpRetransmissionCount;
+    private TextView tvQuicHandshake;
     private MediatorVpnService mediatorVpnService;
     private boolean deleteLogAfterShare = false;
     private boolean isServiceBound = false;
@@ -342,6 +345,7 @@ public class VpnTestActivity extends AppCompatActivity {
                             : "-"
             );
             // TCP HANDSHAKE
+            // TCP HANDSHAKE
             if (stats.tcpHandshakeNano >= 0) {
 
                 double handshakeMs =
@@ -358,9 +362,54 @@ public class VpnTestActivity extends AppCompatActivity {
             } else {
 
                 tvTcpHandshake.setText("-");
-
             }
-            // TLS HANDSHAKE
+
+
+// TCP CONNECTION TIME
+            // TCP CONNECTION TIME
+// Value is already stored in milliseconds inside VpnStats.
+            if (stats.tcpConnectionTimeMs >= 0) {
+
+                tvTcpConnectionTime.setText(
+                        String.format(
+                                Locale.US,
+                                "%.3f ms",
+                                (double) stats.tcpConnectionTimeMs
+                        )
+                );
+
+            } else {
+
+                tvTcpConnectionTime.setText("-");
+            }
+
+
+// TCP RETRANSMISSION COUNT
+            tvTcpRetransmissionCount.setText(
+                    String.valueOf(
+                            stats.tcpRetransmissionCount
+                    )
+            );
+
+
+// QUIC HANDSHAKE
+            if (stats.quicHandshakeMs >= 0) {
+
+                tvQuicHandshake.setText(
+                        String.format(
+                                Locale.US,
+                                "%.3f ms",
+                                stats.quicHandshakeMs
+                        )
+                );
+
+            } else {
+
+                tvQuicHandshake.setText("-");
+            }
+
+
+// TLS HANDSHAKE
             if (stats.tlsHandshakeMs >= 0) {
 
                 tvTlsHandshake.setText(
@@ -524,6 +573,15 @@ public class VpnTestActivity extends AppCompatActivity {
         tvTlsHandshake =
                 findViewById(R.id.tvTlsHandshake);
 
+        tvTcpConnectionTime =
+                findViewById(R.id.tvTcpConnectionTime);
+
+        tvTcpRetransmissionCount =
+                findViewById(R.id.tvTcpRetransmissionCount);
+
+        tvQuicHandshake =
+                findViewById(R.id.tvQuicHandshake);
+
         tvDnsLookup =
                 findViewById(R.id.tvDnsLookup);
         tvDnsServerIp =
@@ -583,11 +641,28 @@ public class VpnTestActivity extends AppCompatActivity {
         dashboardRepo.resetDnsDestinationIp();
         dashboardRepo.resetTlsHandshake();
 
+        dashboardRepo.resetTcpConnectionTime();
+        dashboardRepo.resetTcpRetransmissionCount();
+        dashboardRepo.resetQuicHandshake();
+
         tvDnsDestinationIp.setText("Destination IP: -");
 
         tvDnsHostName.setText("Host Name: -");
+
         if (tvTlsHandshake != null) {
             tvTlsHandshake.setText("-");
+        }
+
+        if (tvTcpConnectionTime != null) {
+            tvTcpConnectionTime.setText("-");
+        }
+
+        if (tvTcpRetransmissionCount != null) {
+            tvTcpRetransmissionCount.setText("0");
+        }
+
+        if (tvQuicHandshake != null) {
+            tvQuicHandshake.setText("-");
         }
 
         updateTestButtons();

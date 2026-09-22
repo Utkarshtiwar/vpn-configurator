@@ -68,12 +68,48 @@ public class TcpForwarder {
             new java.util.concurrent.atomic.AtomicInteger(0);
 
     // Total TCP packets forwarded device -> real server (all destinations, matched or not)
+    // Total TCP packets forwarded device -> real server
     private final java.util.concurrent.atomic.AtomicInteger totalPacketsSent =
             new java.util.concurrent.atomic.AtomicInteger(0);
 
-    // Total TCP packets received real server -> device (all sources, matched or not)
+    // Total TCP packets received real server -> device
     private final java.util.concurrent.atomic.AtomicInteger totalPacketsReceived =
             new java.util.concurrent.atomic.AtomicInteger(0);
+
+    /*
+     * ============================================================
+     * TCP TRANSMISSION / RETRANSMISSION TRACKING
+     * ============================================================
+     *
+     * Each TCP session maintains the sequence ranges that have
+     * already been successfully transmitted to the real server.
+     *
+     * Example:
+     *
+     * First packet:
+     * SEQ = 1000
+     * LEN = 500
+     * Range = 1000 - 1500
+     *
+     * Second packet:
+     * SEQ = 1500
+     * LEN = 500
+     * Range = 1500 - 2000
+     *
+     * If SEQ = 1000 and LEN = 500 comes again,
+     * it is detected as a retransmission.
+     */
+    private final java.util.concurrent.atomic.AtomicLong totalTcpTransmissions =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong totalTcpTransmissionBytes =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong totalTcpRetransmissions =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong totalTcpRetransmissionBytes =
+            new java.util.concurrent.atomic.AtomicLong(0);
 
     /*
      * Monotonic timestamps.
@@ -106,21 +142,35 @@ public class TcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean
             tcpHandshakeCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
-//    private volatile long globalOutgoingIpMatchTime = 0L;
-//
-//    private static volatile long webViewT0Nano = 0L;
-//
-//    public static void setWebViewT0(long t0Nano) {
-//        webViewT0Nano = t0Nano;
-//    }
-//    private volatile long globalIncomingIpMatchTime = 0L;
-//
-//    private volatile long globalOutgoingIpMatchWallTime = 0L;
-//
-//    private volatile long globalDnsT0Nano = 0L;
-//    private volatile long globalIncomingIpMatchWallTime = 0L;
-//
-//    private volatile long globalTtfbMs = -1L;
+
+    /*
+     * ============================================================
+     * TCP CONNECTION TIME
+     * ============================================================
+     *
+     * This is separate from the existing TCP HANDSHAKE calculation.
+     *
+     * T0 = First device SYN received by VPN
+     * T1 = Real server socket.connect() completed
+     *
+     * TCP Connection Time = T1 - T0
+     */
+
+    private volatile long tcpConnectionStartNano = 0L;
+
+    private volatile long tcpConnectionEndNano = 0L;
+
+    private volatile long tcpConnectionNano = -1L;
+
+    private volatile double tcpConnectionMs = -1.0;
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            tcpConnectionStartCaptured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            tcpConnectionCaptured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 private volatile long globalOutgoingIpMatchTime = 0L;
 
     private static volatile long webViewT0Nano = 0L;
@@ -363,6 +413,66 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                         TAG + txSynLog
                 );
             }
+            /*
+             * ============================================================
+             * TCP CONNECTION TIME - T0
+             * ============================================================
+             *
+             * Capture the first SYN received from the device.
+             *
+             * This does NOT replace the existing TCP handshake T0.
+             */
+
+            if (tcpConnectionStartCaptured.compareAndSet(false, true)) {
+
+                tcpConnectionStartNano = System.nanoTime();
+
+                long tcpConnectionStartWallTime =
+                        System.currentTimeMillis();
+
+                String tcpConnectionStartLog =
+                        "========== TCP CONNECTION | T0 SYN ==========\n"
+                                + "Source IP          : "
+                                + ipStr(srcIp)
+                                + "\n"
+                                + "Destination IP     : "
+                                + ipStr(dstIp)
+                                + "\n"
+                                + "Source Port        : "
+                                + srcPort
+                                + "\n"
+                                + "Destination Port   : "
+                                + dstPort
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "TCP Flags          : 0x"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        )
+                                + "\n"
+                                + "Connection T0      : "
+                                + tcpConnectionStartNano
+                                + " ns\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(
+                                tcpConnectionStartWallTime
+                        )
+                                + "\n"
+                                + "==============================================";
+
+                Log.i(
+                        TAG,
+                        tcpConnectionStartLog
+                );
+
+                dashboard.logToFile(
+                        TAG + tcpConnectionStartLog
+                );
+            }
         }
         if (isSyn && !isAck) {
 
@@ -425,12 +535,8 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
         Log.d(TAG, "payload len and sessionstate : " + payloadLen + " " + session.state);
 
-//        if (payloadLen > 0 && session.state == TcpSession.State.ESTABLISHED) {
-        boolean isPsh = (flags & PacketUtils.TCP_PSH) != 0;
-
 
         if (payloadLen > 0
-                && isPsh
                 && session.state == TcpSession.State.ESTABLISHED) {
 
             byte[] data = new byte[payloadLen];
@@ -442,6 +548,210 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                     0,
                     payloadLen
             );
+            /*
+             * ============================================================
+             * TCP TRANSMISSION / RETRANSMISSION DETECTION
+             * ============================================================
+             *
+             * Current packet:
+             *
+             * SEQ       = seq
+             * PAYLOAD   = payloadLen
+             * END SEQ   = seq + payloadLen
+             *
+             * We compare this sequence range with previously transmitted
+             * ranges of the SAME TCP session.
+             */
+            long currentSeqStart = seq;
+            long currentSeqEnd = seq + payloadLen;
+
+            TcpSegmentRecord overlappingSegment = null;
+            long retransmittedBytes = 0L;
+
+
+            /*
+             * Check whether any part of this sequence range was already
+             * transmitted.
+             */
+            for (TcpSegmentRecord oldSegment :
+                    session.transmittedSegments.values()) {
+
+                long overlapStart = Math.max(
+                        currentSeqStart,
+                        oldSegment.seqStart
+                );
+
+                long overlapEnd = Math.min(
+                        currentSeqEnd,
+                        oldSegment.seqEnd
+                );
+
+                /*
+                 * If overlapStart < overlapEnd,
+                 * some bytes in the current packet were already sent.
+                 */
+                if (overlapStart < overlapEnd) {
+
+                    long overlapBytes = overlapEnd - overlapStart;
+
+                    if (overlapBytes > retransmittedBytes) {
+                        retransmittedBytes = overlapBytes;
+                        overlappingSegment = oldSegment;
+                    }
+                }
+            }
+
+
+            boolean isRetransmission = retransmittedBytes > 0;
+
+
+            /*
+             * ============================================================
+             * TRANSMISSION / RETRANSMISSION LOG
+             * ============================================================
+             */
+            long packetTimestampNano = System.nanoTime();
+            long packetTimestampWall = System.currentTimeMillis();
+
+            String transmissionType =
+                    isRetransmission
+                            ? "RETRANSMISSION"
+                            : "TRANSMISSION";
+
+
+            if (!isRetransmission) {
+                Log.i(TAG, "TCP Retransmission Count: 0");
+
+                dashboard.logToFile(
+                        TAG + "TCP Retransmission Count: 0"
+                );
+            }
+
+            if (isRetransmission) {
+
+                long retransmissionCount =
+                        totalTcpRetransmissions.incrementAndGet();
+
+                long retransmissionByteCount =
+                        totalTcpRetransmissionBytes.addAndGet(
+                                retransmittedBytes
+                        );
+
+                String retransmissionLog =
+                        "========== TCP RETRANSMISSION COUNT AND DATA ==========\n"
+                                + "Direction          : TX / DEVICE -> SERVER\n"
+                                + "Protocol           : TCP\n"
+                                + "Connection Key     : " + key + "\n"
+                                + "Host Name          : "
+                                + (session.serverName != null
+                                ? session.serverName
+                                : "Unknown") + "\n"
+                                + "Server IP          : "
+                                + (session.serverIp != null
+                                ? session.serverIp
+                                : ipStr(dstIp)) + "\n"
+                                + "Source IP          : " + ipStr(srcIp) + "\n"
+                                + "Destination IP     : " + ipStr(dstIp) + "\n"
+                                + "Source Port        : " + srcPort + "\n"
+                                + "Destination Port   : " + dstPort + "\n"
+                                + "Sequence Number    : " + seq + "\n"
+                                + "Sequence End       : " + currentSeqEnd + "\n"
+                                + "ACK Number         : " + ack + "\n"
+                                + "TCP Flags          : 0x"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        ) + "\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen + " bytes\n"
+                                + "Previous SEQ Start : "
+                                + overlappingSegment.seqStart + "\n"
+                                + "Previous SEQ End   : "
+                                + overlappingSegment.seqEnd + "\n"
+                                + "Retransmitted Bytes: "
+                                + retransmittedBytes + " bytes\n"
+                                + "Retransmission Count : "
+                                + retransmissionCount + "\n"
+                                + "Total Retrans Bytes: "
+                                + retransmissionByteCount + " bytes\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(packetTimestampWall) + "\n"
+                                + "Timestamp Nano     : "
+                                + packetTimestampNano + " ns\n"
+                                + "Raw Packet HEX     : "
+                                + bytesToHex(packet, length) + "\n"
+                                + "==============================================";
+
+                Log.w(TAG, retransmissionLog);
+
+                dashboard.logToFile(
+                        TAG + retransmissionLog
+                );
+                dashboard.recordTcpRetransmissionCount(
+                        retransmissionCount
+                );
+
+            } else {
+
+                long transmissionCount =
+                        totalTcpTransmissions.incrementAndGet();
+
+                long transmissionByteCount =
+                        totalTcpTransmissionBytes.addAndGet(
+                                payloadLen
+                        );
+
+                String transmissionLog =
+                        "========== TCP DATA TRANSMISSION ==========\n"
+                                + "Direction          : TX / DEVICE -> SERVER\n"
+                                + "Protocol           : TCP\n"
+                                + "Connection Key     : " + key + "\n"
+                                + "Host Name          : "
+                                + (session.serverName != null
+                                ? session.serverName
+                                : "Unknown") + "\n"
+                                + "Server IP          : "
+                                + (session.serverIp != null
+                                ? session.serverIp
+                                : ipStr(dstIp)) + "\n"
+                                + "Source IP          : " + ipStr(srcIp) + "\n"
+                                + "Destination IP     : " + ipStr(dstIp) + "\n"
+                                + "Source Port        : " + srcPort + "\n"
+                                + "Destination Port   : " + dstPort + "\n"
+                                + "Sequence Number    : " + seq + "\n"
+                                + "Sequence End       : " + currentSeqEnd + "\n"
+                                + "ACK Number         : " + ack + "\n"
+                                + "TCP Flags          : 0x"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        ) + "\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen + " bytes\n"
+                                + "Transmission No.   : "
+                                + transmissionCount + "\n"
+                                + "Total TX Bytes     : "
+                                + transmissionByteCount + " bytes\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(packetTimestampWall) + "\n"
+                                + "Timestamp Nano     : "
+                                + packetTimestampNano + " ns\n"
+                                + "Raw Packet HEX     : "
+                                + bytesToHex(packet, length) + "\n"
+                                + "============================================";
+
+                Log.i(TAG, transmissionLog);
+
+                dashboard.logToFile(
+                        TAG + transmissionLog
+                );
+            }
 
             /*
              * =========================================================
@@ -824,12 +1134,53 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
                 session.realOut.flush();
 
+
+                /*
+                 * ============================================================
+                 * STORE SUCCESSFULLY TRANSMITTED SEQUENCE RANGE
+                 * ============================================================
+                 *
+                 * Only store the sequence range after the real socket write
+                 * succeeds.
+                 */
+                session.transmittedSegments.put(
+                        currentSeqStart,
+                        new TcpSegmentRecord(
+                                currentSeqStart,
+                                currentSeqEnd,
+                                payloadLen,
+                                packetTimestampNano
+                        )
+                );
+
+
                 int sentCount = totalPacketsSent.incrementAndGet();
 
-                Log.d(TAG, "Payload written successfully.");
+                dashboard.logToFile(TAG+" Payload written successfully.");
 
-                Log.d(
-                        TAG,
+                dashboard.logToFile(TAG+
+                        "TCP DATA TYPE = "
+                                + transmissionType
+                );
+
+                dashboard.logToFile(TAG+
+                        "TCP SEQ RANGE = "
+                                + currentSeqStart
+                                + " - "
+                                + currentSeqEnd
+                );
+
+                dashboard.logToFile(TAG+
+                        "TCP PAYLOAD LENGTH = "
+                                + payloadLen
+                );
+
+                dashboard.logToFile(TAG+
+                        "TCP RETRANSMITTED BYTES = "
+                                + retransmittedBytes
+                );
+
+                dashboard.logToFile(TAG+
                         "Payload Length = " + payloadLen
                 );
 
@@ -966,12 +1317,122 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                     return;
                 }
 
-                Log.d(TAG, "Connecting socket to " + intToInetName(dstIp).getHostAddress() + ":" + dstPort);
+                Log.d(
+                        TAG,
+                        "Connecting socket to "
+                                + intToInetName(dstIp).getHostAddress()
+                                + ":"
+                                + dstPort
+                );
 
-                socket.connect(new InetSocketAddress(intToInetName(dstIp), dstPort), 8000);
+
+                /*
+                 * ============================================================
+                 * TCP CONNECTION TIME - REAL SOCKET
+                 * ============================================================
+                 *
+                 * Capture the moment immediately before socket.connect().
+                 */
+                long realSocketConnectStartNano =
+                        System.nanoTime();
+
+
+                socket.connect(
+                        new InetSocketAddress(
+                                intToInetName(dstIp),
+                                dstPort
+                        ),
+                        8000
+                );
+
+
+                /*
+                 * T1 = socket.connect() completed successfully.
+                 */
+                long realSocketConnectEndNano =
+                        System.nanoTime();
+
 
                 Log.d(TAG, "Socket connected successfully.");
-                dashboard.logEvent(TAG+"Socket connected successfully."+"\nDst IP : "+dstIp+"\nDst Port : "+dstPort, VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
+
+                dashboard.logEvent(
+                        TAG
+                                + "Socket connected successfully."
+                                + "\nDst IP : "
+                                + dstIp
+                                + "\nDst Port : "
+                                + dstPort,
+                        VpnEvent.Level.SUCCESS,
+                        VpnEvent.Category.TCP
+                );
+
+
+                /*
+                 * ============================================================
+                 * TCP CONNECTION TIME CALCULATION
+                 * ============================================================
+                 *
+                 * T0 = first SYN received from device
+                 * T1 = real socket.connect() completed
+                 *
+                 * Connection Time = T1 - T0
+                 */
+                if (tcpConnectionStartCaptured.get()
+                        && tcpConnectionCaptured.compareAndSet(false, true)) {
+
+                    tcpConnectionEndNano =
+                            realSocketConnectEndNano;
+
+                    tcpConnectionNano =
+                            tcpConnectionEndNano
+                                    - tcpConnectionStartNano;
+
+                    tcpConnectionMs =
+                            tcpConnectionNano / 1_000_000.0;
+
+                    String tcpConnectionLog =
+                            "========== TCP CONNECTION TIME ==========\n"
+                                    + "Connection Key     : "
+                                    + key
+                                    + "\n"
+                                    + "Server IP          : "
+                                    + intToInetName(dstIp).getHostAddress()
+                                    + "\n"
+                                    + "Server Port        : "
+                                    + dstPort
+                                    + "\n"
+                                    + "T0 SYN             : "
+                                    + tcpConnectionStartNano
+                                    + " ns\n"
+                                    + "T1 SOCKET CONNECT  : "
+                                    + tcpConnectionEndNano
+                                    + " ns\n"
+                                    + "T1 - T0            : "
+                                    + tcpConnectionNano
+                                    + " ns\n"
+                                    + "TCP Connection     : "
+                                    + String.format(
+                                    java.util.Locale.US,
+                                    "%.3f",
+                                    tcpConnectionMs
+                            )
+                                    + " ms\n"
+                                    + "==========================================";
+
+                    Log.i(
+                            TAG,
+                            tcpConnectionLog
+                    );
+
+                    dashboard.logToFile(
+                            TAG + tcpConnectionLog
+                    );
+
+                    dashboard.recordTcpConnectionTime(
+                            Math.round(tcpConnectionMs)
+                    );
+                }
+
 
                 session.realSocket = socket;
 
@@ -1183,6 +1644,35 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
         s.deviceSeq += len;
     }
+    private static String bytesToHex(byte[] data, int length) {
+
+        if (data == null || length <= 0) {
+            return "";
+        }
+
+        int safeLength = Math.min(length, data.length);
+
+        StringBuilder sb = new StringBuilder(
+                safeLength * 3
+        );
+
+        for (int i = 0; i < safeLength; i++) {
+
+            if (i > 0) {
+                sb.append(' ');
+            }
+
+            sb.append(
+                    String.format(
+                            java.util.Locale.US,
+                            "%02X",
+                            data[i] & 0xFF
+                    )
+            );
+        }
+
+        return sb.toString();
+    }
 
 
     void sendFinToClient(TcpSession s) {
@@ -1313,6 +1803,29 @@ private volatile long globalOutgoingIpMatchTime = 0L;
         tcpHandshakeSynCaptured.set(false);
         tcpHandshakeCaptured.set(false);
 
+
+        /*
+         * Reset TCP connection timing state.
+         */
+        tcpConnectionStartNano = 0L;
+        tcpConnectionEndNano = 0L;
+        tcpConnectionNano = -1L;
+        tcpConnectionMs = -1.0;
+
+        tcpConnectionStartCaptured.set(false);
+        tcpConnectionCaptured.set(false);
+
+
+        /*
+         * Reset TCP transmission/retransmission counters.
+         */
+        totalTcpTransmissions.set(0);
+        totalTcpTransmissionBytes.set(0);
+
+        totalTcpRetransmissions.set(0);
+        totalTcpRetransmissionBytes.set(0);
+
+
         globalTtfbMs = -1L;
         globalTtfbRequestDestinationIp = null;
         globalTtfbRequestPayloadSize = 0;
@@ -1371,6 +1884,29 @@ private volatile long globalOutgoingIpMatchTime = 0L;
         tcpHandshakeSynCaptured.set(false);
         tcpHandshakeCaptured.set(false);
 
+
+        /*
+         * Reset TCP connection timing state.
+         */
+        tcpConnectionStartNano = 0L;
+        tcpConnectionEndNano = 0L;
+        tcpConnectionNano = -1L;
+        tcpConnectionMs = -1.0;
+
+        tcpConnectionStartCaptured.set(false);
+        tcpConnectionCaptured.set(false);
+
+
+        /*
+         * Reset TCP transmission/retransmission counters.
+         */
+        totalTcpTransmissions.set(0);
+        totalTcpTransmissionBytes.set(0);
+
+        totalTcpRetransmissions.set(0);
+        totalTcpRetransmissionBytes.set(0);
+
+
         globalTtfbMs = -1L;
         webViewT0Nano = 0L;
 
@@ -1407,6 +1943,40 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
 
     /** Per-connection state. */
+    /*
+     * ============================================================
+     * TCP DATA SEGMENT RECORD
+     * ============================================================
+     *
+     * Stores the sequence range of a successfully transmitted
+     * TCP data segment.
+     */
+    static class TcpSegmentRecord {
+
+        final long seqStart;
+        final long seqEnd;
+        final int payloadLength;
+        final long timestampNano;
+
+        TcpSegmentRecord(
+                long seqStart,
+                long seqEnd,
+                int payloadLength,
+                long timestampNano
+        ) {
+            this.seqStart = seqStart;
+            this.seqEnd = seqEnd;
+            this.payloadLength = payloadLength;
+            this.timestampNano = timestampNano;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * TCP SESSION
+     * ============================================================
+     */
     static class TcpSession {
 
         enum State {
@@ -1436,6 +2006,21 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
         OutputStream realOut;
         InputStream realIn;
+
+
+        /*
+         * ============================================================
+         * TCP TRANSMISSION HISTORY
+         * ============================================================
+         *
+         * Key   = starting TCP sequence number
+         * Value = transmitted sequence range
+         *
+         * This belongs to the session because TCP sequence numbers
+         * are meaningful within a TCP connection.
+         */
+        final java.util.concurrent.ConcurrentHashMap<Long, TcpSegmentRecord>
+                transmittedSegments = new java.util.concurrent.ConcurrentHashMap<>();
 
 
         /*

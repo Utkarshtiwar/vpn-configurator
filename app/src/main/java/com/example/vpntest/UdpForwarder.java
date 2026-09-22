@@ -139,6 +139,33 @@ public class UdpForwarder {
                 );
             }
 
+            /*
+             * =====================================================
+             * QUIC HANDSHAKE T0
+             * =====================================================
+             *
+             * Capture the FIRST outgoing QUIC Initial packet.
+             *
+             * T0 = timestamp immediately before UDP send.
+             */
+            if (!session.quicT0Captured
+                    && isQuicInitialPacket(
+                    payload,
+                    payload.length)) {
+
+                session.quicHandshakeT0Nano =
+                        System.nanoTime();
+
+                session.quicT0Captured = true;
+
+                dashboard.logToFile(
+                        TAG+
+                        "QUIC HANDSHAKE T0 captured = "
+                                + session.quicHandshakeT0Nano
+                                + " ns"
+                );
+            }
+
             session.socket.send(out);
             session.touch();
 
@@ -206,8 +233,94 @@ public class UdpForwarder {
             while (!session.socket.isClosed()) {
                 try {
                     session.socket.receive(reply);
+
+                    /*
+                     * =====================================================
+                     * QUIC HANDSHAKE T1
+                     * =====================================================
+                     *
+                     * Capture the FIRST incoming QUIC Initial packet.
+                     *
+                     * T1 = timestamp when the QUIC Initial response
+                     *      arrives from the server.
+                     */
+                    if (!session.quicT1Captured
+                            && isQuicInitialPacket(
+                            buf,
+                            reply.getLength())) {
+
+                        session.quicHandshakeT1Nano =
+                                System.nanoTime();
+
+                        session.quicT1Captured = true;
+
+                        if (session.quicHandshakeT0Nano > 0L) {
+
+                            session.quicHandshakeNano =
+                                    session.quicHandshakeT1Nano
+                                            - session.quicHandshakeT0Nano;
+
+                            session.quicHandshakeMs =
+                                    session.quicHandshakeNano
+                                            / 1_000_000.0;
+
+                            dashboard.recordQuicHandshake(
+                                    session.quicHandshakeMs
+                            );
+
+                            String quicHandshakeLog =
+                                    "========== QUIC HANDSHAKE ==========\n"
+                                            + "Direction          : TX -> RX\n"
+                                            + "Protocol           : QUIC\n"
+                                            + "Source IP          : "
+                                            + ipStr(session.srcIp)
+                                            + "\n"
+                                            + "Destination IP     : "
+                                            + ipStr(session.dstIp)
+                                            + "\n"
+                                            + "Source Port        : "
+                                            + session.srcPort
+                                            + "\n"
+                                            + "Destination Port   : "
+                                            + session.dstPort
+                                            + "\n"
+                                            + "QUIC T0            : "
+                                            + session.quicHandshakeT0Nano
+                                            + " ns\n"
+                                            + "QUIC T1            : "
+                                            + session.quicHandshakeT1Nano
+                                            + " ns\n"
+                                            + "QUIC Handshake     : "
+                                            + String.format(
+                                            Locale.US,
+                                            "%.3f",
+                                            session.quicHandshakeMs
+                                    )
+                                            + " ms\n"
+                                            + "====================================";
+
+                            Log.i(
+                                    TAG,
+                                    quicHandshakeLog
+                            );
+
+                            dashboard.logEvent(
+                                    TAG + quicHandshakeLog,
+                                    VpnEvent.Level.INFO,
+                                    VpnEvent.Category.UDP
+                            );
+
+                        }
+                    }
+
                     session.touch();
-                    writeUdpReplyToTun(session, buf, reply.getLength());
+
+                    writeUdpReplyToTun(
+                            session,
+                            buf,
+                            reply.getLength()
+                    );
+
                 } catch (IOException e) {
                     break; // socket closed or errored
                 }
@@ -435,6 +548,57 @@ public class UdpForwarder {
             return "invalid-ip";
         }
     }
+    /*
+     * =====================================================
+     * QUIC INITIAL PACKET DETECTION
+     * =====================================================
+     *
+     * QUIC Long Header:
+     *
+     * Bit 7 = Header Form
+     * Bit 6 = Fixed Bit
+     *
+     * Long Header + Initial packet:
+     * Packet Type bits = 00
+     *
+     * Therefore:
+     *
+     *   (firstByte & 0x80) != 0
+     *       -> Long Header
+     *
+     *   (firstByte & 0x40) != 0
+     *       -> Fixed Bit set
+     *
+     *   (firstByte & 0x30) == 0x00
+     *       -> Initial packet
+     */
+    private static boolean isQuicInitialPacket(
+            byte[] data,
+            int length) {
+
+        if (data == null || length < 1) {
+            return false;
+        }
+
+        int firstByte = data[0] & 0xFF;
+
+        boolean longHeader =
+                (firstByte & 0x80) != 0;
+
+        boolean fixedBit =
+                (firstByte & 0x40) != 0;
+
+        int packetType =
+                firstByte & 0x30;
+
+        boolean initialPacket =
+                packetType == 0x00;
+
+        return longHeader
+                && fixedBit
+                && initialPacket;
+    }
+
     private static String parseDnsQueryName(byte[] data) {
 
         try {
@@ -991,6 +1155,30 @@ public class UdpForwarder {
          */
         final Map<Integer, DnsRequestInfo> dnsRequests =
                 new ConcurrentHashMap<>();
+
+        /*
+         * =====================================================
+         * QUIC HANDSHAKE TIMING
+         * =====================================================
+         *
+         * QUIC T0 = first outgoing QUIC Initial packet
+         * QUIC T1 = first incoming QUIC Initial packet
+         *
+         * QUIC Handshake Time = T1 - T0
+         *
+         * Only the first packet in each direction is used.
+         */
+        volatile long quicHandshakeT0Nano = 0L;
+
+        volatile long quicHandshakeT1Nano = 0L;
+
+        volatile long quicHandshakeNano = -1L;
+
+        volatile double quicHandshakeMs = -1.0;
+
+        boolean quicT0Captured = false;
+
+        boolean quicT1Captured = false;
 
         Session(
                 DatagramSocket socket,

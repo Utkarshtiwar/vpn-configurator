@@ -128,6 +128,51 @@ public final class VpnEventRepository {
     }
 
     /*
+     * TCP Connection Time
+     *
+     * T0 = first TCP SYN packet, flags 0x02
+     * T1 = first TCP ACK packet, flags 0x10
+     *
+     * Value is stored in nanoseconds.
+     */
+    public void recordTcpConnectionTime(long connectionTimeMs) {
+        updateStats(s -> s.withTcpConnectionTime(connectionTimeMs));
+    }
+
+    public void resetTcpConnectionTime() {
+        updateStats(s -> s.withTcpConnectionTime(-1L));
+    }
+
+    /*
+     * TCP Retransmission Count
+     *
+     * Stores the cumulative number of detected TCP retransmissions.
+     */
+    public void recordTcpRetransmissionCount(long retransmissionCount) {
+        updateStats(s -> s.withTcpRetransmissionCount(retransmissionCount));
+    }
+
+    public void resetTcpRetransmissionCount() {
+        updateStats(s -> s.withTcpRetransmissionCount(0L));
+    }
+
+    /*
+     * QUIC Handshake
+     *
+     * T0 = first QUIC Initial packet TX
+     * T1 = first QUIC Initial packet RX
+     *
+     * Value is stored in milliseconds.
+     */
+    public void recordQuicHandshake(double handshakeMs) {
+        updateStats(s -> s.withQuicHandshake(handshakeMs));
+    }
+
+    public void resetQuicHandshake() {
+        updateStats(s -> s.withQuicHandshake(-1.0));
+    }
+
+    /*
      * TLS Handshake
      *
      * T0 = first TX TLS 0x16
