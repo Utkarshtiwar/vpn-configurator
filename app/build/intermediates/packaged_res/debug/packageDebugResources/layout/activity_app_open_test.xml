@@ -417,6 +417,217 @@
 
         </LinearLayout>
 
+
+        <!-- ===================================================== -->
+        <!-- Performance Row 3: TCP Handshake + TLS Handshake -->
+        <!-- ===================================================== -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- TCP HANDSHAKE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TCP Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_tcp"
+                            app:tint="@color/status_success" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvAppOpenTcpHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_success"
+                        android:text="-" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="SYN → SYN-ACK → ACK" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+
+            <!-- TLS HANDSHAKE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TLS Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_shield"
+                            app:tint="@color/primary_light" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvAppOpenTlsHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/primary_light"
+                        android:text="-" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="Cryptographic negotiation" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+        <!-- ===================================================== -->
+        <!-- Performance Row 4: TCP Retransmissions -->
+        <!-- ===================================================== -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- TCP RETRANSMISSIONS -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TCP Retransmissions" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_warning"
+                            app:tint="@color/status_warning" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvAppOpenTcpRetransmissionCount"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_warning"
+                        android:text="0" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="Detected retransmitted packets" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+        <!-- ===================================================== -->
+        <!-- Performance Row 5: QUIC Handshake -->
+        <!-- ===================================================== -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- QUIC HANDSHAKE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            style="@style/DashboardCardLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="QUIC Handshake" />
+
+                        <ImageView
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_udp"
+                            app:tint="@color/status_info" />
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvAppOpenQuicHandshake"
+                        style="@style/DashboardCardValueLarge"
+                        android:textColor="@color/status_info"
+                        android:text="-" />
+
+                    <TextView
+                        style="@style/FieldCaption"
+                        android:text="QUIC Initial TX → RX" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+
+
+
+
         <!-- ===================== VPN HEALTH ===================== -->
         <TextView
             style="@style/SectionHeading"

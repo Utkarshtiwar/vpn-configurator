@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -116,13 +117,15 @@ public class VpnTestActivity extends AppCompatActivity {
                                             + urlToLoad
                                             + " ..."
                             );
+                            // Clear WebView cache before starting the web test
+                            webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+                            webView.clearCache(true);
 
                             resolveAndSetWebsiteTarget(urlToLoad);
 
                             websiteDnsExecutor.execute(
                                     () -> webViewHelper.runWebTest(urlToLoad)
-                            );
-                        }
+                            );                        }
                     })
             );
         }
@@ -940,8 +943,8 @@ public class VpnTestActivity extends AppCompatActivity {
 
             } catch (UnknownHostException e) {
 
-                Log.w(
-                        TAG,
+                dashboardRepo.logToFile(
+                        TAG+
                         "DNS resolution failed for "
                                 + hostname
                                 + ": "

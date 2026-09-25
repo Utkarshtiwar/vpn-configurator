@@ -513,6 +513,7 @@
 
             <!-- TCP CONNECTION TIME -->
             <com.google.android.material.card.MaterialCardView
+                android:visibility="gone"
                 style="@style/DashboardCard">
 
                 <LinearLayout style="@style/DashboardCardContent">

@@ -129,7 +129,7 @@ public class TcpForwarder {
 //    private volatile long globalTtfbMs = -1L;
     private volatile long tcpHandshakeSynSentNano = 0L;
 
-    private volatile long tcpHandshakeSynAckNano = 0L;
+    private volatile long tcpHandshakeAckNano = 0L;
 
     private volatile long tcpHandshakeNano = -1L;
 
@@ -515,25 +515,122 @@ private volatile long globalOutgoingIpMatchTime = 0L;
         if (session.state == TcpSession.State.SYN_RCVD
                 && flags == 0x10) {
 
-            String txAckLog =
-                    "========== TX ACK ==========\n"
-                            + "Flags = 0x10\n"
-                            + "================================";
+            /*
+             * ============================================================
+             * TCP HANDSHAKE T1 = TX ACK
+             * ============================================================
+             *
+             * T0 = First TX SYN (0x02)
+             * T1 = First TX ACK (0x10)
+             *
+             * TCP Handshake Time = T1 - T0
+             *
+             * Only the first ACK completing the handshake
+             * is used.
+             */
 
-            // Logcat
-            Log.i(TAG, txAckLog);
+            if (tcpHandshakeSynCaptured.get()
+                    && tcpHandshakeCaptured.compareAndSet(false, true)) {
 
-            // Log file
-            dashboard.logToFile(TAG + txAckLog);
+                /*
+                 * Capture T1.
+                 */
+                tcpHandshakeAckNano =
+                        System.nanoTime();
 
-            Log.d(TAG, "TCP Handshake completed.");
+                /*
+                 * Calculate handshake time.
+                 */
+                if (tcpHandshakeSynSentNano > 0L) {
+
+                    tcpHandshakeNano =
+                            tcpHandshakeAckNano
+                                    - tcpHandshakeSynSentNano;
+
+                    tcpHandshakeMs =
+                            tcpHandshakeNano / 1_000_000.0;
+
+                    /*
+                     * Publish TCP handshake time to dashboard.
+                     */
+                    dashboard.recordTcpHandshake(
+                            tcpHandshakeNano
+                    );
+                }
+
+                long ackWallTime =
+                        System.currentTimeMillis();
+
+                String txAckHandshakeLog =
+                        "========== TCP HANDSHAKE | TX ACK ==========\n"
+                                + "Source IP          : "
+                                + ipStr(srcIp)
+                                + "\n"
+                                + "Destination IP     : "
+                                + ipStr(dstIp)
+                                + "\n"
+                                + "Source Port        : "
+                                + srcPort
+                                + "\n"
+                                + "Destination Port   : "
+                                + dstPort
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "ACK Number         : "
+                                + ack
+                                + "\n"
+                                + "TCP Flags          : 0x10\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes
+                                + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen
+                                + " bytes\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(ackWallTime)
+                                + "\n"
+                                + "\n"
+                                + "Handshake T0       : "
+                                + tcpHandshakeSynSentNano
+                                + " ns\n"
+                                + "Handshake T1       : "
+                                + tcpHandshakeAckNano
+                                + " ns\n"
+                                + "T1 - T0            : "
+                                + tcpHandshakeAckNano
+                                + " - "
+                                + tcpHandshakeSynSentNano
+                                + " = "
+                                + tcpHandshakeNano
+                                + " ns\n"
+                                + "Handshake Time     : "
+                                + String.format(
+                                java.util.Locale.US,
+                                "%.3f",
+                                tcpHandshakeMs
+                        )
+                                + " ms\n"
+                                + "==============================================";
+
+                // Logcat
+                Log.i(TAG, txAckHandshakeLog);
+
+                // Log file
+                dashboard.logToFile(
+                        TAG + txAckHandshakeLog
+                );
+            }
+
+            dashboard.logToFile(TAG+"TCP Handshake completed.");
 
             session.state = TcpSession.State.ESTABLISHED;
 
             session.startRealSocketReaderThread(this, key);
         }
 
-        Log.d(TAG, "payload len and sessionstate : " + payloadLen + " " + session.state);
+        dashboard.logToFile(TAG+"payload len and sessionstate : " + payloadLen + " " + session.state);
 
 
         if (payloadLen > 0
@@ -1423,10 +1520,10 @@ private volatile long globalOutgoingIpMatchTime = 0L;
                             TAG,
                             tcpConnectionLog
                     );
-
-                    dashboard.logToFile(
-                            TAG + tcpConnectionLog
-                    );
+//                  This is commented until client will confirm it to show in ui and log file
+//                    dashboard.logToFile(
+//                            TAG + tcpConnectionLog
+//                    );
 
                     dashboard.recordTcpConnectionTime(
                             Math.round(tcpConnectionMs)
@@ -1498,112 +1595,6 @@ private volatile long globalOutgoingIpMatchTime = 0L;
 
         int flags =
                 PacketUtils.TCP_SYN | PacketUtils.TCP_ACK;
-
-        /*
-         * =====================================================
-         * TCP HANDSHAKE T1
-         * =====================================================
-         *
-         * SYN-ACK flags = 0x12
-         *
-         * T0 = first TX SYN (0x02)
-         * T1 = first TX SYN-ACK (0x12)
-         *
-         * TCP Handshake Time = T1 - T0
-         *
-         * Only the FIRST SYN-ACK is used.
-         * Retransmitted SYN-ACK must NOT overwrite T1.
-         */
-        if (flags == 0x12
-                && firstSend
-                && tcpHandshakeCaptured.compareAndSet(false, true)) {
-
-            /*
-             * Capture T1.
-             */
-            tcpHandshakeSynAckNano =
-                    System.nanoTime();
-
-            /*
-             * Calculate only when T0 is available.
-             */
-            if (tcpHandshakeSynSentNano > 0L) {
-
-                tcpHandshakeNano =
-                        tcpHandshakeSynAckNano
-                                - tcpHandshakeSynSentNano;
-
-                tcpHandshakeMs =
-                        tcpHandshakeNano / 1_000_000.0;
-
-                /*
-                 * Publish TCP handshake time to dashboard.
-                 */
-                dashboard.recordTcpHandshake(
-                        tcpHandshakeNano
-                );
-            }
-
-            long synAckWallTime =
-                    System.currentTimeMillis();
-
-            String txSynAckLog =
-                    "========== TCP HANDSHAKE | TX SYN-ACK ==========\n"
-                            + "Source IP          : "
-                            + ipStr(s.dstIp)
-                            + "\n"
-                            + "Destination IP     : "
-                            + ipStr(s.srcIp)
-                            + "\n"
-                            + "Source Port        : "
-                            + s.dstPort
-                            + "\n"
-                            + "Destination Port   : "
-                            + s.srcPort
-                            + "\n"
-                            + "Sequence Number    : "
-                            + s.deviceSeq
-                            + "\n"
-                            + "ACK Number         : "
-                            + s.clientNextSeq
-                            + "\n"
-                            + "TCP Flags          : 0x12\n"
-                            + "Window Size        : 65535\n"
-                            + "Checksum           : Calculated by PacketUtils\n"
-                            + "TCP Header Length  : 20 bytes\n"
-                            + "Payload Length     : 0 bytes\n"
-                            + "Timestamp          : "
-                            + formatTimestamp(synAckWallTime)
-                            + "\n"
-                            + "\n"
-                            + "Handshake T0       : "
-                            + tcpHandshakeSynSentNano
-                            + " ns\n"
-                            + "Handshake T1       : "
-                            + tcpHandshakeSynAckNano
-                            + " ns\n"
-                            + "T1 - T0            : "
-                            + tcpHandshakeSynAckNano
-                            + " - "
-                            + tcpHandshakeSynSentNano
-                            + " = "
-                            + tcpHandshakeNano
-                            + " ns\n"
-                            + "Handshake Time     : "
-                            + String.format(
-                            java.util.Locale.US,
-                            "%.3f",
-                            tcpHandshakeMs
-                    )
-                            + " ms\n"
-                            + "==============================================";
-
-            Log.i(TAG, txSynAckLog);
-
-            dashboard.logToFile(
-                    TAG + txSynAckLog
-            );
-        }
 
         /*
          * Send SYN-ACK to device.
@@ -1796,7 +1787,7 @@ private volatile long globalOutgoingIpMatchTime = 0L;
          * Reset TCP handshake timing state.
          */
         tcpHandshakeSynSentNano = 0L;
-        tcpHandshakeSynAckNano = 0L;
+        tcpHandshakeAckNano = 0L;
         tcpHandshakeNano = -1L;
         tcpHandshakeMs = -1.0;
 
@@ -1877,7 +1868,7 @@ private volatile long globalOutgoingIpMatchTime = 0L;
          * Reset TCP handshake timing state.
          */
         tcpHandshakeSynSentNano = 0L;
-        tcpHandshakeSynAckNano = 0L;
+        tcpHandshakeAckNano = 0L;
         tcpHandshakeNano = -1L;
         tcpHandshakeMs = -1.0;
 

@@ -147,8 +147,6 @@ class AppOpenUdpForwarder {
                     );
 
 
-
-
             if (dstPort == 53 && payload.length >= 12) {
 
                 int transactionId =
@@ -184,6 +182,154 @@ class AppOpenUdpForwarder {
 
 
                 /*
+                 * =====================================================
+                 * QUIC HANDSHAKE T0
+                 * =====================================================
+                 *
+                 * Capture the FIRST outgoing QUIC Initial packet.
+                 *
+                 * T0 = timestamp immediately before UDP send.
+                 */
+                if (!session.quicT0Captured
+                        && isQuicInitialPacket(
+                        payload,
+                        payload.length)) {
+
+                    /*
+                     * =====================================================
+                     * QUIC HANDSHAKE T0
+                     * =====================================================
+                     *
+                     * T0 = timestamp immediately before UDP send.
+                     */
+                    session.quicHandshakeT0Nano =
+                            System.nanoTime();
+
+                    session.quicT0Captured =
+                            true;
+
+
+                    int quicFirstByte =
+                            payload[0] & 0xFF;
+
+                    boolean quicLongHeader =
+                            (quicFirstByte & 0x80) != 0;
+
+                    boolean quicFixedBit =
+                            (quicFirstByte & 0x40) != 0;
+
+                    int quicPacketType =
+                            quicFirstByte & 0x30;
+
+
+                    String quicPacketTypeName;
+
+                    switch (quicPacketType) {
+
+                        case 0x00:
+                            quicPacketTypeName =
+                                    "Initial";
+                            break;
+
+                        case 0x10:
+                            quicPacketTypeName =
+                                    "0-RTT";
+                            break;
+
+                        case 0x20:
+                            quicPacketTypeName =
+                                    "Handshake";
+                            break;
+
+                        case 0x30:
+                            quicPacketTypeName =
+                                    "Retry";
+                            break;
+
+                        default:
+                            quicPacketTypeName =
+                                    "Unknown";
+                            break;
+                    }
+
+
+                    String quicT0Log =
+                            "========== QUIC HANDSHAKE T0 ==========\n"
+                                    + "Direction          : TX / DEVICE -> SERVER\n"
+                                    + "Protocol           : QUIC\n"
+                                    + "Source IP          : "
+                                    + ipStr(srcIp)
+                                    + "\n"
+                                    + "Destination IP     : "
+                                    + ipStr(dstIp)
+                                    + "\n"
+                                    + "Source Port        : "
+                                    + srcPort
+                                    + "\n"
+                                    + "Destination Port   : "
+                                    + dstPort
+                                    + "\n"
+                                    + "Packet Length      : "
+                                    + payload.length
+                                    + " bytes\n"
+                                    + "QUIC First Byte    : 0x"
+                                    + String.format(
+                                    Locale.US,
+                                    "%02X",
+                                    quicFirstByte
+                            )
+                                    + "\n"
+                                    + "Header Form        : "
+                                    + (quicLongHeader
+                                    ? "Long Header"
+                                    : "Short Header")
+                                    + "\n"
+                                    + "Fixed Bit          : "
+                                    + (quicFixedBit
+                                    ? "SET"
+                                    : "NOT SET")
+                                    + "\n"
+                                    + "Packet Type Bits   : 0x"
+                                    + String.format(
+                                    Locale.US,
+                                    "%02X",
+                                    quicPacketType
+                            )
+                                    + "\n"
+                                    + "Packet Type        : "
+                                    + quicPacketTypeName
+                                    + "\n"
+                                    + "QUIC T0 Nano       : "
+                                    + session.quicHandshakeT0Nano
+                                    + " ns\n"
+                                    + "QUIC T0 Wall Time  : "
+                                    + formatTimestamp(
+                                    System.currentTimeMillis()
+                            )
+                                    + "\n"
+                                    + "QUIC Payload       : "
+                                    + bytesToHex(
+                                    payload,
+                                    payload.length
+                            )
+                                    + "\n"
+                                    + "==========================================";
+
+
+                    Log.i(
+                            TAG,
+                            quicT0Log
+                    );
+
+
+                    dashboard.logToFile(
+                            TAG + quicT0Log
+                    );
+
+                }
+
+
+                /*
                  * Actual DNS packet transmission.
                  */
                 session.socket.send(out);
@@ -198,6 +344,35 @@ class AppOpenUdpForwarder {
                 );
 
             } else {
+
+                /*
+                 * =====================================================
+                 * QUIC HANDSHAKE T0
+                 * =====================================================
+                 *
+                 * Capture the FIRST outgoing QUIC Initial packet.
+                 *
+                 * T0 = timestamp immediately before UDP send.
+                 */
+                if (!session.quicT0Captured
+                        && isQuicInitialPacket(
+                        payload,
+                        payload.length)) {
+
+                    session.quicHandshakeT0Nano =
+                            System.nanoTime();
+
+                    session.quicT0Captured =
+                            true;
+
+                    dashboard.logToFile(
+                            TAG
+                                    + "QUIC HANDSHAKE T0 captured = "
+                                    + session.quicHandshakeT0Nano
+                                    + " ns"
+                    );
+                }
+
 
                 /*
                  * Normal UDP forwarding.
@@ -332,6 +507,92 @@ class AppOpenUdpForwarder {
                                     session.socket.receive(
                                             reply
                                     );
+
+
+                                    /*
+                                     * =====================================================
+                                     * QUIC HANDSHAKE T1
+                                     * =====================================================
+                                     *
+                                     * Capture the FIRST incoming QUIC Initial packet.
+                                     *
+                                     * T1 = timestamp when the QUIC Initial response
+                                     *      arrives from the server.
+                                     */
+                                    if (!session.quicT1Captured
+                                            && isQuicInitialPacket(
+                                            buf,
+                                            reply.getLength())) {
+
+                                        session.quicHandshakeT1Nano =
+                                                System.nanoTime();
+
+                                        session.quicT1Captured =
+                                                true;
+
+
+                                        if (session.quicHandshakeT0Nano > 0L) {
+
+                                            session.quicHandshakeNano =
+                                                    session.quicHandshakeT1Nano
+                                                            - session.quicHandshakeT0Nano;
+
+                                            session.quicHandshakeMs =
+                                                    session.quicHandshakeNano
+                                                            / 1_000_000.0;
+
+
+                                            dashboard.recordQuicHandshake(
+                                                    session.quicHandshakeMs
+                                            );
+
+
+                                            String quicHandshakeLog =
+                                                    "========== QUIC HANDSHAKE ==========\n"
+                                                            + "Direction          : TX -> RX\n"
+                                                            + "Protocol           : QUIC\n"
+                                                            + "Source IP          : "
+                                                            + ipStr(session.srcIp)
+                                                            + "\n"
+                                                            + "Destination IP     : "
+                                                            + ipStr(session.dstIp)
+                                                            + "\n"
+                                                            + "Source Port        : "
+                                                            + session.srcPort
+                                                            + "\n"
+                                                            + "Destination Port   : "
+                                                            + session.dstPort
+                                                            + "\n"
+                                                            + "QUIC T0            : "
+                                                            + session.quicHandshakeT0Nano
+                                                            + " ns\n"
+                                                            + "QUIC T1            : "
+                                                            + session.quicHandshakeT1Nano
+                                                            + " ns\n"
+                                                            + "QUIC Handshake     : "
+                                                            + String.format(
+                                                            Locale.US,
+                                                            "%.3f",
+                                                            session.quicHandshakeMs
+                                                    )
+                                                            + " ms\n"
+                                                            + "====================================";
+
+
+                                            Log.i(
+                                                    TAG,
+                                                    quicHandshakeLog
+                                            );
+
+
+                                            dashboard.logEvent(
+                                                    TAG + quicHandshakeLog,
+                                                    VpnEvent.Level.INFO,
+                                                    VpnEvent.Category.UDP
+                                            );
+                                        }
+                                    }
+
 
                                     session.touch();
 
@@ -670,6 +931,57 @@ class AppOpenUdpForwarder {
      *
      *     www.google.com
      */
+    /*
+     * =====================================================
+     * QUIC INITIAL PACKET DETECTION
+     * =====================================================
+     *
+     * QUIC Long Header:
+     *
+     * Bit 7 = Header Form
+     * Bit 6 = Fixed Bit
+     *
+     * Long Header + Initial packet:
+     * Packet Type bits = 00
+     *
+     * Therefore:
+     *
+     *   (firstByte & 0x80) != 0
+     *       -> Long Header
+     *
+     *   (firstByte & 0x40) != 0
+     *       -> Fixed Bit set
+     *
+     *   (firstByte & 0x30) == 0x00
+     *       -> Initial packet
+     */
+    private static boolean isQuicInitialPacket(
+            byte[] data,
+            int length) {
+
+        if (data == null || length < 1) {
+            return false;
+        }
+
+        int firstByte =
+                data[0] & 0xFF;
+
+        boolean longHeader =
+                (firstByte & 0x80) != 0;
+
+        boolean fixedBit =
+                (firstByte & 0x40) != 0;
+
+        int packetType =
+                firstByte & 0x30;
+
+        boolean initialPacket =
+                packetType == 0x00;
+
+        return longHeader
+                && fixedBit
+                && initialPacket;
+    }
     private static String parseDnsQueryName(
             byte[] dns) {
 
@@ -1205,7 +1517,24 @@ class AppOpenUdpForwarder {
         cleanupOldDnsTransactions();
 
         /*
-         * Search newest DNS transactions first.
+         * ============================================================
+         * FIRST MATCH ONLY
+         * ============================================================
+         *
+         * DNS transactions are inserted using addLast().
+         *
+         * Therefore normal iteration through completedDnsTransactions
+         * starts from the OLDEST / FIRST DNS transaction.
+         *
+         * Requirement:
+         *
+         *     FIRST DNS transaction
+         *             ↓
+         *     Answer IP == TCP destination IP
+         *             ↓
+         *     SELECT THIS TRANSACTION
+         *             ↓
+         *     IGNORE ALL LATER TRANSACTIONS
          */
         for (
                 DnsTransactionInfo transaction
@@ -1219,26 +1548,18 @@ class AppOpenUdpForwarder {
                 continue;
             }
 
-            /*
-             * Split all DNS Answer IPs.
-             */
             String[] answerIpArray =
                     transaction.answerIps.split(",");
 
             for (String answerIp : answerIpArray) {
 
-                /*
-                 * IMPORTANT:
-                 * normalizedAnswerIp must be declared INSIDE
-                 * this loop because it belongs to this answer IP.
-                 */
                 String normalizedAnswerIp =
                         answerIp.trim();
 
                 /*
-                 * =====================================================
-                 * DNS ANSWER IP == TCP RESOLVED / DESTINATION IP
-                 * =====================================================
+                 * ========================================================
+                 * FIRST MATCH
+                 * ========================================================
                  */
                 if (
                         normalizedResolvedIp.equals(
@@ -1247,9 +1568,7 @@ class AppOpenUdpForwarder {
                 ) {
 
                     /*
-                     * =================================================
-                     * MATCH FOUND
-                     * =================================================
+                     * DNS T0 of the FIRST matching transaction.
                      */
                     long matchedDnsT0 =
                             transaction.startTime;
@@ -1259,26 +1578,26 @@ class AppOpenUdpForwarder {
 
                     Log.d(
                             TAG,
-                            "DNS TRANSACTION MATCH FOUND"
-                                    + " -> Resolved IP = "
+                            "FIRST DNS TRANSACTION MATCHED"
+                                    + " | Resolved IP = "
                                     + normalizedResolvedIp
-                                    + ", Answer IP = "
+                                    + " | Answer IP = "
                                     + normalizedAnswerIp
-                                    + ", Transaction ID = 0x"
+                                    + " | Transaction ID = 0x"
                                     + String.format(
                                     Locale.US,
                                     "%04X",
                                     transaction.transactionId
                             )
-                                    + ", DNS T0 = "
+                                    + " | DNS T0 = "
                                     + matchedDnsT0
                                     + " ns"
                     );
 
                     /*
-                     * =================================================
-                     * DNS UI UPDATE
-                     * =================================================
+                     * ====================================================
+                     * UPDATE DNS UI
+                     * ====================================================
                      */
                     VpnEventRepository
                             .getInstance()
@@ -1289,12 +1608,12 @@ class AppOpenUdpForwarder {
                             );
 
                     /*
-                     * =================================================
-                     * EXISTING EVENT LOG
-                     * =================================================
+                     * ====================================================
+                     * LOG FIRST MATCH
+                     * ====================================================
                      */
                     String matchLog =
-                            "========== [DNS -> TCP MATCH] ==========\n"
+                            "========== [FIRST DNS -> TCP MATCH] ==========\n"
                                     + "Resolved IP        : "
                                     + normalizedResolvedIp
                                     + "\n"
@@ -1311,14 +1630,17 @@ class AppOpenUdpForwarder {
                                     + "Query Type         : "
                                     + transaction.queryType
                                     + "\n"
-                                    + "DNS Server         : "
-                                    + transaction.dnsServerIp
-                                    + "\n"
                                     + "Answer IPs         : "
                                     + transaction.answerIps
                                     + "\n"
+                                    + "Matched Answer IP  : "
+                                    + normalizedAnswerIp
+                                    + "\n"
                                     + "DNS T0             : "
                                     + matchedDnsT0
+                                    + " ns\n"
+                                    + "DNS T1             : "
+                                    + matchedDnsT1
                                     + " ns\n"
                                     + "DNS Lookup Time    : "
                                     + String.format(
@@ -1327,7 +1649,8 @@ class AppOpenUdpForwarder {
                                     transaction.dnsLookupTimeMs
                             )
                                     + " ms\n"
-                                    + "========================================";
+                                    + "Selection Rule     : FIRST MATCH ONLY\n"
+                                    + "==============================================";
 
                     VpnEventRepository
                             .getInstance()
@@ -1338,75 +1661,46 @@ class AppOpenUdpForwarder {
                             );
 
                     /*
-                     * =================================================
-                     * DETAILED FILE LOG
-                     * Same DNS ANSWER IP MATCHED RESOLVED IP
-                     * format as Web UdpForwarder
-                     * =================================================
-                     */
-                    VpnEventRepository
-                            .getInstance()
-                            .logToFile(
-                                    TAG
-                                            + "DNS ANSWER IP MATCHED RESOLVED IP\n"
-                                            + "DNS Transaction ID : 0x"
-                                            + String.format(
-                                            Locale.US,
-                                            "%04X",
-                                            transaction.transactionId
-                                    )
-                                            + "\n"
-                                            + "Query Name         : "
-                                            + transaction.queryName
-                                            + "\n"
-                                            + "Query Type         : "
-                                            + transaction.queryType
-                                            + "\n"
-                                            + "Answer IP(s)       : "
-                                            + transaction.answerIps
-                                            + "\n"
-                                            + "Matched Answer IP  : "
-                                            + normalizedAnswerIp
-                                            + "\n"
-                                            + "Resolved IP        : "
-                                            + normalizedResolvedIp
-                                            + "\n"
-                                            + "DNS Server IP      : "
-                                            + transaction.dnsServerIp
-                                            + "\n"
-                                            + "DNS T0             : "
-                                            + matchedDnsT0
-                                            + " ns\n"
-                                            + "DNS T1             : "
-                                            + matchedDnsT1
-                                            + " ns\n"
-                                            + "DNS Resolution     : "
-                                            + String.format(
-                                            Locale.US,
-                                            "%.3f",
-                                            transaction.dnsLookupTimeMs
-                                    )
-                                            + " ms\n"
-                                            + "UI Update          : YES"
-                            );
-
-                    /*
-                     * Remove the transaction so that the same DNS
-                     * transaction is not reused for another TCP connection.
+                     * ====================================================
+                     * REMOVE THE SELECTED TRANSACTION
+                     * ====================================================
+                     *
+                     * This prevents this DNS transaction from being
+                     * selected again.
                      */
                     completedDnsTransactions.remove(
                             transaction
                     );
 
                     /*
-                     * Return DNS T0 for TTFB calculation.
+                     * ====================================================
+                     * CRITICAL
+                     * ====================================================
+                     *
+                     * RETURN IMMEDIATELY.
+                     *
+                     * This means:
+                     *
+                     * FIRST MATCH → SELECT
+                     * ALL LATER MATCHES → NEVER CHECKED
                      */
-                    return transaction.startTime;
+                    return matchedDnsT0;
                 }
             }
         }
 
+        /*
+         * No matching DNS transaction exists.
+         */
+        VpnEventRepository.getInstance().logToFile(
+                TAG+
+                "NO DNS TRANSACTION MATCH FOUND"
+                        + " | Resolved IP = "
+                        + normalizedResolvedIp
+        );
+
         return 0L;
+
     }
 
 
@@ -1712,7 +2006,6 @@ class AppOpenUdpForwarder {
     private static class Session {
 
         final DatagramSocket socket;
-
         final InetAddress destAddress;
 
         final byte[] srcIp;
@@ -1723,16 +2016,39 @@ class AppOpenUdpForwarder {
 
         volatile long lastActivity;
 
-
         /*
-         * DNS requests currently waiting for a response.
+         * DNS transaction tracking.
          *
-         * Key:
-         *
-         *     DNS Transaction ID
+         * Key   = DNS Transaction ID
+         * Value = DNS request information
          */
         final Map<Integer, DnsRequestInfo> dnsRequests =
                 new ConcurrentHashMap<>();
+
+        /*
+         * =====================================================
+         * QUIC HANDSHAKE TIMING
+         * =====================================================
+         *
+         * QUIC T0 = first outgoing QUIC Initial packet
+         * QUIC T1 = first incoming QUIC Initial packet
+         *
+         * QUIC Handshake Time = T1 - T0
+         *
+         * Only the first packet in each direction is used.
+         */
+
+        volatile long quicHandshakeT0Nano = 0L;
+
+        volatile long quicHandshakeT1Nano = 0L;
+
+        volatile long quicHandshakeNano = -1L;
+
+        volatile double quicHandshakeMs = -1.0;
+
+        boolean quicT0Captured = false;
+
+        boolean quicT1Captured = false;
 
 
         Session(
@@ -1743,32 +2059,57 @@ class AppOpenUdpForwarder {
                 byte[] dstIp,
                 int dstPort) {
 
-            this.socket =
-                    socket;
+            this.socket = socket;
+            this.destAddress = destAddress;
 
-            this.destAddress =
-                    destAddress;
+            this.srcIp = srcIp;
+            this.srcPort = srcPort;
 
-            this.srcIp =
-                    srcIp;
-
-            this.srcPort =
-                    srcPort;
-
-            this.dstIp =
-                    dstIp;
-
-            this.dstPort =
-                    dstPort;
+            this.dstIp = dstIp;
+            this.dstPort = dstPort;
 
             touch();
         }
 
 
         void touch() {
-
-            lastActivity =
-                    System.currentTimeMillis();
+            lastActivity = System.currentTimeMillis();
         }
+    }
+    private static String bytesToHex(
+            byte[] data,
+            int length) {
+
+        if (data == null || length <= 0) {
+            return "";
+        }
+
+        int safeLength =
+                Math.min(
+                        length,
+                        data.length
+                );
+
+        StringBuilder sb =
+                new StringBuilder(
+                        safeLength * 3
+                );
+
+        for (int i = 0; i < safeLength; i++) {
+
+            if (i > 0) {
+                sb.append(' ');
+            }
+
+            sb.append(
+                    String.format(
+                            Locale.US,
+                            "%02X",
+                            data[i] & 0xFF
+                    )
+            );
+        }
+
+        return sb.toString();
     }
 }

@@ -1,6 +1,5 @@
 package com.example.vpntest.appOpen;
 
-import android.icu.text.IDNA;
 import android.net.Network;
 import android.net.VpnService;
 import android.util.Log;
@@ -89,19 +88,67 @@ class AppOpenTcpForwarder {
             totalPacketsReceived =
             new java.util.concurrent.atomic.AtomicInteger(0);
 
+
+    /*
+     * ============================================================
+     * TCP TRANSMISSION / RETRANSMISSION TRACKING
+     * ============================================================
+     *
+     * SAME LOGIC AS NORMAL TcpForwarder.
+     *
+     * Each TCP session maintains the sequence ranges that have
+     * already been successfully transmitted to the real server.
+     *
+     * Example:
+     *
+     * First packet:
+     * SEQ = 1000
+     * LEN = 500
+     * Range = 1000 - 1500
+     *
+     * Second packet:
+     * SEQ = 1500
+     * LEN = 500
+     * Range = 1500 - 2000
+     *
+     * If SEQ = 1000 and LEN = 500 comes again,
+     * it is detected as a retransmission.
+     */
+    private final java.util.concurrent.atomic.AtomicLong
+            totalTcpTransmissions =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong
+            totalTcpTransmissionBytes =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong
+            totalTcpRetransmissions =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+    private final java.util.concurrent.atomic.AtomicLong
+            totalTcpRetransmissionBytes =
+            new java.util.concurrent.atomic.AtomicLong(0);
+
+
     /*
      * =========================================================
      * TCP HANDSHAKE TIMING
      * =========================================================
+     *
+     * T0 = First TX SYN (0x02)
+     * T1 = First TX ACK (0x10)
+     *
+     * TCP Handshake Time = T1 - T0
      */
 
     private volatile long tcpHandshakeSynSentNano = 0L;
 
-    private volatile long tcpHandshakeSynAckReceivedNano = 0L;
+    private volatile long tcpHandshakeAckNano = 0L;
 
     private volatile long tcpHandshakeNano = -1L;
 
-    private volatile long tcpHandshakeMs = -1L;
+    private volatile double tcpHandshakeMs = -1.0;
 
     private final java.util.concurrent.atomic.AtomicBoolean
             tcpHandshakeSynCaptured =
@@ -134,6 +181,42 @@ class AppOpenTcpForwarder {
 
     private volatile long globalDnsT0Nano = 0L;
 
+    /*
+     * =========================================================
+     * TLS HANDSHAKE TIMING
+     * =========================================================
+     *
+     * T0 = FIRST transmitted TLS record with
+     *      ContentType 0x16 (Handshake)
+     *
+     * T1 = FIRST received TLS record with
+     *      ContentType 0x17 (Application Data)
+     *
+     * TLS Handshake Time = T1 - T0
+     */
+
+
+    /*
+     * =========================================================
+     * T0 = FIRST TX TLS 0x16
+     * =========================================================
+     */
+
+    private volatile long globalTlsRecordType16T0Nano = 0L;
+
+    private volatile long globalTlsRecordType16T0WallTime = 0L;
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            tlsRecordType16Captured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+
+    /*
+     * =========================================================
+     * T1 = FIRST RX TLS 0x17
+     * =========================================================
+     */
+
     private volatile long globalTlsRecordType17T1Nano = 0L;
 
     private volatile long globalTlsRecordType17T1WallTime = 0L;
@@ -141,6 +224,24 @@ class AppOpenTcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean
             tlsRecordType17Captured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+
+
+    /*
+     * =========================================================
+     * TLS HANDSHAKE RESULT
+     * =========================================================
+     */
+
+    private volatile long globalTlsHandshakeNano = -1L;
+
+    private volatile double globalTlsHandshakeMs = -1.0;
+
+
+    /*
+     * =========================================================
+     * EXISTING TTFB
+     * =========================================================
+     */
 
     private volatile long globalTtfbMs = -1L;
 
@@ -490,7 +591,12 @@ class AppOpenTcpForwarder {
         if (flags == 0x02) {
 
             /*
-             * Capture first transmitted SYN timestamp.
+             * =========================================================
+             * TCP HANDSHAKE T0 = TX SYN
+             * =========================================================
+             *
+             * T0 = First outgoing SYN
+             * TCP Flags = 0x02
              */
 
             if (tcpHandshakeSynCaptured
@@ -503,8 +609,38 @@ class AppOpenTcpForwarder {
                         System.currentTimeMillis();
 
                 String txSynLog =
-                        "========== TX SYN ==========\n"
-                                + "Flags              : 0x02\n"
+                        "========== TCP HANDSHAKE | TX SYN ==========\n"
+                                + "Source IP          : "
+                                + ipStr(srcIp)
+                                + "\n"
+                                + "Destination IP     : "
+                                + ipStr(dstIp)
+                                + "\n"
+                                + "Source Port        : "
+                                + srcPort
+                                + "\n"
+                                + "Destination Port   : "
+                                + dstPort
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "ACK Number         : "
+                                + ack
+                                + "\n"
+                                + "TCP Flags          : 0x"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        )
+                                + "\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes
+                                + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen
+                                + " bytes\n"
                                 + "Handshake T0       : "
                                 + tcpHandshakeSynSentNano
                                 + " ns\n"
@@ -513,7 +649,7 @@ class AppOpenTcpForwarder {
                                 synSentWallTime
                         )
                                 + "\n"
-                                + "================================";
+                                + "==============================================";
 
                 Log.i(
                         TAG,
@@ -615,36 +751,155 @@ class AppOpenTcpForwarder {
 
 
         /*
-         * =========================================================
-         * TCP HANDSHAKE COMPLETE
-         * =========================================================
+         * ============================================================
+         * TCP HANDSHAKE T1 = TX ACK
+         * ============================================================
+         *
+         * T0 = First TX SYN
+         *      Flags = 0x02
+         *
+         * T1 = First TX ACK
+         *      Flags = 0x10
+         *
+         * TCP Handshake Time = T1 - T0
+         *
+         * IMPORTANT:
+         * SYN-ACK 0x12 is NOT T1.
          */
 
         if (session.state ==
                 TcpSession.State.SYN_RCVD
                 && flags == 0x10) {
 
-            String txAckLog =
-                    "========== TX ACK ==========\n"
-                            + "Flags = 0x10\n"
-                            + "================================";
+            /*
+             * ========================================================
+             * Capture first TX ACK as T1
+             * ========================================================
+             */
 
-            Log.i(
-                    TAG,
-                    txAckLog
-            );
+            if (tcpHandshakeSynCaptured.get()
+                    && tcpHandshakeCaptured.compareAndSet(
+                    false,
+                    true
+            )) {
 
-            dashboard.logToFile(
-                    TAG + txAckLog
-            );
+                /*
+                 * T1 = TX ACK timestamp
+                 */
+                tcpHandshakeAckNano =
+                        System.nanoTime();
+
+
+                /*
+                 * ====================================================
+                 * Calculate TCP handshake time
+                 * ====================================================
+                 */
+
+                if (tcpHandshakeSynSentNano > 0L) {
+
+                    tcpHandshakeNano =
+                            tcpHandshakeAckNano
+                                    - tcpHandshakeSynSentNano;
+
+                    tcpHandshakeMs =
+                            tcpHandshakeNano
+                                    / 1_000_000.0;
+
+
+                    /*
+                     * Send handshake value to dashboard
+                     */
+                    dashboard.recordTcpHandshake(
+                            tcpHandshakeNano
+                    );
+                }
+
+
+                /*
+                 * ====================================================
+                 * T1 LOG
+                 * ====================================================
+                 */
+
+                long ackWallTime =
+                        System.currentTimeMillis();
+
+                String txAckLog =
+                        "========== TCP HANDSHAKE | TX ACK ==========\n"
+                                + "Source IP          : "
+                                + ipStr(srcIp)
+                                + "\n"
+                                + "Destination IP     : "
+                                + ipStr(dstIp)
+                                + "\n"
+                                + "Source Port        : "
+                                + srcPort
+                                + "\n"
+                                + "Destination Port   : "
+                                + dstPort
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "ACK Number         : "
+                                + ack
+                                + "\n"
+                                + "TCP Flags          : 0x10\n"
+                                + "Handshake T0       : "
+                                + tcpHandshakeSynSentNano
+                                + " ns\n"
+                                + "Handshake T1       : "
+                                + tcpHandshakeAckNano
+                                + " ns\n"
+                                + "T1 - T0            : "
+                                + tcpHandshakeNano
+                                + " ns\n"
+                                + "Handshake Time     : "
+                                + String.format(
+                                java.util.Locale.US,
+                                "%.3f",
+                                tcpHandshakeMs
+                        )
+                                + " ms\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(
+                                ackWallTime
+                        )
+                                + "\n"
+                                + "==============================================";
+
+
+                Log.i(
+                        TAG,
+                        txAckLog
+                );
+
+                dashboard.logToFile(
+                        TAG + txAckLog
+                );
+            }
+
+
+            /*
+             * ========================================================
+             * TCP HANDSHAKE COMPLETE
+             * ========================================================
+             */
 
             Log.d(
                     TAG,
                     "TCP Handshake completed."
             );
 
+            dashboard.logToFile(
+                    TAG + "TCP Handshake completed."
+            );
+
+
             session.state =
                     TcpSession.State.ESTABLISHED;
+
 
             session.startRealSocketReaderThread(
                     this,
@@ -686,6 +941,256 @@ class AppOpenTcpForwarder {
                     data,
                     0,
                     payloadLen
+            );
+
+
+            /*
+             * ============================================================
+             * TCP TRANSMISSION / RETRANSMISSION DETECTION
+             * ============================================================
+             *
+             * SAME LOGIC AS NORMAL TcpForwarder.
+             *
+             * Current packet:
+             *
+             * SEQ       = seq
+             * PAYLOAD   = payloadLen
+             * END SEQ   = seq + payloadLen
+             *
+             * Compare this sequence range with previously transmitted
+             * ranges of the SAME TCP session.
+             */
+
+            long currentSeqStart =
+                    seq;
+
+            long currentSeqEnd =
+                    seq + payloadLen;
+
+            TcpSegmentRecord overlappingSegment =
+                    null;
+
+            long retransmittedBytes =
+                    0L;
+
+
+            /*
+             * Check whether any part of this sequence range was already
+             * transmitted.
+             */
+
+            for (TcpSegmentRecord oldSegment :
+                    session.transmittedSegments.values()) {
+
+                long overlapStart =
+                        Math.max(
+                                currentSeqStart,
+                                oldSegment.seqStart
+                        );
+
+                long overlapEnd =
+                        Math.min(
+                                currentSeqEnd,
+                                oldSegment.seqEnd
+                        );
+
+
+                /*
+                 * If overlapStart < overlapEnd,
+                 * some bytes in the current packet were already sent.
+                 */
+
+                if (overlapStart < overlapEnd) {
+
+                    long overlapBytes =
+                            overlapEnd - overlapStart;
+
+                    if (overlapBytes > retransmittedBytes) {
+
+                        retransmittedBytes =
+                                overlapBytes;
+
+                        overlappingSegment =
+                                oldSegment;
+                    }
+                }
+            }
+
+
+            boolean isRetransmission =
+                    retransmittedBytes > 0;
+
+
+            /*
+             * ============================================================
+             * TRANSMISSION / RETRANSMISSION LOG
+             * ============================================================
+             */
+
+            long packetTimestampNano =
+                    System.nanoTime();
+
+            long packetTimestampWall =
+                    System.currentTimeMillis();
+
+
+            String transmissionType =
+                    isRetransmission
+                            ? "RETRANSMISSION"
+                            : "TRANSMISSION";
+
+
+            if (!isRetransmission) {
+
+                Log.i(
+                        TAG,
+                        "TCP Retransmission Count: 0"
+                );
+
+                dashboard.logToFile(
+                        TAG
+                                + "TCP Retransmission Count: 0"
+                );
+            }
+
+
+            if (isRetransmission) {
+
+                long retransmissionCount =
+                        totalTcpRetransmissions
+                                .incrementAndGet();
+
+                long retransmissionByteCount =
+                        totalTcpRetransmissionBytes
+                                .addAndGet(
+                                        retransmittedBytes
+                                );
+
+
+                String retransmissionLog =
+                        "========== TCP RETRANSMISSION COUNT AND DATA ==========\n"
+                                + "Direction          : TX / DEVICE -> SERVER\n"
+                                + "Protocol           : TCP\n"
+                                + "Connection Key     : "
+                                + key
+                                + "\n"
+                                + "Host Name          : "
+                                + (
+                                session.serverName != null
+                                        ? session.serverName
+                                        : "Unknown"
+                        )
+                                + "\n"
+                                + "Server IP          : "
+                                + (
+                                session.serverIp != null
+                                        ? session.serverIp
+                                        : ipStr(dstIp)
+                        )
+                                + "\n"
+                                + "Source IP          : "
+                                + ipStr(srcIp)
+                                + "\n"
+                                + "Destination IP     : "
+                                + ipStr(dstIp)
+                                + "\n"
+                                + "Source Port        : "
+                                + srcPort
+                                + "\n"
+                                + "Destination Port   : "
+                                + dstPort
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "Sequence End       : "
+                                + currentSeqEnd
+                                + "\n"
+                                + "ACK Number         : "
+                                + ack
+                                + "\n"
+                                + "TCP Flags          : 0x"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        )
+                                + "\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes
+                                + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen
+                                + " bytes\n"
+                                + "Previous SEQ Start : "
+                                + overlappingSegment.seqStart
+                                + "\n"
+                                + "Previous SEQ End   : "
+                                + overlappingSegment.seqEnd
+                                + "\n"
+                                + "Retransmitted Bytes: "
+                                + retransmittedBytes
+                                + " bytes\n"
+                                + "Retransmission Count : "
+                                + retransmissionCount
+                                + "\n"
+                                + "Total Retrans Bytes: "
+                                + retransmissionByteCount
+                                + " bytes\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(
+                                packetTimestampWall
+                        )
+                                + "\n"
+                                + "Timestamp Nano     : "
+                                + packetTimestampNano
+                                + " ns"
+                                + "\n"
+                                + "==============================================";
+
+
+                Log.w(
+                        TAG,
+                        retransmissionLog
+                );
+
+                dashboard.logToFile(
+                        TAG + retransmissionLog
+                );
+            }
+
+
+            /*
+             * ============================================================
+             * RECORD TCP TRANSMISSION
+             * ============================================================
+             *
+             * SAME LOGIC AS NORMAL TcpForwarder.
+             */
+
+            long transmissionCount =
+                    totalTcpTransmissions
+                            .incrementAndGet();
+
+            long transmissionByteCount =
+                    totalTcpTransmissionBytes
+                            .addAndGet(
+                                    payloadLen
+                            );
+
+
+            TcpSegmentRecord segmentRecord =
+                    new TcpSegmentRecord(
+                            currentSeqStart,
+                            currentSeqEnd,
+                            payloadLen,
+                            packetTimestampNano
+                    );
+
+
+            session.transmittedSegments.put(
+                    currentSeqStart,
+                    segmentRecord
             );
 
 
@@ -733,8 +1238,19 @@ class AppOpenTcpForwarder {
 
 
                 /*
-                 * Find the exact DNS transaction whose
+                 * Find the FIRST DNS transaction whose
                  * Answer IP matches this TCP destination IP.
+                 *
+                 * Selection rule:
+                 *
+                 *     DNS transactions are checked from oldest to newest.
+                 *
+                 *     FIRST matching DNS transaction
+                 *             ↓
+                 *         DNS T0
+                 *
+                 *     All later matching DNS transactions
+                 *     are ignored for this TTFB request.
                  */
 
                 long matchedDnsT0 =
@@ -745,9 +1261,8 @@ class AppOpenTcpForwarder {
 
 
                 /*
-                 * IMPORTANT:
-                 *
-                 * Do NOT use latest DNS T0 when no match exists.
+                 * If no matching DNS transaction exists,
+                 * DNS T0 remains unavailable.
                  */
 
                 globalDnsT0Nano =
@@ -767,6 +1282,14 @@ class AppOpenTcpForwarder {
 
                 globalTtfbRequestConnectionKey =
                         key;
+
+
+                /*
+                 * =====================================================
+                 * EXISTING APP OPEN TTFB CODE CONTINUES HERE
+                 * =====================================================
+                 */
+
 
 
                 String correlationLog =
@@ -942,6 +1465,133 @@ class AppOpenTcpForwarder {
                         break;
                 }
 
+
+                /*
+                 * =====================================================
+                 * TLS HANDSHAKE T0
+                 * =====================================================
+                 *
+                 * T0 = FIRST transmitted TLS record
+                 *      with ContentType 0x16.
+                 *
+                 * IMPORTANT:
+                 * Only the FIRST 0x16 is used as T0.
+                 */
+
+                if (tlsRecordType == 0x16
+                        && tlsRecordType16Captured.compareAndSet(
+                        false,
+                        true
+                )) {
+
+                    globalTlsRecordType16T0Nano =
+                            System.nanoTime();
+
+                    globalTlsRecordType16T0WallTime =
+                            System.currentTimeMillis();
+
+
+                    String tlsT0Log =
+                            "========== TLS HANDSHAKE T0 | TX 0x16 ==========\n"
+                                    + "Direction          : TX / SENT\n"
+                                    + "TLS Record Type    : 0x16\n"
+                                    + "ContentType        : 0x16\n"
+                                    + "Record Type        : Handshake\n"
+                                    + "\n"
+                                    + "Source IP          : "
+                                    + ipStr(srcIp)
+                                    + "\n"
+                                    + "Destination IP     : "
+                                    + ipStr(dstIp)
+                                    + "\n"
+                                    + "Source Port        : "
+                                    + srcPort
+                                    + "\n"
+                                    + "Destination Port   : "
+                                    + dstPort
+                                    + "\n"
+                                    + "Sequence Number    : "
+                                    + seq
+                                    + "\n"
+                                    + "ACK Number         : "
+                                    + ack
+                                    + "\n"
+                                    + "TCP Flags          : 0x"
+                                    + String.format(
+                                    java.util.Locale.US,
+                                    "%02X",
+                                    flags
+                            )
+                                    + "\n"
+                                    + "TCP Header Length  : "
+                                    + dataOffsetBytes
+                                    + " bytes\n"
+                                    + "Payload Length     : "
+                                    + payloadLen
+                                    + " bytes\n"
+                                    + "\n"
+                                    + "TLS Version Major  : 0x"
+                                    + String.format(
+                                    java.util.Locale.US,
+                                    "%02X",
+                                    data[1] & 0xFF
+                            )
+                                    + "\n"
+                                    + "TLS Version Minor  : 0x"
+                                    + String.format(
+                                    java.util.Locale.US,
+                                    "%02X",
+                                    data[2] & 0xFF
+                            )
+                                    + "\n"
+                                    + "TLS Record Length  : "
+                                    + (
+                                    ((data[3] & 0xFF) << 8)
+                                            | (data[4] & 0xFF)
+                            )
+                                    + " bytes\n"
+                                    + "TLS Header Bytes   : "
+                                    + String.format(
+                                    java.util.Locale.US,
+                                    "%02X %02X %02X %02X %02X",
+                                    data[0] & 0xFF,
+                                    data[1] & 0xFF,
+                                    data[2] & 0xFF,
+                                    data[3] & 0xFF,
+                                    data[4] & 0xFF
+                            )
+                                    + "\n"
+                                    + "\n"
+                                    + "T0 Nano            : "
+                                    + globalTlsRecordType16T0Nano
+                                    + " ns\n"
+                                    + "T0 Timestamp       : "
+                                    + formatTimestamp(
+                                    globalTlsRecordType16T0WallTime
+                            )
+                                    + "\n"
+                                    + "Connection Key     : "
+                                    + key
+                                    + "\n"
+                                    + "=================================================";
+
+
+                    Log.i(
+                            TAG,
+                            tlsT0Log
+                    );
+
+                    dashboard.logToFile(
+                            TAG + tlsT0Log
+                    );
+                }
+
+
+                /*
+                 * =====================================================
+                 * EXISTING TLS TX LOG
+                 * =====================================================
+                 */
 
                 String tlsSentLog =
                         "========== TLS RECORD [TX/SENT] ==========\n"
@@ -1537,81 +2187,24 @@ class AppOpenTcpForwarder {
                         | PacketUtils.TCP_ACK;
 
 
-        if (flags == 0x12) {
-
-            /*
-             * Capture SYN + ACK timestamp.
-             */
-
-            tcpHandshakeSynAckReceivedNano =
-                    System.nanoTime();
-
-
-            /*
-             * Calculate TCP handshake.
-             */
-
-            if (tcpHandshakeSynSentNano > 0) {
-
-                tcpHandshakeNano =
-                        tcpHandshakeSynAckReceivedNano
-                                - tcpHandshakeSynSentNano;
-
-                tcpHandshakeMs =
-                        (long)
-                                (
-                                        tcpHandshakeNano
-                                                / 1_000_000.0
-                                );
-
-
-                dashboard.recordTcpHandshake(
-                        tcpHandshakeNano
-                );
-            }
-
-
-            long synAckReceivedWallTime =
-                    System.currentTimeMillis();
-
-
-            String rxSynAckLog =
-                    "========== RX SYN + ACK ==========\n"
-                            + "Flags              : 0x12\n"
-                            + "Handshake T0       : "
-                            + tcpHandshakeSynSentNano
-                            + " ns\n"
-                            + "Handshake T1       : "
-                            + tcpHandshakeSynAckReceivedNano
-                            + " ns\n"
-                            + "T1 - T0            : "
-                            + tcpHandshakeSynAckReceivedNano
-                            + " - "
-                            + tcpHandshakeSynSentNano
-                            + " = "
-                            + tcpHandshakeNano
-                            + " ns\n"
-                            + "Handshake Time     : "
-                            + tcpHandshakeMs
-                            + " ms\n"
-                            + "Timestamp          : "
-                            + formatTimestamp(
-                            synAckReceivedWallTime
-                    )
-                            + "\n"
-                            + "========================================";
-
-
-            Log.i(
-                    TAG,
-                    rxSynAckLog
-            );
-
-            dashboard.logToFile(
-                    TAG + rxSynAckLog
-            );
-        }
-
+        /*
+         * =========================================================
+         * SEND SYN-ACK
+         * =========================================================
+         *
+         * IMPORTANT:
+         *
+         * SYN-ACK = 0x12
+         *
+         * This packet is NOT used as TCP handshake T1.
+         *
+         * TCP handshake timing is measured later using:
+         *
+         * T0 = TX SYN 0x02
+         * T1 = TX ACK 0x10
+         *
+         * Therefore there is NO tcpHandshake calculation here.
+         */
 
         writeTcpPacket(
                 s.dstIp,
@@ -2205,6 +2798,27 @@ class AppOpenTcpForwarder {
                 null;
 
 
+        /*
+         * Reset TCP transmission/retransmission counters.
+         */
+
+        totalTcpTransmissions.set(
+                0
+        );
+
+        totalTcpTransmissionBytes.set(
+                0
+        );
+
+        totalTcpRetransmissions.set(
+                0
+        );
+
+        totalTcpRetransmissionBytes.set(
+                0
+        );
+
+
         firstOutgoingIpMatchLogged.set(
                 false
         );
@@ -2281,6 +2895,49 @@ class AppOpenTcpForwarder {
      * =========================================================
      */
 
+    /*
+     * ============================================================
+     * TCP DATA SEGMENT RECORD
+     * ============================================================
+     *
+     * SAME LOGIC AS NORMAL TcpForwarder.
+     *
+     * Stores the sequence range of a successfully transmitted
+     * TCP data segment.
+     */
+    static class TcpSegmentRecord {
+
+        final long seqStart;
+
+        final long seqEnd;
+
+        final int payloadLength;
+
+        final long timestampNano;
+
+
+        TcpSegmentRecord(
+                long seqStart,
+                long seqEnd,
+                int payloadLength,
+                long timestampNano
+        ) {
+
+            this.seqStart =
+                    seqStart;
+
+            this.seqEnd =
+                    seqEnd;
+
+            this.payloadLength =
+                    payloadLength;
+
+            this.timestampNano =
+                    timestampNano;
+        }
+    }
+
+
     static class TcpSession {
 
         enum State {
@@ -2326,6 +2983,21 @@ class AppOpenTcpForwarder {
 
 
         /*
+         * ============================================================
+         * TCP TRANSMITTED SEGMENTS
+         * ============================================================
+         *
+         * SAME LOGIC AS NORMAL TcpForwarder.
+         *
+         * Stores previously transmitted sequence ranges for THIS
+         * TCP session.
+         */
+        final Map<Long, TcpSegmentRecord>
+                transmittedSegments =
+                new ConcurrentHashMap<>();
+
+
+        /*
          * Session-level fields retained for compatibility.
          */
 
@@ -2340,7 +3012,6 @@ class AppOpenTcpForwarder {
         final java.util.concurrent.atomic.AtomicBoolean
                 synAckSent =
                 new java.util.concurrent.atomic.AtomicBoolean(false);
-
 
         volatile long requestSentTime =
                 0L;
@@ -2612,10 +3283,24 @@ class AppOpenTcpForwarder {
                                              *
                                              * IMPORTANT:
                                              *
-                                             * This is the ONLY T1 used for TTFB.
+                                             * T1 = FIRST received TLS record
+                                             *      with ContentType 0x17
                                              *
-                                             * No IC_IP_MATCH.
-                                             * No OG_IP_MATCH calculation.
+                                             * This T1 is used for:
+                                             *
+                                             * 1. TLS Handshake Time
+                                             * 2. TTFB
+                                             *
+                                             * TLS Handshake:
+                                             *
+                                             * T0 = first TX TLS 0x16
+                                             * T1 = first RX TLS 0x17
+                                             *
+                                             * TLS Handshake Time = T1 - T0
+                                             *
+                                             * TTFB remains separate:
+                                             *
+                                             * TTFB = TLS 0x17 T1 - matched DNS T0
                                              */
 
                                             if (
@@ -2638,19 +3323,30 @@ class AppOpenTcpForwarder {
                                                                 )
                                                 ) {
 
+                                                    /*
+                                                     * =================================================
+                                                     * CAPTURE T1
+                                                     * =================================================
+                                                     */
 
                                                     forwarder
                                                             .globalTlsRecordType17T1Nano =
                                                             System.nanoTime();
-
 
                                                     forwarder
                                                             .globalTlsRecordType17T1WallTime =
                                                             System.currentTimeMillis();
 
 
+                                                    /*
+                                                     * =================================================
+                                                     * COMPLETE T1 PACKET LOG
+                                                     * =================================================
+                                                     */
+
                                                     String tlsT1Log =
                                                             "========== T1_TLS_RECORD_0x17 ==========\n"
+                                                                    + "Direction        : RX / RECEIVED\n"
                                                                     + "TLS Record Type  : 0x17\n"
                                                                     + "Record Type      : Application Data\n"
                                                                     + "Received Bytes   : "
@@ -2695,8 +3391,133 @@ class AppOpenTcpForwarder {
 
                                                     /*
                                                      * =================================================
-                                                     * TTFB
+                                                     * TLS HANDSHAKE TIME
                                                      * =================================================
+                                                     *
+                                                     * T0 = FIRST TX TLS 0x16
+                                                     * T1 = FIRST RX TLS 0x17
+                                                     *
+                                                     * TLS Handshake Time = T1 - T0
+                                                     */
+
+                                                    if (
+                                                            forwarder
+                                                                    .globalTlsRecordType16T0Nano
+                                                                    > 0L
+                                                    ) {
+
+                                                        forwarder.globalTlsHandshakeNano =
+                                                                forwarder
+                                                                        .globalTlsRecordType17T1Nano
+                                                                        -
+                                                                        forwarder
+                                                                                .globalTlsRecordType16T0Nano;
+
+
+                                                        forwarder.globalTlsHandshakeMs =
+                                                                forwarder
+                                                                        .globalTlsHandshakeNano
+                                                                        / 1_000_000.0;
+
+
+                                                        /*
+                                                         * Send TLS handshake metric to dashboard.
+                                                         */
+
+                                                        forwarder.dashboard.recordTlsHandshake(
+                                                                forwarder.globalTlsHandshakeMs
+                                                        );
+
+
+                                                        /*
+                                                         * =================================================
+                                                         * TLS HANDSHAKE CALCULATION LOG
+                                                         * =================================================
+                                                         */
+
+                                                        String tlsHandshakeLog =
+                                                                "========== TLS HANDSHAKE TIME ==========\n"
+                                                                        + "\n"
+                                                                        + "T0 PACKET\n"
+                                                                        + "------------------------------------------\n"
+                                                                        + "Direction        : TX / SENT\n"
+                                                                        + "TLS Record Type  : 0x16\n"
+                                                                        + "Record Type      : Handshake\n"
+                                                                        + "T0 Nano          : "
+                                                                        + forwarder
+                                                                        .globalTlsRecordType16T0Nano
+                                                                        + " ns\n"
+                                                                        + "T0 Timestamp     : "
+                                                                        + forwarder
+                                                                        .formatTimestamp(
+                                                                                forwarder
+                                                                                        .globalTlsRecordType16T0WallTime
+                                                                        )
+                                                                        + "\n"
+                                                                        + "\n"
+                                                                        + "T1 PACKET\n"
+                                                                        + "------------------------------------------\n"
+                                                                        + "Direction        : RX / RECEIVED\n"
+                                                                        + "TLS Record Type  : 0x17\n"
+                                                                        + "Record Type      : Application Data\n"
+                                                                        + "T1 Nano          : "
+                                                                        + forwarder
+                                                                        .globalTlsRecordType17T1Nano
+                                                                        + " ns\n"
+                                                                        + "T1 Timestamp     : "
+                                                                        + forwarder
+                                                                        .formatTimestamp(
+                                                                                forwarder
+                                                                                        .globalTlsRecordType17T1WallTime
+                                                                        )
+                                                                        + "\n"
+                                                                        + "\n"
+                                                                        + "TLS HANDSHAKE CALCULATION\n"
+                                                                        + "------------------------------------------\n"
+                                                                        + "TLS Handshake Time = T1 - T0\n"
+                                                                        + "                   = "
+                                                                        + forwarder
+                                                                        .globalTlsRecordType17T1Nano
+                                                                        + " - "
+                                                                        + forwarder
+                                                                        .globalTlsRecordType16T0Nano
+                                                                        + "\n"
+                                                                        + "                   = "
+                                                                        + forwarder
+                                                                        .globalTlsHandshakeNano
+                                                                        + " ns\n"
+                                                                        + "                   = "
+                                                                        + forwarder
+                                                                        .globalTlsHandshakeMs
+                                                                        + " ms\n"
+                                                                        + "==========================================";
+
+
+                                                        Log.i(
+                                                                TAG,
+                                                                tlsHandshakeLog
+                                                        );
+
+
+                                                        /*
+                                                         * IMPORTANT:
+                                                         *
+                                                         * This is written to the LOG FILE.
+                                                         */
+
+                                                        forwarder.dashboard.logToFile(
+                                                                TAG
+                                                                        + tlsHandshakeLog
+                                                        );
+                                                    }
+
+
+                                                    /*
+                                                     * =================================================
+                                                     * EXISTING TTFB
+                                                     * =================================================
+                                                     *
+                                                     * DO NOT CHANGE THIS LOGIC.
                                                      *
                                                      * TTFB =
                                                      *
@@ -2794,12 +3615,12 @@ class AppOpenTcpForwarder {
                                                         );
 
 
-                                                        forwarder.dashboard.logEvent(
-                                                                TAG
-                                                                        + ttfbLog,
-                                                                VpnEvent.Level.SUCCESS,
-                                                                VpnEvent.Category.TCP
-                                                        );
+//                                                        forwarder.dashboard.logEvent(
+//                                                                TAG
+//                                                                        + ttfbLog,
+//                                                                VpnEvent.Level.SUCCESS,
+//                                                                VpnEvent.Category.TCP
+//                                                        );
 
 
                                                         forwarder.dashboard.logToFile(
@@ -2818,29 +3639,24 @@ class AppOpenTcpForwarder {
                                                     } else {
 
                                                         /*
-                                                         * TLS 0x17 arrived but
-                                                         * no DNS transaction matched
-                                                         * the TCP destination IP.
+                                                         * TLS 0x17 arrived but no DNS transaction
+                                                         * matched the TCP destination IP.
                                                          *
-                                                         * Therefore TTFB is NOT
-                                                         * calculated.
+                                                         * Therefore TTFB is NOT calculated.
                                                          */
 
                                                         String noDnsLog =
                                                                 "========== TTFB NOT CALCULATED ==========\n"
-                                                                        + "TLS 0x17 T1 captured, but no matched DNS T0 exists.\n"
-                                                                        + "Destination IP : "
-                                                                        + forwarder
-                                                                        .globalTtfbRequestDestinationIp
-                                                                        + "\n"
-                                                                        + "TLS T1 Nano    : "
+                                                                        + "Reason: No matched DNS T0\n"
+                                                                        + "TLS Record Type : 0x17\n"
+                                                                        + "TLS T1 Nano     : "
                                                                         + forwarder
                                                                         .globalTlsRecordType17T1Nano
                                                                         + " ns\n"
                                                                         + "==========================================";
 
 
-                                                        Log.w(
+                                                        Log.i(
                                                                 TAG,
                                                                 noDnsLog
                                                         );
@@ -2852,8 +3668,7 @@ class AppOpenTcpForwarder {
                                                         );
                                                     }
                                                 }
-                                            }
-                                        }
+                                            }                                        }
 
 
                                         /*
