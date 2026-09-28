@@ -54,6 +54,17 @@ class AppOpenUdpForwarder {
     private final VpnEventRepository dashboard =
             VpnEventRepository.getInstance();
 
+    /*
+     * =====================================================
+     * FIRST QUIC HANDSHAKE UI FLAG
+     * =====================================================
+     *
+     * true  -> first completed QUIC handshake will be shown in UI
+     * false -> subsequent QUIC handshakes will NOT update UI
+     *          but will still be written to logs
+     */
+    private volatile boolean quicHandshakeUiEnabled = true;
+
 
     AppOpenUdpForwarder(
             VpnService vpnService,
@@ -533,6 +544,15 @@ class AppOpenUdpForwarder {
 
                                         if (session.quicHandshakeT0Nano > 0L) {
 
+                                            /*
+                                             * =====================================================
+                                             * CALCULATE QUIC HANDSHAKE FOR EVERY SESSION
+                                             * =====================================================
+                                             *
+                                             * Every QUIC handshake is calculated and logged.
+                                             *
+                                             * Only the FIRST completed handshake updates the UI.
+                                             */
                                             session.quicHandshakeNano =
                                                     session.quicHandshakeT1Nano
                                                             - session.quicHandshakeT0Nano;
@@ -542,11 +562,11 @@ class AppOpenUdpForwarder {
                                                             / 1_000_000.0;
 
 
-                                            dashboard.recordQuicHandshake(
-                                                    session.quicHandshakeMs
-                                            );
-
-
+                                            /*
+                                             * =====================================================
+                                             * QUIC HANDSHAKE LOG
+                                             * =====================================================
+                                             */
                                             String quicHandshakeLog =
                                                     "========== QUIC HANDSHAKE ==========\n"
                                                             + "Direction          : TX -> RX\n"
@@ -579,6 +599,67 @@ class AppOpenUdpForwarder {
                                                             + "====================================";
 
 
+                                            /*
+                                             * =====================================================
+                                             * FIRST QUIC HANDSHAKE -> UI
+                                             * =====================================================
+                                             *
+                                             * Only the first completed QUIC handshake is written
+                                             * to the dashboard/UI.
+                                             *
+                                             * After that the flag becomes false.
+                                             */
+                                            if (quicHandshakeUiEnabled) {
+
+                                                dashboard.recordQuicHandshake(
+                                                        session.quicHandshakeMs
+                                                );
+
+                                                quicHandshakeUiEnabled = false;
+
+                                                dashboard.logToFile(
+                                                        TAG
+                                                                + "FIRST QUIC HANDSHAKE SELECTED FOR UI"
+                                                                + " | Handshake = "
+                                                                + String.format(
+                                                                Locale.US,
+                                                                "%.3f",
+                                                                session.quicHandshakeMs
+                                                        )
+                                                                + " ms"
+                                                );
+
+                                            } else {
+
+                                                /*
+                                                 * =================================================
+                                                 * SUBSEQUENT QUIC HANDSHAKE -> LOG ONLY
+                                                 * =================================================
+                                                 *
+                                                 * Do NOT update the UI.
+                                                 */
+                                                dashboard.logToFile(
+                                                        TAG
+                                                                + "SUBSEQUENT QUIC HANDSHAKE"
+                                                                + " | UI NOT UPDATED"
+                                                                + " | Handshake = "
+                                                                + String.format(
+                                                                Locale.US,
+                                                                "%.3f",
+                                                                session.quicHandshakeMs
+                                                        )
+                                                                + " ms"
+                                                );
+                                            }
+
+
+                                            /*
+                                             * =====================================================
+                                             * WRITE COMPLETE HANDSHAKE TO EVENT LOG
+                                             * =====================================================
+                                             *
+                                             * Every handshake is retained in the log.
+                                             */
                                             Log.i(
                                                     TAG,
                                                     quicHandshakeLog
@@ -1613,7 +1694,7 @@ class AppOpenUdpForwarder {
                      * ====================================================
                      */
                     String matchLog =
-                            "========== [FIRST DNS -> TCP MATCH] ==========\n"
+                            "========== FIRST DNS TRANSACTION MATCHED ==========\n"
                                     + "Resolved IP        : "
                                     + normalizedResolvedIp
                                     + "\n"

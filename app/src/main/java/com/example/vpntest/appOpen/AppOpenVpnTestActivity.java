@@ -9,7 +9,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -24,6 +26,7 @@ import java.io.File;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -648,15 +651,106 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
         loadInstalledApps();
 
         ArrayAdapter<AppInfo> spinnerAdapter =
-                new ArrayAdapter<>(
+                new ArrayAdapter<AppInfo>(
                         this,
                         android.R.layout.simple_spinner_item,
                         installedApps
-                );
+                ) {
 
-        spinnerAdapter.setDropDownViewResource(
-                android.R.layout.simple_spinner_dropdown_item
-        );
+                    @Override
+                    public View getView(
+                            int position,
+                            View convertView,
+                            ViewGroup parent
+                    ) {
+                        View view = super.getView(
+                                position,
+                                convertView,
+                                parent
+                        );
+
+                        TextView textView = (TextView) view;
+
+                        textView.setTextColor(
+                                ContextCompat.getColor(
+                                        parent.getContext(),
+                                        R.color.on_surface_primary
+                                )
+                        );
+
+                        textView.setTextSize(16);
+                        textView.setGravity(Gravity.CENTER_VERTICAL);
+
+                        int horizontalPadding =
+                                (int) (12 * parent.getResources()
+                                        .getDisplayMetrics().density);
+
+                        textView.setPadding(
+                                horizontalPadding,
+                                0,
+                                horizontalPadding,
+                                0
+                        );
+
+                        textView.setMinHeight(
+                                (int) (48 * parent.getResources()
+                                        .getDisplayMetrics().density)
+                        );
+
+                        return view;
+                    }
+
+                    @Override
+                    public View getDropDownView(
+                            int position,
+                            View convertView,
+                            ViewGroup parent
+                    ) {
+                        View view = super.getDropDownView(
+                                position,
+                                convertView,
+                                parent
+                        );
+
+                        TextView textView = (TextView) view;
+
+                        // Make each app row easier to see and tap
+                        textView.setTextColor(
+                                ContextCompat.getColor(
+                                        parent.getContext(),
+                                        R.color.on_surface_primary
+                                )
+                        );
+
+                        textView.setTextSize(16);
+                        textView.setGravity(Gravity.CENTER_VERTICAL);
+
+                        int horizontalPadding =
+                                (int) (12 * parent.getResources()
+                                        .getDisplayMetrics().density);
+
+                        textView.setPadding(
+                                horizontalPadding,
+                                0,
+                                horizontalPadding,
+                                0
+                        );
+
+                        textView.setMinHeight(
+                                (int) (52 * parent.getResources()
+                                        .getDisplayMetrics().density)
+                        );
+
+                        textView.setBackgroundColor(
+                                ContextCompat.getColor(
+                                        parent.getContext(),
+                                        R.color.surface_elevated
+                                )
+                        );
+
+                        return view;
+                    }
+                };
 
         spinnerAppSelect.setAdapter(
                 spinnerAdapter
@@ -1229,17 +1323,14 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                         .getInstance()
                         .getCurrentLogFile();
 
+// Show Share Log dialog.
+// IMPORTANT:
+// Do NOT change button state here.
+// UI must remain in STOPPING/SHARE state
+// until user selects Yes or No.
         showShareLogDialog(
                 logFile
         );
-
-        btnStartVpn.setEnabled(true);
-        btnStopVpn.setEnabled(false);
-
-        // Release shared session.
-        TestSessionManager.stopTest();
-
-        updateTestButtons();
     }
 
     /**
@@ -1285,7 +1376,13 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
         TestSessionManager.stopTest();
 
         btnStartVpn.setEnabled(true);
+        btnStartVpn.setAlpha(1.0f);
+
         btnStopVpn.setEnabled(false);
+        btnStopVpn.setAlpha(0.45f);
+
+        spinnerAppSelect.setEnabled(true);
+        spinnerAppSelect.setAlpha(1.0f);
 
         updateTestButtons();
     }
@@ -1310,37 +1407,133 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
      * Controls App Open UI according to shared
      * test session.
      */
+    /**
+     * Controls App Open UI according to shared
+     * test session.
+     *
+     * Disabled buttons are visually grey so the
+     * user can clearly understand the current state.
+     */
     private void updateTestButtons() {
 
         TestSessionManager.TestType active =
                 TestSessionManager.getActiveTest();
 
+        boolean vpnRunning =
+                active == TestSessionManager.TestType.APP_OPEN;
+
+        boolean vpnStopped =
+                active == TestSessionManager.TestType.NONE;
+
+
+        // =====================================================
+        // START VPN BUTTON
+        // =====================================================
+
         if (btnStartVpn != null) {
 
-            // App Open Start is disabled while
-            // Web Test OR App Open Test is running.
             btnStartVpn.setEnabled(
-                    active == TestSessionManager.TestType.NONE
+                    vpnStopped
             );
+
+            // Grey when disabled
+            if (vpnRunning) {
+                btnStartVpn.setAlpha(0.45f);
+            } else {
+                btnStartVpn.setAlpha(1.0f);
+            }
         }
+
+
+        // =====================================================
+        // STOP VPN BUTTON
+        // =====================================================
 
         if (btnStopVpn != null) {
 
             btnStopVpn.setEnabled(
-                    active == TestSessionManager.TestType.APP_OPEN
+                    vpnRunning
             );
+
+            // Grey when disabled
+            if (vpnStopped) {
+                btnStopVpn.setAlpha(0.45f);
+            } else {
+                btnStopVpn.setAlpha(1.0f);
+            }
         }
+
+
+        // =====================================================
+        // APPLICATION SELECTOR
+        // =====================================================
 
         if (spinnerAppSelect != null) {
 
             spinnerAppSelect.setEnabled(
-                    active != TestSessionManager.TestType.APP_OPEN
+                    vpnStopped
             );
+
+            // Grey while VPN is running
+            if (vpnRunning) {
+                spinnerAppSelect.setAlpha(0.45f);
+            } else {
+                spinnerAppSelect.setAlpha(1.0f);
+            }
         }
     }
 
+    /**
+     * Puts App Open Test UI into READY state.
+     *
+     * This method must be called only after the user
+     * has completed the Share Log decision.
+     */
+    private void setVpnStoppedUi() {
+
+        // =====================================================
+        // START VPN
+        // =====================================================
+
+        btnStartVpn.setEnabled(true);
+        btnStartVpn.setAlpha(1.0f);
+
+
+        // =====================================================
+        // STOP VPN
+        // =====================================================
+
+        btnStopVpn.setEnabled(false);
+        btnStopVpn.setAlpha(0.45f);
+
+
+        // =====================================================
+        // APPLICATION SELECTOR
+        // =====================================================
+
+        spinnerAppSelect.setEnabled(true);
+        spinnerAppSelect.setAlpha(1.0f);
+
+
+        // =====================================================
+        // RELEASE SHARED TEST SESSION
+        // =====================================================
+
+        TestSessionManager.stopTest();
+
+
+        Toast.makeText(
+                this,
+                "VPN test stopped. Ready for next test.",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
     private void showShareLogDialog(
             File logFile) {
+
+        // =====================================================
+        // NO LOG FILE
+        // =====================================================
 
         if (logFile == null ||
                 !logFile.exists()) {
@@ -1351,8 +1544,17 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT
             ).show();
 
+            // No dialog will be shown,
+            // so complete the stop flow here.
+            setVpnStoppedUi();
+
             return;
         }
+
+
+        // =====================================================
+        // SHARE LOG DIALOG
+        // =====================================================
 
         new AlertDialog.Builder(this)
                 .setTitle("Share Log")
@@ -1360,11 +1562,31 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                         "Do you want to share the VPN log file?"
                 )
                 .setCancelable(false)
+
+
+                // =================================================
+                // YES
+                // =================================================
+
                 .setPositiveButton(
                         "Yes",
-                        (dialog, which) ->
-                                shareLogFile(logFile)
+                        (dialog, which) -> {
+
+                            shareLogFile(
+                                    logFile
+                            );
+
+                            // User has made the decision.
+                            // Now App Open UI becomes READY.
+                            setVpnStoppedUi();
+                        }
                 )
+
+
+                // =================================================
+                // NO
+                // =================================================
+
                 .setNegativeButton(
                         "No",
                         (dialog, which) -> {
@@ -1378,8 +1600,13 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                                     "Log file deleted.",
                                     Toast.LENGTH_SHORT
                             ).show();
+
+                            // User has made the decision.
+                            // Now App Open UI becomes READY.
+                            setVpnStoppedUi();
                         }
                 )
+
                 .show();
     }
 

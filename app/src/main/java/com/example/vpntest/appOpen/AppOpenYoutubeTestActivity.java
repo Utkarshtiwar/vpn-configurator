@@ -546,16 +546,25 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
 
         cleanupWebView();
 
-        TestSessionManager.stopTest();
+// IMPORTANT:
+// Do NOT release TestSessionManager here.
+// Do NOT call updateButtons() here.
+//
+// The UI must remain in STOPPING / SHARE state
+// until the user selects YES or NO.
 
-        updateButtons();
-
-        VpnLogFileManager.getInstance().endSession();
+        VpnLogFileManager
+                .getInstance()
+                .endSession();
 
         File logFile =
-                VpnLogFileManager.getInstance().getCurrentLogFile();
+                VpnLogFileManager
+                        .getInstance()
+                        .getCurrentLogFile();
 
-        showShareLogDialog(logFile);
+        showShareLogDialog(
+                logFile
+        );
     }
 
     private void cleanupWebView() {
@@ -576,9 +585,71 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
 
     private void updateButtons() {
 
-        btnStart.setEnabled(!youtubeTestRunning);
+        // ==========================================
+        // START BUTTON
+        // ==========================================
 
-        btnStop.setEnabled(youtubeTestRunning);
+        btnStart.setEnabled(
+                !youtubeTestRunning
+        );
+
+        if (youtubeTestRunning) {
+            // Disabled = grey
+            btnStart.setAlpha(0.45f);
+        } else {
+            // Enabled = normal
+            btnStart.setAlpha(1.0f);
+        }
+
+
+        // ==========================================
+        // STOP BUTTON
+        // ==========================================
+
+        btnStop.setEnabled(
+                youtubeTestRunning
+        );
+
+        if (youtubeTestRunning) {
+            // Enabled = normal
+            btnStop.setAlpha(1.0f);
+        } else {
+            // Disabled = grey
+            btnStop.setAlpha(0.45f);
+        }
+    }
+    private void setYoutubeTestStoppedUi() {
+
+        // ==========================================
+        // START
+        // ==========================================
+
+        btnStart.setEnabled(true);
+        btnStart.setAlpha(1.0f);
+
+
+        // ==========================================
+        // STOP
+        // ==========================================
+
+        btnStop.setEnabled(false);
+        btnStop.setAlpha(0.45f);
+
+
+        // ==========================================
+        // RELEASE SHARED SESSION
+        // ==========================================
+
+        TestSessionManager.stopTest();
+
+        youtubeTestRunning = false;
+
+
+        Toast.makeText(
+                this,
+                "YouTube test stopped. Ready for next test.",
+                Toast.LENGTH_SHORT
+        ).show();
     }
 
     private void updateStatus(String message) {
@@ -597,7 +668,12 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
 
     private void showShareLogDialog(File logFile) {
 
-        if (logFile == null || !logFile.exists()) {
+        // ==========================================
+        // LOG FILE NOT FOUND
+        // ==========================================
+
+        if (logFile == null ||
+                !logFile.exists()) {
 
             Toast.makeText(
                     this,
@@ -605,8 +681,17 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT
             ).show();
 
+            // No dialog will appear,
+            // so complete the stop flow here.
+            setYoutubeTestStoppedUi();
+
             return;
         }
+
+
+        // ==========================================
+        // SHARE LOG DIALOG
+        // ==========================================
 
         new AlertDialog.Builder(this)
 
@@ -618,14 +703,33 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
 
                 .setCancelable(false)
 
+
+                // ======================================
+                // YES
+                // ======================================
+
                 .setPositiveButton(
                         "YES",
-                        (d, w) -> shareLogFile(logFile)
+                        (dialog, which) -> {
+
+                            shareLogFile(
+                                    logFile
+                            );
+
+                            // User selected YES.
+                            // Now move UI to READY state.
+                            setYoutubeTestStoppedUi();
+                        }
                 )
+
+
+                // ======================================
+                // NO
+                // ======================================
 
                 .setNegativeButton(
                         "NO",
-                        (d, w) -> {
+                        (dialog, which) -> {
 
                             VpnLogFileManager
                                     .getInstance()
@@ -636,6 +740,10 @@ public class AppOpenYoutubeTestActivity extends AppCompatActivity {
                                     "Log file deleted.",
                                     Toast.LENGTH_SHORT
                             ).show();
+
+                            // User selected NO.
+                            // Now move UI to READY state.
+                            setYoutubeTestStoppedUi();
                         }
                 )
 

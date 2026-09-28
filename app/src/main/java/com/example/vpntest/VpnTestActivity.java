@@ -639,6 +639,11 @@ public class VpnTestActivity extends AppCompatActivity {
 
             return;
         }
+        Toast.makeText(
+                this,
+                "VPN test started",
+                Toast.LENGTH_SHORT
+        ).show();
 
         dashboardRepo.resetDnsLookup();
         dashboardRepo.resetDnsDestinationIp();
@@ -843,19 +848,13 @@ public class VpnTestActivity extends AppCompatActivity {
                         .getCurrentLogFile();
 
 
-
+// Show Share Log dialog.
+//
+// IMPORTANT:
+// Do NOT change the button state here.
+// The buttons will be changed only after
+// the user selects YES or NO.
         showShareLogDialog(logFile);
-
-
-        btnStartVpn.setEnabled(true);
-        btnStopVpn.setEnabled(false);
-
-        // Release shared session.
-        TestSessionManager.stopTest();
-
-        // App Open can now be opened again.
-        btnPerformAppOpenTest.setEnabled(true);
-        btnPerformYoutubeTest.setEnabled(true);
     }
 
     private String resolveTargetUrl() {
@@ -978,31 +977,129 @@ public class VpnTestActivity extends AppCompatActivity {
         TestSessionManager.TestType active =
                 TestSessionManager.getActiveTest();
 
+        boolean vpnRunning =
+                active == TestSessionManager.TestType.WEB;
+
+        boolean vpnStopped =
+                active == TestSessionManager.TestType.NONE;
+
+        // =========================
+        // START VPN BUTTON
+        // =========================
+
         if (btnStartVpn != null) {
-            btnStartVpn.setEnabled(
-                    active == TestSessionManager.TestType.NONE
-            );
+
+            btnStartVpn.setEnabled(vpnStopped);
+
+            // Disabled = grey
+            if (vpnRunning) {
+                btnStartVpn.setAlpha(0.45f);
+            } else {
+                btnStartVpn.setAlpha(1.0f);
+            }
         }
+
+        // =========================
+        // STOP VPN BUTTON
+        // =========================
 
         if (btnStopVpn != null) {
-            btnStopVpn.setEnabled(
-                    active == TestSessionManager.TestType.WEB
-            );
+
+            btnStopVpn.setEnabled(vpnRunning);
+
+            // Disabled = grey
+            if (vpnStopped) {
+                btnStopVpn.setAlpha(0.45f);
+            } else {
+                btnStopVpn.setAlpha(1.0f);
+            }
         }
+
+        // =========================
+        // APP OPEN TEST BUTTON
+        // =========================
 
         if (btnPerformAppOpenTest != null) {
-            btnPerformAppOpenTest.setEnabled(
-                    active == TestSessionManager.TestType.NONE
-            );
+
+            btnPerformAppOpenTest.setEnabled(vpnStopped);
+
+            if (vpnRunning) {
+                btnPerformAppOpenTest.setAlpha(0.45f);
+            } else {
+                btnPerformAppOpenTest.setAlpha(1.0f);
+            }
         }
+
+        // =========================
+        // YOUTUBE TEST BUTTON
+        // =========================
 
         if (btnPerformYoutubeTest != null) {
-            btnPerformYoutubeTest.setEnabled(
-                    active == TestSessionManager.TestType.NONE
-            );
+
+            btnPerformYoutubeTest.setEnabled(vpnStopped);
+
+            if (vpnRunning) {
+                btnPerformYoutubeTest.setAlpha(0.45f);
+            } else {
+                btnPerformYoutubeTest.setAlpha(1.0f);
+            }
         }
     }
+    private void setVpnStoppedUi() {
 
+        // =========================
+        // START VPN
+        // Enabled + normal
+        // =========================
+
+        btnStartVpn.setEnabled(true);
+        btnStartVpn.setAlpha(1.0f);
+
+
+        // =========================
+        // STOP VPN
+        // Disabled + grey
+        // =========================
+
+        btnStopVpn.setEnabled(false);
+        btnStopVpn.setAlpha(0.45f);
+
+
+        // =========================
+        // APP OPEN TEST
+        // Enabled + normal
+        // =========================
+
+        btnPerformAppOpenTest.setEnabled(true);
+        btnPerformAppOpenTest.setAlpha(1.0f);
+
+
+        // =========================
+        // YOUTUBE TEST
+        // Enabled + normal
+        // =========================
+
+        btnPerformYoutubeTest.setEnabled(true);
+        btnPerformYoutubeTest.setAlpha(1.0f);
+
+
+        // =========================
+        // RELEASE SESSION
+        // =========================
+
+        TestSessionManager.stopTest();
+
+
+        // =========================
+        // USER FEEDBACK
+        // =========================
+
+        Toast.makeText(
+                this,
+                "VPN test stopped. Ready for next test.",
+                Toast.LENGTH_SHORT
+        ).show();
+    }
     private void showShareLogDialog(File logFile) {
 
         if (logFile == null ||
@@ -1014,6 +1111,10 @@ public class VpnTestActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT
             ).show();
 
+            // No dialog will be shown,
+            // so complete the stop flow here.
+            setVpnStoppedUi();
+
             return;
         }
 
@@ -1023,6 +1124,11 @@ public class VpnTestActivity extends AppCompatActivity {
                         "Do you want to share the VPN log file?"
                 )
                 .setCancelable(false)
+
+                // =========================
+                // YES
+                // =========================
+
                 .setPositiveButton(
                         "Yes",
                         (dialog, which) -> {
@@ -1030,8 +1136,17 @@ public class VpnTestActivity extends AppCompatActivity {
                             shareLogFile(
                                     logFile
                             );
+
+                            // User selected YES.
+                            // Now switch UI to READY state.
+                            setVpnStoppedUi();
                         }
                 )
+
+                // =========================
+                // NO
+                // =========================
+
                 .setNegativeButton(
                         "No",
                         (dialog, which) -> {
@@ -1045,6 +1160,10 @@ public class VpnTestActivity extends AppCompatActivity {
                                     "Log file deleted.",
                                     Toast.LENGTH_SHORT
                             ).show();
+
+                            // User selected NO.
+                            // Now switch UI to READY state.
+                            setVpnStoppedUi();
                         }
                 )
                 .show();

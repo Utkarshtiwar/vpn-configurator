@@ -60,6 +60,23 @@ public class UdpForwarder {
     private volatile boolean shutdown = false;
 
     private final VpnEventRepository dashboard = VpnEventRepository.getInstance();
+
+    /*
+     * =====================================================
+     * FIRST QUIC HANDSHAKE FOR UI
+     * =====================================================
+     *
+     * false = no QUIC handshake has been shown in UI yet
+     * true  = first QUIC handshake has already been shown
+     *
+     * IMPORTANT:
+     * This flag belongs to UdpForwarder, NOT Session.
+     *
+     * Therefore:
+     * - First QUIC handshake across all UDP sessions -> UI
+     * - All subsequent QUIC handshakes -> log only
+     */
+    private volatile boolean firstQuicHandshakeShown = false;
     UdpForwarder(VpnService vpnService, FileOutputStream tunOut, Object tunWriteLock) {
         this.vpnService = vpnService;
         this.tunOut = tunOut;
@@ -256,6 +273,16 @@ public class UdpForwarder {
 
                         if (session.quicHandshakeT0Nano > 0L) {
 
+                            /*
+                             * =====================================================
+                             * CALCULATE QUIC HANDSHAKE
+                             * =====================================================
+                             *
+                             * QUIC Handshake = T1 - T0
+                             *
+                             * Every valid QUIC handshake is calculated,
+                             * regardless of whether it is shown in UI.
+                             */
                             session.quicHandshakeNano =
                                     session.quicHandshakeT1Nano
                                             - session.quicHandshakeT0Nano;
@@ -264,10 +291,16 @@ public class UdpForwarder {
                                     session.quicHandshakeNano
                                             / 1_000_000.0;
 
-                            dashboard.recordQuicHandshake(
-                                    session.quicHandshakeMs
-                            );
 
+                            /*
+                             * =====================================================
+                             * QUIC HANDSHAKE LOG
+                             * =====================================================
+                             *
+                             * EVERY QUIC HANDSHAKE is written to the log.
+                             *
+                             * This happens before the UI condition intentionally.
+                             */
                             String quicHandshakeLog =
                                     "========== QUIC HANDSHAKE ==========\n"
                                             + "Direction          : TX -> RX\n"
@@ -299,20 +332,96 @@ public class UdpForwarder {
                                             + " ms\n"
                                             + "====================================";
 
+
                             Log.i(
                                     TAG,
                                     quicHandshakeLog
                             );
 
+
+                            /*
+                             * =====================================================
+                             * WRITE EVERY HANDSHAKE TO LOG FILE
+                             * =====================================================
+                             */
                             dashboard.logEvent(
                                     TAG + quicHandshakeLog,
                                     VpnEvent.Level.INFO,
                                     VpnEvent.Category.UDP
                             );
 
+
+                            /*
+                             * =====================================================
+                             * FIRST QUIC HANDSHAKE -> UI ONLY
+                             * =====================================================
+                             *
+                             * Only the FIRST completed QUIC handshake is allowed
+                             * to update the dashboard/UI.
+                             *
+                             * Once this flag becomes true, every later handshake
+                             * is calculated and logged but does NOT touch the UI.
+                             */
+                            if (!firstQuicHandshakeShown) {
+
+                                /*
+                                 * Set the flag BEFORE updating the UI.
+                                 *
+                                 * This prevents another QUIC handshake from also
+                                 * being treated as the first one.
+                                 */
+                                firstQuicHandshakeShown = true;
+
+
+                                /*
+                                 * FIRST QUIC HANDSHAKE ONLY -> UI
+                                 */
+                                dashboard.recordQuicHandshake(
+                                        session.quicHandshakeMs
+                                );
+
+
+                                /*
+                                 * Explicit log showing that this value was the
+                                 * one selected for the UI.
+                                 */
+                                dashboard.logToFile(
+                                        TAG
+                                                + "FIRST QUIC HANDSHAKE SELECTED FOR UI = "
+                                                + String.format(
+                                                Locale.US,
+                                                "%.3f",
+                                                session.quicHandshakeMs
+                                        )
+                                                + " ms"
+                                );
+
+                            } else {
+
+                                /*
+                                 * =================================================
+                                 * SUBSEQUENT QUIC HANDSHAKE
+                                 * =================================================
+                                 *
+                                 * Do NOT call dashboard.recordQuicHandshake().
+                                 *
+                                 * Therefore this value cannot replace the UI value.
+                                 *
+                                 * It has already been written to the log above.
+                                 */
+                                dashboard.logToFile(
+                                        TAG
+                                                + "SUBSEQUENT QUIC HANDSHAKE - UI NOT UPDATED = "
+                                                + String.format(
+                                                Locale.US,
+                                                "%.3f",
+                                                session.quicHandshakeMs
+                                        )
+                                                + " ms"
+                                );
+                            }
                         }
                     }
-
                     session.touch();
 
                     writeUdpReplyToTun(

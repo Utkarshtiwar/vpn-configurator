@@ -928,7 +928,6 @@ class AppOpenTcpForwarder {
          */
 
         if (payloadLen > 0
-                && isPsh
                 && session.state ==
                 TcpSession.State.ESTABLISHED) {
 
@@ -1429,215 +1428,220 @@ class AppOpenTcpForwarder {
              * =====================================================
              */
 
+            /*
+             * =====================================================
+             * TLS RECORD TYPE - SENT / TX
+             * =====================================================
+             *
+             * IMPORTANT:
+             *
+             * data[] is TCP stream data.
+             * It is NOT guaranteed to start at a TLS record.
+             *
+             * Therefore:
+             *
+             * data
+             *   ↓
+             * txTlsParser
+             *   ↓
+             * complete TLS records
+             */
+
             if (data != null
-                    && data.length >= 5) {
+                    && data.length > 0) {
 
-                int tlsRecordType =
-                        data[0] & 0xFF;
-
-                String tlsRecordName;
-
-                switch (tlsRecordType) {
-
-                    case 0x14:
-                        tlsRecordName =
-                                "Change Cipher Spec";
-                        break;
-
-                    case 0x15:
-                        tlsRecordName =
-                                "Alert";
-                        break;
-
-                    case 0x16:
-                        tlsRecordName =
-                                "Handshake";
-                        break;
-
-                    case 0x17:
-                        tlsRecordName =
-                                "Application Data";
-                        break;
-
-                    default:
-                        tlsRecordName =
-                                "Unknown / Non-standard TLS Record";
-                        break;
-                }
+                session.txTlsParser.append(
+                        data,
+                        0,
+                        data.length
+                );
 
 
-                /*
-                 * =====================================================
-                 * TLS HANDSHAKE T0
-                 * =====================================================
-                 *
-                 * T0 = FIRST transmitted TLS record
-                 *      with ContentType 0x16.
-                 *
-                 * IMPORTANT:
-                 * Only the FIRST 0x16 is used as T0.
-                 */
-
-                if (tlsRecordType == 0x16
-                        && tlsRecordType16Captured.compareAndSet(
-                        false,
-                        true
-                )) {
-
-                    globalTlsRecordType16T0Nano =
-                            System.nanoTime();
-
-                    globalTlsRecordType16T0WallTime =
-                            System.currentTimeMillis();
+                java.util.List<TlsRecord>
+                        txRecords =
+                        session.txTlsParser
+                                .parseAvailableRecords();
 
 
-                    String tlsT0Log =
-                            "========== TLS HANDSHAKE T0 | TX 0x16 ==========\n"
-                                    + "Direction          : TX / SENT\n"
-                                    + "TLS Record Type    : 0x16\n"
-                                    + "ContentType        : 0x16\n"
-                                    + "Record Type        : Handshake\n"
-                                    + "\n"
-                                    + "Source IP          : "
+                for (TlsRecord record :
+                        txRecords) {
+
+                    int tlsRecordType =
+                            record.contentType;
+
+
+                    String tlsRecordName =
+                            record.recordTypeName();
+
+
+                    /*
+                     * =====================================================
+                     * TLS HANDSHAKE T0
+                     * =====================================================
+                     *
+                     * T0 =
+                     * FIRST complete TX TLS record
+                     * with ContentType 0x16.
+                     */
+
+                    if (tlsRecordType == 0x16
+                            && tlsRecordType16Captured.compareAndSet(
+                            false,
+                            true
+                    )) {
+
+                        globalTlsRecordType16T0Nano =
+                                record.observedNano;
+
+                        globalTlsRecordType16T0WallTime =
+                                record.observedWallTime;
+
+
+                        String tlsT0Log =
+                                "========== TLS HANDSHAKE T0 | TX 0x16 ==========\n"
+                                        + "Direction          : TX / SENT\n"
+                                        + "TLS Record Type    : 0x16\n"
+                                        + "ContentType        : 0x16\n"
+                                        + "Record Type        : Handshake\n"
+                                        + "\n"
+                                        + "Source IP          : "
+                                        + ipStr(srcIp)
+                                        + "\n"
+                                        + "Destination IP     : "
+                                        + ipStr(dstIp)
+                                        + "\n"
+                                        + "Source Port        : "
+                                        + srcPort
+                                        + "\n"
+                                        + "Destination Port   : "
+                                        + dstPort
+                                        + "\n"
+                                        + "Sequence Number    : "
+                                        + seq
+                                        + "\n"
+                                        + "ACK Number         : "
+                                        + ack
+                                        + "\n"
+                                        + "TCP Flags          : 0x"
+                                        + String.format(
+                                        java.util.Locale.US,
+                                        "%02X",
+                                        flags
+                                )
+                                        + "\n"
+                                        + "TCP Header Length  : "
+                                        + dataOffsetBytes
+                                        + " bytes\n"
+                                        + "Payload Length     : "
+                                        + payloadLen
+                                        + " bytes\n"
+                                        + "\n"
+                                        + "TLS Version Major  : 0x"
+                                        + String.format(
+                                        java.util.Locale.US,
+                                        "%02X",
+                                        record.versionMajor
+                                )
+                                        + "\n"
+                                        + "TLS Version Minor  : 0x"
+                                        + String.format(
+                                        java.util.Locale.US,
+                                        "%02X",
+                                        record.versionMinor
+                                )
+                                        + "\n"
+                                        + "TLS Record Length  : "
+                                        + record.recordLength
+                                        + " bytes\n"
+                                        + "\n"
+                                        + "T0 Nano            : "
+                                        + globalTlsRecordType16T0Nano
+                                        + " ns\n"
+                                        + "T0 Timestamp       : "
+                                        + formatTimestamp(
+                                        globalTlsRecordType16T0WallTime
+                                )
+                                        + "\n"
+                                        + "Connection Key     : "
+                                        + key
+                                        + "\n"
+                                        + "=================================================";
+
+
+                        Log.i(
+                                TAG,
+                                tlsT0Log
+                        );
+
+
+                        dashboard.logToFile(
+                                TAG + tlsT0Log
+                        );
+                    }
+
+
+                    /*
+                     * =====================================================
+                     * EXISTING TLS TX LOG
+                     * =====================================================
+                     */
+
+                    String tlsSentLog =
+                            "========== TLS RECORD [TX/SENT] ==========\n"
+                                    + "Source IP        : "
                                     + ipStr(srcIp)
                                     + "\n"
-                                    + "Destination IP     : "
+                                    + "Destination IP   : "
                                     + ipStr(dstIp)
                                     + "\n"
-                                    + "Source Port        : "
+                                    + "Source Port      : "
                                     + srcPort
                                     + "\n"
-                                    + "Destination Port   : "
+                                    + "Destination Port : "
                                     + dstPort
                                     + "\n"
-                                    + "Sequence Number    : "
-                                    + seq
-                                    + "\n"
-                                    + "ACK Number         : "
-                                    + ack
-                                    + "\n"
-                                    + "TCP Flags          : 0x"
+                                    + "TLS Record Type  : 0x"
                                     + String.format(
                                     java.util.Locale.US,
                                     "%02X",
-                                    flags
+                                    tlsRecordType
                             )
                                     + "\n"
-                                    + "TCP Header Length  : "
-                                    + dataOffsetBytes
-                                    + " bytes\n"
-                                    + "Payload Length     : "
-                                    + payloadLen
-                                    + " bytes\n"
+                                    + "Record Type      : "
+                                    + tlsRecordName
                                     + "\n"
-                                    + "TLS Version Major  : 0x"
+                                    + "TLS Version      : 0x"
                                     + String.format(
                                     java.util.Locale.US,
-                                    "%02X",
-                                    data[1] & 0xFF
+                                    "%02X%02X",
+                                    record.versionMajor,
+                                    record.versionMinor
                             )
                                     + "\n"
-                                    + "TLS Version Minor  : 0x"
-                                    + String.format(
-                                    java.util.Locale.US,
-                                    "%02X",
-                                    data[2] & 0xFF
-                            )
-                                    + "\n"
-                                    + "TLS Record Length  : "
-                                    + (
-                                    ((data[3] & 0xFF) << 8)
-                                            | (data[4] & 0xFF)
-                            )
+                                    + "TLS Record Length: "
+                                    + record.recordLength
                                     + " bytes\n"
-                                    + "TLS Header Bytes   : "
-                                    + String.format(
-                                    java.util.Locale.US,
-                                    "%02X %02X %02X %02X %02X",
-                                    data[0] & 0xFF,
-                                    data[1] & 0xFF,
-                                    data[2] & 0xFF,
-                                    data[3] & 0xFF,
-                                    data[4] & 0xFF
-                            )
-                                    + "\n"
-                                    + "\n"
-                                    + "T0 Nano            : "
-                                    + globalTlsRecordType16T0Nano
-                                    + " ns\n"
-                                    + "T0 Timestamp       : "
+                                    + "Timestamp        : "
                                     + formatTimestamp(
-                                    globalTlsRecordType16T0WallTime
+                                    record.observedWallTime
                             )
                                     + "\n"
-                                    + "Connection Key     : "
+                                    + "Connection Key   : "
                                     + key
                                     + "\n"
-                                    + "=================================================";
+                                    + "============================================";
 
 
                     Log.i(
                             TAG,
-                            tlsT0Log
+                            tlsSentLog
                     );
+
 
                     dashboard.logToFile(
-                            TAG + tlsT0Log
+                            TAG + tlsSentLog
                     );
                 }
-
-
-                /*
-                 * =====================================================
-                 * EXISTING TLS TX LOG
-                 * =====================================================
-                 */
-
-                String tlsSentLog =
-                        "========== TLS RECORD [TX/SENT] ==========\n"
-                                + "Source IP        : "
-                                + ipStr(srcIp)
-                                + "\n"
-                                + "Destination IP   : "
-                                + ipStr(dstIp)
-                                + "\n"
-                                + "Source Port      : "
-                                + srcPort
-                                + "\n"
-                                + "Destination Port : "
-                                + dstPort
-                                + "\n"
-                                + "TLS Record Type  : 0x"
-                                + String.format(
-                                "%02X",
-                                tlsRecordType
-                        )
-                                + "\n"
-                                + "Record Type      : "
-                                + tlsRecordName
-                                + "\n"
-                                + "Sent Bytes       : "
-                                + data.length
-                                + " bytes\n"
-                                + "Timestamp        : "
-                                + formatTimestamp(
-                                System.currentTimeMillis()
-                        )
-                                + "\n"
-                                + "Connection Key   : "
-                                + key
-                                + "\n"
-                                + "============================================";
-
-
-                Log.i(
-                        TAG,
-                        tlsSentLog
-                );
-
-                dashboard.logToFile(
-                        TAG + tlsSentLog
-                );
             }
 
 
@@ -2531,6 +2535,15 @@ class AppOpenTcpForwarder {
                 TcpSession.State.CLOSED;
 
 
+        /*
+         * Reset TLS stream parsers for this TCP connection.
+         */
+
+        session.txTlsParser.reset();
+
+        session.rxTlsParser.reset();
+
+
         try {
 
             if (session.realSocket != null) {
@@ -2772,6 +2785,26 @@ class AppOpenTcpForwarder {
         globalDnsT0Nano =
                 0L;
 
+
+        /*
+         * Reset TLS T0
+         */
+
+        globalTlsRecordType16T0Nano =
+                0L;
+
+        globalTlsRecordType16T0WallTime =
+                0L;
+
+        tlsRecordType16Captured.set(
+                false
+        );
+
+
+        /*
+         * Reset TLS T1
+         */
+
         globalTlsRecordType17T1Nano =
                 0L;
 
@@ -2781,6 +2814,17 @@ class AppOpenTcpForwarder {
         tlsRecordType17Captured.set(
                 false
         );
+
+
+        /*
+         * Reset TLS handshake result
+         */
+
+        globalTlsHandshakeNano =
+                -1L;
+
+        globalTlsHandshakeMs =
+                -1.0;
 
         globalTtfbMs =
                 -1L;
@@ -2938,8 +2982,349 @@ class AppOpenTcpForwarder {
     }
 
 
-    static class TcpSession {
+    /*
+     * ============================================================
+     * TLS RECORD
+     * ============================================================
+     */
 
+    static class TlsRecord {
+
+        final int contentType;
+
+        final int versionMajor;
+
+        final int versionMinor;
+
+        final int recordLength;
+
+        final long observedNano;
+
+        final long observedWallTime;
+
+
+        TlsRecord(
+                int contentType,
+                int versionMajor,
+                int versionMinor,
+                int recordLength,
+                long observedNano,
+                long observedWallTime
+        ) {
+
+            this.contentType =
+                    contentType;
+
+            this.versionMajor =
+                    versionMajor;
+
+            this.versionMinor =
+                    versionMinor;
+
+            this.recordLength =
+                    recordLength;
+
+            this.observedNano =
+                    observedNano;
+
+            this.observedWallTime =
+                    observedWallTime;
+        }
+
+
+        String recordTypeName() {
+
+            switch (contentType) {
+
+                case 0x14:
+                    return "Change Cipher Spec";
+
+                case 0x15:
+                    return "Alert";
+
+                case 0x16:
+                    return "Handshake";
+
+                case 0x17:
+                    return "Application Data";
+
+                default:
+                    return "Unknown";
+            }
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * TLS STREAM PARSER
+     * ============================================================
+     *
+     * IMPORTANT:
+     *
+     * This parser never assumes read() boundaries are TLS
+     * record boundaries.
+     *
+     * TLS record header:
+     *
+     * Byte 0 = ContentType
+     * Byte 1 = Version Major
+     * Byte 2 = Version Minor
+     * Byte 3 = Length MSB
+     * Byte 4 = Length LSB
+     *
+     * Total header = 5 bytes
+     */
+
+    static class TlsRecordParser {
+
+        private static final int TLS_HEADER_LENGTH = 5;
+
+        private static final int MAX_TLS_RECORD_LENGTH =
+                18 * 1024;
+
+        private static final int MAX_BUFFER_SIZE =
+                256 * 1024;
+
+
+        private final String direction;
+
+
+        private byte[] buffer =
+                new byte[0];
+
+
+        TlsRecordParser(
+                String direction
+        ) {
+
+            this.direction =
+                    direction;
+        }
+
+
+        private static boolean isValidContentType(
+                int contentType
+        ) {
+
+            return contentType == 0x14
+                    || contentType == 0x15
+                    || contentType == 0x16
+                    || contentType == 0x17;
+        }
+
+
+        private static boolean isValidVersion(
+                int major,
+                int minor
+        ) {
+
+            return major == 0x03
+                    && minor <= 0x04;
+        }
+
+
+        synchronized void append(
+                byte[] data,
+                int offset,
+                int length
+        ) {
+
+            if (data == null
+                    || length <= 0) {
+
+                return;
+            }
+
+
+            byte[] combined =
+                    new byte[
+                            buffer.length
+                                    + length
+                            ];
+
+
+            System.arraycopy(
+                    buffer,
+                    0,
+                    combined,
+                    0,
+                    buffer.length
+            );
+
+
+            System.arraycopy(
+                    data,
+                    offset,
+                    combined,
+                    buffer.length,
+                    length
+            );
+
+
+            buffer =
+                    combined;
+
+
+            if (buffer.length >
+                    MAX_BUFFER_SIZE) {
+
+                Log.w(
+                        TAG,
+                        "TLS parser "
+                                + direction
+                                + " buffer exceeded "
+                                + MAX_BUFFER_SIZE
+                                + " bytes. Resetting parser."
+                );
+
+                buffer =
+                        new byte[0];
+            }
+        }
+
+
+        synchronized java.util.List<TlsRecord>
+        parseAvailableRecords() {
+
+            java.util.List<TlsRecord> records =
+                    new java.util.ArrayList<>();
+
+
+            while (
+                    buffer.length
+                            >= TLS_HEADER_LENGTH
+            ) {
+
+                int contentType =
+                        buffer[0] & 0xFF;
+
+                int versionMajor =
+                        buffer[1] & 0xFF;
+
+                int versionMinor =
+                        buffer[2] & 0xFF;
+
+                int recordLength =
+                        ((buffer[3] & 0xFF) << 8)
+                                | (buffer[4] & 0xFF);
+
+
+                /*
+                 * If this does not look like a TLS
+                 * record, discard one byte and try
+                 * again.
+                 */
+
+                if (!isValidContentType(
+                        contentType
+                )
+                        || !isValidVersion(
+                        versionMajor,
+                        versionMinor
+                )
+                        || recordLength >
+                        MAX_TLS_RECORD_LENGTH) {
+
+                    byte[] shifted =
+                            new byte[
+                                    buffer.length - 1
+                                    ];
+
+
+                    System.arraycopy(
+                            buffer,
+                            1,
+                            shifted,
+                            0,
+                            shifted.length
+                    );
+
+
+                    buffer =
+                            shifted;
+
+                    continue;
+                }
+
+
+                int totalRecordLength =
+                        TLS_HEADER_LENGTH
+                                + recordLength;
+
+
+                /*
+                 * Complete TLS record has not
+                 * arrived yet.
+                 *
+                 * Keep it in the buffer.
+                 */
+
+                if (buffer.length <
+                        totalRecordLength) {
+
+                    break;
+                }
+
+
+                long observedNano =
+                        System.nanoTime();
+
+                long observedWallTime =
+                        System.currentTimeMillis();
+
+
+                records.add(
+                        new TlsRecord(
+                                contentType,
+                                versionMajor,
+                                versionMinor,
+                                recordLength,
+                                observedNano,
+                                observedWallTime
+                        )
+                );
+
+
+                /*
+                 * Remove the complete TLS
+                 * record from the stream buffer.
+                 */
+
+                byte[] remaining =
+                        new byte[
+                                buffer.length
+                                        - totalRecordLength
+                                ];
+
+
+                System.arraycopy(
+                        buffer,
+                        totalRecordLength,
+                        remaining,
+                        0,
+                        remaining.length
+                );
+
+
+                buffer =
+                        remaining;
+            }
+
+
+            return records;
+        }
+
+
+        synchronized void reset() {
+
+            buffer =
+                    new byte[0];
+        }
+    }
+
+
+    static class TcpSession {
         enum State {
 
             SYN_RCVD,
@@ -2984,19 +3369,37 @@ class AppOpenTcpForwarder {
 
         /*
          * ============================================================
-         * TCP TRANSMITTED SEGMENTS
+         * PER-CONNECTION TLS STREAM PARSERS
          * ============================================================
          *
-         * SAME LOGIC AS NORMAL TcpForwarder.
+         * TCP is a byte stream.
          *
-         * Stores previously transmitted sequence ranges for THIS
-         * TCP session.
+         * One read() may contain:
+         *
+         * 1. Partial TLS header
+         * 2. Complete TLS record
+         * 3. Multiple TLS records
+         * 4. End of one record + beginning of next record
+         *
+         * Therefore TX and RX each need their own persistent parser.
          */
+
+        final TlsRecordParser txTlsParser =
+                new TlsRecordParser("TX");
+
+        final TlsRecordParser rxTlsParser =
+                new TlsRecordParser("RX");
+
+
+        /*
+         * ============================================================
+         * TCP TRANSMITTED SEGMENTS
+         * ============================================================
+         */
+
         final Map<Long, TcpSegmentRecord>
                 transmittedSegments =
                 new ConcurrentHashMap<>();
-
-
         /*
          * Session-level fields retained for compatibility.
          */
@@ -3169,200 +3572,52 @@ class AppOpenTcpForwarder {
                                              * =================================================
                                              */
 
-                                            if (n >= 5) {
-
-                                                int tlsRecordType =
-                                                        buf[0] & 0xFF;
-
-
-                                                String tlsRecordName;
-
-
-                                                switch (
-                                                        tlsRecordType
-                                                ) {
-
-                                                    case 0x14:
-
-                                                        tlsRecordName =
-                                                                "Change Cipher Spec";
-
-                                                        break;
-
-
-                                                    case 0x15:
-
-                                                        tlsRecordName =
-                                                                "Alert";
-
-                                                        break;
-
-
-                                                    case 0x16:
-
-                                                        tlsRecordName =
-                                                                "Handshake";
-
-                                                        break;
-
-
-                                                    case 0x17:
-
-                                                        tlsRecordName =
-                                                                "Application Data";
-
-                                                        break;
-
-
-                                                    default:
-
-                                                        tlsRecordName =
-                                                                "Unknown / Non-standard TLS Record";
-
-                                                        break;
-                                                }
-
-
-                                                String tlsRecordLog =
-                                                        "========== TLS RECORD [RX/RECEIVED] ==========\n"
-                                                                + "Source IP        : "
-                                                                + AppOpenTcpForwarder
-                                                                .ipStr(dstIp)
-                                                                + "\n"
-                                                                + "Destination IP   : "
-                                                                + AppOpenTcpForwarder
-                                                                .ipStr(srcIp)
-                                                                + "\n"
-                                                                + "Source Port      : "
-                                                                + dstPort
-                                                                + "\n"
-                                                                + "Destination Port : "
-                                                                + srcPort
-                                                                + "\n"
-                                                                + "TLS Record Type  : 0x"
-                                                                + String.format(
-                                                                "%02X",
-                                                                tlsRecordType
-                                                        )
-                                                                + "\n"
-                                                                + "Record Type      : "
-                                                                + tlsRecordName
-                                                                + "\n"
-                                                                + "Received Bytes   : "
-                                                                + n
-                                                                + " bytes\n"
-                                                                + "Timestamp        : "
-                                                                + forwarder
-                                                                .formatTimestamp(
-                                                                        System.currentTimeMillis()
-                                                                )
-                                                                + "\n"
-                                                                + "Connection Key   : "
-                                                                + key
-                                                                + "\n"
-                                                                + "==============================================";
-
-
-                                                Log.i(
-                                                        TAG,
-                                                        tlsRecordLog
-                                                );
-
-
-                                                forwarder.dashboard.logToFile(
-                                                        TAG
-                                                                + tlsRecordLog
-                                                );
-                                            }
-
-
                                             /*
                                              * =================================================
-                                             * T1 = FIRST TLS APPLICATION DATA 0x17
+                                             * TLS STREAM PARSER - RX
                                              * =================================================
                                              *
-                                             * IMPORTANT:
+                                             * realIn.read() is NOT guaranteed to return one
+                                             * complete TLS record.
                                              *
-                                             * T1 = FIRST received TLS record
-                                             *      with ContentType 0x17
-                                             *
-                                             * This T1 is used for:
-                                             *
-                                             * 1. TLS Handshake Time
-                                             * 2. TTFB
-                                             *
-                                             * TLS Handshake:
-                                             *
-                                             * T0 = first TX TLS 0x16
-                                             * T1 = first RX TLS 0x17
-                                             *
-                                             * TLS Handshake Time = T1 - T0
-                                             *
-                                             * TTFB remains separate:
-                                             *
-                                             * TTFB = TLS 0x17 T1 - matched DNS T0
+                                             * Therefore every received chunk is appended to
+                                             * the persistent RX parser.
                                              */
 
-                                            if (
-                                                    n >= 5
-                                                            && !forwarder
-                                                            .tlsRecordType17Captured
-                                                            .get()
-                                                            && isTlsApplicationDataRecord(
-                                                            buf,
-                                                            n
-                                                    )
-                                            ) {
+                                            if (n > 0) {
 
-                                                if (
-                                                        forwarder
-                                                                .tlsRecordType17Captured
-                                                                .compareAndSet(
-                                                                        false,
-                                                                        true
-                                                                )
-                                                ) {
+                                                rxTlsParser.append(
+                                                        buf,
+                                                        0,
+                                                        n
+                                                );
 
-                                                    /*
-                                                     * =================================================
-                                                     * CAPTURE T1
-                                                     * =================================================
-                                                     */
 
-                                                    forwarder
-                                                            .globalTlsRecordType17T1Nano =
-                                                            System.nanoTime();
+                                                java.util.List<TlsRecord>
+                                                        rxRecords =
+                                                        rxTlsParser
+                                                                .parseAvailableRecords();
 
-                                                    forwarder
-                                                            .globalTlsRecordType17T1WallTime =
-                                                            System.currentTimeMillis();
+
+                                                for (TlsRecord record :
+                                                        rxRecords) {
+
+                                                    int tlsRecordType =
+                                                            record.contentType;
+
+
+                                                    String tlsRecordName =
+                                                            record.recordTypeName();
 
 
                                                     /*
                                                      * =================================================
-                                                     * COMPLETE T1 PACKET LOG
+                                                     * COMPLETE RX TLS RECORD LOG
                                                      * =================================================
                                                      */
 
-                                                    String tlsT1Log =
-                                                            "========== T1_TLS_RECORD_0x17 ==========\n"
-                                                                    + "Direction        : RX / RECEIVED\n"
-                                                                    + "TLS Record Type  : 0x17\n"
-                                                                    + "Record Type      : Application Data\n"
-                                                                    + "Received Bytes   : "
-                                                                    + n
-                                                                    + " bytes\n"
-                                                                    + "T1 Nano          : "
-                                                                    + forwarder
-                                                                    .globalTlsRecordType17T1Nano
-                                                                    + " ns\n"
-                                                                    + "Timestamp        : "
-                                                                    + forwarder
-                                                                    .formatTimestamp(
-                                                                            forwarder
-                                                                                    .globalTlsRecordType17T1WallTime
-                                                                    )
-                                                                    + "\n"
+                                                    String tlsRecordLog =
+                                                            "========== TLS RECORD [RX/RECEIVED] ==========\n"
                                                                     + "Source IP        : "
                                                                     + AppOpenTcpForwarder
                                                                     .ipStr(dstIp)
@@ -3371,304 +3626,385 @@ class AppOpenTcpForwarder {
                                                                     + AppOpenTcpForwarder
                                                                     .ipStr(srcIp)
                                                                     + "\n"
+                                                                    + "Source Port      : "
+                                                                    + dstPort
+                                                                    + "\n"
+                                                                    + "Destination Port : "
+                                                                    + srcPort
+                                                                    + "\n"
+                                                                    + "TLS Record Type  : 0x"
+                                                                    + String.format(
+                                                                    java.util.Locale.US,
+                                                                    "%02X",
+                                                                    tlsRecordType
+                                                            )
+                                                                    + "\n"
+                                                                    + "Record Type      : "
+                                                                    + tlsRecordName
+                                                                    + "\n"
+                                                                    + "TLS Version      : 0x"
+                                                                    + String.format(
+                                                                    java.util.Locale.US,
+                                                                    "%02X%02X",
+                                                                    record.versionMajor,
+                                                                    record.versionMinor
+                                                            )
+                                                                    + "\n"
+                                                                    + "TLS Record Length: "
+                                                                    + record.recordLength
+                                                                    + " bytes\n"
+                                                                    + "Timestamp        : "
+                                                                    + forwarder
+                                                                    .formatTimestamp(
+                                                                            record.observedWallTime
+                                                                    )
+                                                                    + "\n"
                                                                     + "Connection Key   : "
                                                                     + key
                                                                     + "\n"
-                                                                    + "==========================================";
+                                                                    + "==============================================";
 
 
                                                     Log.i(
                                                             TAG,
-                                                            tlsT1Log
+                                                            tlsRecordLog
                                                     );
 
 
                                                     forwarder.dashboard.logToFile(
-                                                            TAG
-                                                                    + tlsT1Log
+                                                            TAG + tlsRecordLog
                                                     );
 
 
                                                     /*
                                                      * =================================================
-                                                     * TLS HANDSHAKE TIME
-                                                     * =================================================
-                                                     *
-                                                     * T0 = FIRST TX TLS 0x16
                                                      * T1 = FIRST RX TLS 0x17
-                                                     *
-                                                     * TLS Handshake Time = T1 - T0
+                                                     * =================================================
                                                      */
 
-                                                    if (
-                                                            forwarder
-                                                                    .globalTlsRecordType16T0Nano
-                                                                    > 0L
-                                                    ) {
-
-                                                        forwarder.globalTlsHandshakeNano =
-                                                                forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        -
-                                                                        forwarder
-                                                                                .globalTlsRecordType16T0Nano;
-
-
-                                                        forwarder.globalTlsHandshakeMs =
-                                                                forwarder
-                                                                        .globalTlsHandshakeNano
-                                                                        / 1_000_000.0;
+                                                    if (tlsRecordType == 0x17
+                                                            && forwarder
+                                                            .tlsRecordType17Captured
+                                                            .compareAndSet(
+                                                                    false,
+                                                                    true
+                                                            )) {
 
 
                                                         /*
-                                                         * Send TLS handshake metric to dashboard.
+                                                         * =============================================
+                                                         * CAPTURE T1
+                                                         * =============================================
                                                          */
 
-                                                        forwarder.dashboard.recordTlsHandshake(
-                                                                forwarder.globalTlsHandshakeMs
-                                                        );
+                                                        forwarder
+                                                                .globalTlsRecordType17T1Nano =
+                                                                record.observedNano;
+
+
+                                                        forwarder
+                                                                .globalTlsRecordType17T1WallTime =
+                                                                record.observedWallTime;
 
 
                                                         /*
-                                                         * =================================================
-                                                         * TLS HANDSHAKE CALCULATION LOG
-                                                         * =================================================
+                                                         * =============================================
+                                                         * T1 LOG
+                                                         * =============================================
                                                          */
 
-                                                        String tlsHandshakeLog =
-                                                                "========== TLS HANDSHAKE TIME ==========\n"
-                                                                        + "\n"
-                                                                        + "T0 PACKET\n"
-                                                                        + "------------------------------------------\n"
-                                                                        + "Direction        : TX / SENT\n"
-                                                                        + "TLS Record Type  : 0x16\n"
-                                                                        + "Record Type      : Handshake\n"
-                                                                        + "T0 Nano          : "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType16T0Nano
-                                                                        + " ns\n"
-                                                                        + "T0 Timestamp     : "
-                                                                        + forwarder
-                                                                        .formatTimestamp(
-                                                                                forwarder
-                                                                                        .globalTlsRecordType16T0WallTime
-                                                                        )
-                                                                        + "\n"
-                                                                        + "\n"
-                                                                        + "T1 PACKET\n"
-                                                                        + "------------------------------------------\n"
+                                                        String tlsT1Log =
+                                                                "========== T1_TLS_RECORD_0x17 ==========\n"
                                                                         + "Direction        : RX / RECEIVED\n"
                                                                         + "TLS Record Type  : 0x17\n"
                                                                         + "Record Type      : Application Data\n"
+                                                                        + "TLS Version      : 0x"
+                                                                        + String.format(
+                                                                        java.util.Locale.US,
+                                                                        "%02X%02X",
+                                                                        record.versionMajor,
+                                                                        record.versionMinor
+                                                                )
+                                                                        + "\n"
+                                                                        + "TLS Record Length: "
+                                                                        + record.recordLength
+                                                                        + " bytes\n"
                                                                         + "T1 Nano          : "
                                                                         + forwarder
                                                                         .globalTlsRecordType17T1Nano
                                                                         + " ns\n"
-                                                                        + "T1 Timestamp     : "
+                                                                        + "Timestamp        : "
                                                                         + forwarder
                                                                         .formatTimestamp(
                                                                                 forwarder
                                                                                         .globalTlsRecordType17T1WallTime
                                                                         )
                                                                         + "\n"
+                                                                        + "Source IP        : "
+                                                                        + AppOpenTcpForwarder
+                                                                        .ipStr(dstIp)
                                                                         + "\n"
-                                                                        + "TLS HANDSHAKE CALCULATION\n"
-                                                                        + "------------------------------------------\n"
-                                                                        + "TLS Handshake Time = T1 - T0\n"
-                                                                        + "                   = "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        + " - "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType16T0Nano
+                                                                        + "Destination IP   : "
+                                                                        + AppOpenTcpForwarder
+                                                                        .ipStr(srcIp)
                                                                         + "\n"
-                                                                        + "                   = "
-                                                                        + forwarder
-                                                                        .globalTlsHandshakeNano
-                                                                        + " ns\n"
-                                                                        + "                   = "
-                                                                        + forwarder
-                                                                        .globalTlsHandshakeMs
-                                                                        + " ms\n"
+                                                                        + "Connection Key   : "
+                                                                        + key
+                                                                        + "\n"
                                                                         + "==========================================";
 
 
                                                         Log.i(
                                                                 TAG,
-                                                                tlsHandshakeLog
+                                                                tlsT1Log
+                                                        );
+
+
+                                                        forwarder.dashboard.logToFile(
+                                                                TAG + tlsT1Log
                                                         );
 
 
                                                         /*
-                                                         * IMPORTANT:
+                                                         * =============================================
+                                                         * EXISTING TLS HANDSHAKE CALCULATION
+                                                         * =============================================
                                                          *
-                                                         * This is written to the LOG FILE.
+                                                         * KEEP YOUR EXISTING CODE HERE.
+                                                         *
+                                                         * T0 = globalTlsRecordType16T0Nano
+                                                         * T1 = globalTlsRecordType17T1Nano
+                                                         *
+                                                         * TLS Handshake Time = T1 - T0
                                                          */
 
-                                                        forwarder.dashboard.logToFile(
-                                                                TAG
-                                                                        + tlsHandshakeLog
-                                                        );
-                                                    }
 
-
-                                                    /*
-                                                     * =================================================
-                                                     * EXISTING TTFB
-                                                     * =================================================
-                                                     *
-                                                     * DO NOT CHANGE THIS LOGIC.
-                                                     *
-                                                     * TTFB =
-                                                     *
-                                                     * TLS 0x17 T1
-                                                     * -
-                                                     * exact matched DNS T0
-                                                     */
-
-                                                    if (
-                                                            forwarder
-                                                                    .globalDnsT0Nano
-                                                                    > 0L
-                                                    ) {
-
-                                                        long ttfbNano =
+                                                        if (
                                                                 forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        -
-                                                                        forwarder
-                                                                                .globalDnsT0Nano;
+                                                                        .globalTlsRecordType16T0Nano
+                                                                        > 0L
+                                                        ) {
+
+                                                            forwarder.globalTlsHandshakeNano =
+                                                                    forwarder
+                                                                            .globalTlsRecordType17T1Nano
+                                                                            -
+                                                                            forwarder
+                                                                                    .globalTlsRecordType16T0Nano;
 
 
-                                                        long ttfbMicros =
-                                                                TimeUnit
-                                                                        .NANOSECONDS
-                                                                        .toMicros(
-                                                                                ttfbNano
-                                                                        );
+                                                            forwarder.globalTlsHandshakeMs =
+                                                                    forwarder
+                                                                            .globalTlsHandshakeNano
+                                                                            / 1_000_000.0;
 
 
-                                                        forwarder.globalTtfbMs =
-                                                                TimeUnit
-                                                                        .NANOSECONDS
-                                                                        .toMillis(
-                                                                                ttfbNano
-                                                                        );
+                                                            forwarder.dashboard
+                                                                    .recordTlsHandshake(
+                                                                            forwarder
+                                                                                    .globalTlsHandshakeMs
+                                                                    );
 
 
-                                                        String ttfbLog =
-                                                                "========== T2_TTFB ==========\n"
-                                                                        + "Destination IP : "
-                                                                        + forwarder
-                                                                        .globalTtfbRequestDestinationIp
-                                                                        + "\n"
-                                                                        + "Resolved IP    : "
-                                                                        + forwarder
-                                                                        .globalTtfbRequestResolvedIp
-                                                                        + "\n"
-                                                                        + "Request Payload: "
-                                                                        + forwarder
-                                                                        .globalTtfbRequestPayloadSize
-                                                                        + " bytes\n"
-                                                                        + "\n"
-                                                                        + "DNS T0 Nano          : "
-                                                                        + forwarder
-                                                                        .globalDnsT0Nano
-                                                                        + " ns\n"
-                                                                        + "TLS Record Type      : 0x17\n"
-                                                                        + "TLS T1 Nano          : "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        + " ns\n"
-                                                                        + "TLS T1 Timestamp     : "
-                                                                        + forwarder
-                                                                        .formatTimestamp(
-                                                                                forwarder
-                                                                                        .globalTlsRecordType17T1WallTime
-                                                                        )
-                                                                        + "\n"
-                                                                        + "\n"
-                                                                        + "TTFB = TLS 0x17 T1 - DNS T0\n"
-                                                                        + "     = "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        + " - "
-                                                                        + forwarder
-                                                                        .globalDnsT0Nano
-                                                                        + "\n"
-                                                                        + "     = "
-                                                                        + ttfbNano
-                                                                        + " ns\n"
-                                                                        + "     = "
-                                                                        + ttfbMicros
-                                                                        + " µs\n"
-                                                                        + "     = "
-                                                                        + forwarder
-                                                                        .globalTtfbMs
-                                                                        + " ms\n"
-                                                                        + "==========================";
+                                                            String tlsHandshakeLog =
+                                                                    "========== TLS HANDSHAKE ==========\n"
+                                                                            + "T0 Direction       : TX / SENT\n"
+                                                                            + "T0 TLS Record Type : 0x16\n"
+                                                                            + "T0 Record Type     : Handshake\n"
+                                                                            + "T0 Nano            : "
+                                                                            + forwarder.globalTlsRecordType16T0Nano
+                                                                            + " ns\n"
+                                                                            + "T0 Timestamp       : "
+                                                                            + forwarder.formatTimestamp(
+                                                                            forwarder.globalTlsRecordType16T0WallTime
+                                                                    )
+                                                                            + "\n"
+                                                                            + "\n"
+                                                                            + "T1 Direction       : RX / RECEIVED\n"
+                                                                            + "T1 TLS Record Type : 0x17\n"
+                                                                            + "T1 Record Type     : Application Data\n"
+                                                                            + "T1 Nano            : "
+                                                                            + forwarder.globalTlsRecordType17T1Nano
+                                                                            + " ns\n"
+                                                                            + "T1 Timestamp       : "
+                                                                            + forwarder.formatTimestamp(
+                                                                            forwarder.globalTlsRecordType17T1WallTime
+                                                                    )
+                                                                            + "\n"
+                                                                            + "\n"
+                                                                            + "TLS Handshake = T1 - T0\n"
+                                                                            + "               = "
+                                                                            + forwarder.globalTlsRecordType17T1Nano
+                                                                            + " - "
+                                                                            + forwarder.globalTlsRecordType16T0Nano
+                                                                            + "\n"
+                                                                            + "               = "
+                                                                            + forwarder.globalTlsHandshakeNano
+                                                                            + " ns\n"
+                                                                            + "               = "
+                                                                            + String.format(
+                                                                            java.util.Locale.US,
+                                                                            "%.3f",
+                                                                            forwarder.globalTlsHandshakeMs
+                                                                    )
+                                                                            + " ms\n"
+                                                                            + "\n"
+                                                                            + "Connection Key    : "
+                                                                            + key
+                                                                            + "\n"
+                                                                            + "===================================";
 
+                                                            Log.i(
+                                                                    TAG,
+                                                                    tlsHandshakeLog
+                                                            );
 
-                                                        Log.i(
-                                                                TAG,
-                                                                ttfbLog
-                                                        );
+                                                            forwarder.dashboard.logToFile(
+                                                                    TAG + tlsHandshakeLog
+                                                            );
+                                                        }
 
-
-//                                                        forwarder.dashboard.logEvent(
-//                                                                TAG
-//                                                                        + ttfbLog,
-//                                                                VpnEvent.Level.SUCCESS,
-//                                                                VpnEvent.Category.TCP
-//                                                        );
-
-
-                                                        forwarder.dashboard.logToFile(
-                                                                TAG
-                                                                        + ttfbLog
-                                                        );
-
-
-                                                        forwarder.reportTtfb(
-                                                                this,
-                                                                forwarder.globalTtfbMs,
-                                                                key
-                                                        );
-
-
-                                                    } else {
 
                                                         /*
-                                                         * TLS 0x17 arrived but no DNS transaction
-                                                         * matched the TCP destination IP.
+                                                         * =============================================
+                                                         * EXISTING TTFB LOGIC
+                                                         * =============================================
                                                          *
-                                                         * Therefore TTFB is NOT calculated.
+                                                         * DO NOT CHANGE YOUR EXISTING TTFB
+                                                         * CALCULATION.
+                                                         *
+                                                         * Only the source of T1 has changed.
+                                                         *
+                                                         * T1 now comes from:
+                                                         *
+                                                         * record.observedNano
+                                                         *
+                                                         * instead of:
+                                                         *
+                                                         * System.nanoTime()
                                                          */
 
-                                                        String noDnsLog =
-                                                                "========== TTFB NOT CALCULATED ==========\n"
-                                                                        + "Reason: No matched DNS T0\n"
-                                                                        + "TLS Record Type : 0x17\n"
-                                                                        + "TLS T1 Nano     : "
-                                                                        + forwarder
-                                                                        .globalTlsRecordType17T1Nano
-                                                                        + " ns\n"
-                                                                        + "==========================================";
+                                                        if (
+                                                                forwarder
+                                                                        .globalDnsT0Nano
+                                                                        > 0L
+                                                        ) {
+
+                                                            long ttfbNano =
+                                                                    forwarder
+                                                                            .globalTlsRecordType17T1Nano
+                                                                            -
+                                                                            forwarder
+                                                                                    .globalDnsT0Nano;
 
 
-                                                        Log.i(
-                                                                TAG,
-                                                                noDnsLog
-                                                        );
+                                                            long ttfbMicros =
+                                                                    TimeUnit
+                                                                            .NANOSECONDS
+                                                                            .toMicros(
+                                                                                    ttfbNano
+                                                                            );
 
 
-                                                        forwarder.dashboard.logToFile(
-                                                                TAG
-                                                                        + noDnsLog
-                                                        );
+                                                            forwarder.globalTtfbMs =
+                                                                    TimeUnit
+                                                                            .NANOSECONDS
+                                                                            .toMillis(
+                                                                                    ttfbNano
+                                                                            );
+
+
+                                                            String ttfbLog =
+                                                                    "========== TTFB ==========\n"
+                                                                            + "Destination IP : "
+                                                                            + forwarder.globalTtfbRequestDestinationIp
+                                                                            + "\n"
+                                                                            + "Resolved IP    : "
+                                                                            + forwarder.globalTtfbRequestResolvedIp
+                                                                            + "\n"
+                                                                            + "Request Payload: "
+                                                                            + forwarder.globalTtfbRequestPayloadSize
+                                                                            + " bytes\n"
+                                                                            + "\n"
+                                                                            + "DNS T0 Nano          : "
+                                                                            + forwarder.globalDnsT0Nano
+                                                                            + " ns\n"
+                                                                            + "TLS Record Type      : 0x17\n"
+                                                                            + "TLS Record           : Application Data\n"
+                                                                            + "TLS T1 Nano          : "
+                                                                            + forwarder.globalTlsRecordType17T1Nano
+                                                                            + " ns\n"
+                                                                            + "TLS T1 Timestamp     : "
+                                                                            + forwarder.formatTimestamp(
+                                                                            forwarder.globalTlsRecordType17T1WallTime
+                                                                    )
+                                                                            + "\n"
+                                                                            + "\n"
+                                                                            + "TTFB = TLS 0x17 T1 - DNS T0\n"
+                                                                            + "     = "
+                                                                            + forwarder.globalTlsRecordType17T1Nano
+                                                                            + " - "
+                                                                            + forwarder.globalDnsT0Nano
+                                                                            + "\n"
+                                                                            + "     = "
+                                                                            + ttfbNano
+                                                                            + " ns\n"
+                                                                            + "     = "
+                                                                            + ttfbMicros
+                                                                            + " µs\n"
+                                                                            + "     = "
+                                                                            + forwarder.globalTtfbMs
+                                                                            + " ms\n"
+                                                                            + "==========================";
+
+                                                            Log.i(TAG, ttfbLog);
+
+                                                            forwarder.dashboard.logToFile(
+                                                                    TAG + ttfbLog
+                                                            );
+
+                                                            forwarder.reportTtfb(
+                                                                    this,
+                                                                    forwarder.globalTtfbMs,
+                                                                    key
+                                                            );
+                                                        } else {
+
+                                                            String ttfbFallbackLog =
+                                                                    "========== TTFB NOT CALCULATED ==========\n"
+                                                                            + "Reason             : Matching DNS transaction not found\n"
+                                                                            + "Destination IP     : "
+                                                                            + forwarder.globalTtfbRequestDestinationIp
+                                                                            + "\n"
+                                                                            + "Resolved IP        : "
+                                                                            + forwarder.globalTtfbRequestResolvedIp
+                                                                            + "\n"
+                                                                            + "DNS T0             : NOT AVAILABLE\n"
+                                                                            + "TLS T1             : "
+                                                                            + forwarder.globalTlsRecordType17T1Nano
+                                                                            + " ns\n"
+                                                                            + "Connection Key     : "
+                                                                            + key
+                                                                            + "\n"
+                                                                            + "==========================================";
+
+                                                            Log.w(
+                                                                    TAG,
+                                                                    ttfbFallbackLog
+                                                            );
+
+                                                            forwarder.dashboard.logToFile(
+                                                                    TAG + ttfbFallbackLog
+                                                            );
+                                                        }
                                                     }
                                                 }
-                                            }                                        }
+                                            }
+
+
+
+
+                                                                          }
 
 
                                         /*
@@ -3735,67 +4071,7 @@ class AppOpenTcpForwarder {
      * 0x17 = Application Data
      */
 
-    private static boolean isTlsApplicationDataRecord(
-            byte[] data,
-            int length
-    ) {
 
-        if (
-                data == null
-                        || length < 5
-        ) {
-
-            return false;
-        }
-
-
-        int contentType =
-                data[0] & 0xFF;
-
-
-        if (contentType != 0x17) {
-
-            return false;
-        }
-
-
-        int versionMajor =
-                data[1] & 0xFF;
-
-        int versionMinor =
-                data[2] & 0xFF;
-
-
-        /*
-         * TLS versions:
-         *
-         * 03 01 = TLS 1.0
-         * 03 02 = TLS 1.1
-         * 03 03 = TLS 1.2
-         * 03 04 = TLS 1.3
-         */
-
-        if (versionMajor != 0x03) {
-
-            return false;
-        }
-
-
-        /*
-         * Validate declared TLS record length.
-         */
-
-        int recordLength =
-                (
-                        ((data[3] & 0xFF) << 8)
-                                |
-                                (data[4] & 0xFF)
-                );
-
-
-        return length >=
-                5 + recordLength;
-    }
 
 
     /*
