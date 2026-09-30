@@ -22,6 +22,28 @@ public final class VpnStats {
     public final long tcpHandshakeNano;
 
     /*
+     * Wall-clock T0/T1 timestamps for display and logging only.
+     *
+     * IMPORTANT:
+     * Duration calculations must continue to use monotonic timing.
+     * These values are captured at the actual event time.
+     */
+    public final long ttfbT0WallTime;
+    public final long ttfbT1WallTime;
+
+    public final long webTtfbT0WallTime;
+    public final long webTtfbT1WallTime;
+
+    public final long tcpHandshakeT0WallTime;
+    public final long tcpHandshakeT1WallTime;
+
+    public final long tlsHandshakeT0WallTime;
+    public final long tlsHandshakeT1WallTime;
+
+    public final long dnsResolutionT0WallTime;
+    public final long dnsResolutionT1WallTime;
+
+    /*
      * TCP Connection Time
      *
      * T0 = first TCP SYN 0x02
@@ -30,6 +52,10 @@ public final class VpnStats {
      * Value stored in milliseconds.
      */
     public final long tcpConnectionTimeMs;
+
+    // TCP Connection T0/T1 wall-clock timestamps
+    public final long tcpConnectionT0WallTime;
+    public final long tcpConnectionT1WallTime;
 
     /*
      * TCP Retransmission Count
@@ -85,6 +111,28 @@ public final class VpnStats {
                 -1L,
                 -1L,
 
+                // VPN TTFB T0/T1
+                -1L,
+                -1L,
+
+                // Web TTFB T0/T1
+                -1L,
+                -1L,
+
+                // TCP Handshake T0/T1
+                -1L,
+                -1L,
+
+                // TLS Handshake T0/T1
+                -1L,
+                -1L,
+
+                // DNS Resolution T0/T1
+                -1L,
+                -1L,
+
+                -1L,
+                -1L,
                 -1L,
                 0L,
 
@@ -120,7 +168,24 @@ public final class VpnStats {
             long lastTtfbMs,
             long tcpHandshakeNano,
 
+            long ttfbT0WallTime,
+            long ttfbT1WallTime,
+
+            long webTtfbT0WallTime,
+            long webTtfbT1WallTime,
+
+            long tcpHandshakeT0WallTime,
+            long tcpHandshakeT1WallTime,
+
+            long tlsHandshakeT0WallTime,
+            long tlsHandshakeT1WallTime,
+
+            long dnsResolutionT0WallTime,
+            long dnsResolutionT1WallTime,
+
             long tcpConnectionTimeMs,
+            long tcpConnectionT0WallTime,
+            long tcpConnectionT1WallTime,
             long tcpRetransmissionCount,
 
             double tlsHandshakeMs,
@@ -152,8 +217,29 @@ public final class VpnStats {
         this.lastTtfbMs = lastTtfbMs;
         this.tcpHandshakeNano = tcpHandshakeNano;
 
+        this.ttfbT0WallTime = ttfbT0WallTime;
+        this.ttfbT1WallTime = ttfbT1WallTime;
+
+        this.webTtfbT0WallTime = webTtfbT0WallTime;
+        this.webTtfbT1WallTime = webTtfbT1WallTime;
+
+        this.tcpHandshakeT0WallTime = tcpHandshakeT0WallTime;
+        this.tcpHandshakeT1WallTime = tcpHandshakeT1WallTime;
+
+        this.tlsHandshakeT0WallTime = tlsHandshakeT0WallTime;
+        this.tlsHandshakeT1WallTime = tlsHandshakeT1WallTime;
+
+        this.dnsResolutionT0WallTime = dnsResolutionT0WallTime;
+        this.dnsResolutionT1WallTime = dnsResolutionT1WallTime;
+
         this.tcpConnectionTimeMs =
                 tcpConnectionTimeMs;
+
+        this.tcpConnectionT0WallTime =
+                tcpConnectionT0WallTime;
+
+        this.tcpConnectionT1WallTime =
+                tcpConnectionT1WallTime;
 
         this.tcpRetransmissionCount =
                 tcpRetransmissionCount;
@@ -192,7 +278,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -229,7 +332,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -266,7 +386,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -303,7 +440,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -357,7 +511,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -394,7 +565,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -431,7 +619,24 @@ public final class VpnStats {
                 ttfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -468,7 +673,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 handshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -514,7 +736,87 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 connectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
+
+    /**
+     * Stores the wall-clock timestamps for TCP connection timing.
+     *
+     * T0 = first TCP SYN 0x02
+     * T1 = socket connect completed
+     */
+    public VpnStats withTcpConnectionWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
+                tcpConnectionTimeMs,
+                t0WallTime,
+                t1WallTime,
+
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -555,7 +857,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 retransmissionCount,
 
                 tlsHandshakeMs,
@@ -601,7 +920,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -640,7 +976,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 handshakeMs,
@@ -680,7 +1033,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -719,7 +1089,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -758,7 +1145,24 @@ public final class VpnStats {
                 lastTtfbMs,
                 tcpHandshakeNano,
 
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
                 tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
                 tcpRetransmissionCount,
 
                 tlsHandshakeMs,
@@ -771,4 +1175,285 @@ public final class VpnStats {
                 hostName
         );
     }
+    /*
+     * ============================================================
+     * Wall-clock timestamp setters
+     * ============================================================
+     */
+
+    public VpnStats withTtfbWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                t0WallTime,
+                t1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
+                tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
+    public VpnStats withWebTtfbWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                t0WallTime,
+                t1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
+                tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
+    public VpnStats withTcpHandshakeWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                t0WallTime,
+                t1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
+                tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
+    public VpnStats withTlsHandshakeWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                t0WallTime,
+                t1WallTime,
+
+                dnsResolutionT0WallTime,
+                dnsResolutionT1WallTime,
+
+                tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
+    public VpnStats withDnsResolutionWallTimes(
+            long t0WallTime,
+            long t1WallTime) {
+
+        return new VpnStats(
+                vpnStatus,
+                permissionStatus,
+                interfaceStatus,
+                readerStatus,
+
+                totalPackets,
+                tcpCount,
+                udpCount,
+                ipv6SkippedCount,
+
+                lastProtocol,
+                lastSourceIp,
+                lastDestIp,
+                lastPacketSize,
+                lastPacketTimestamp,
+
+                lastTtfbMs,
+                tcpHandshakeNano,
+
+                ttfbT0WallTime,
+                ttfbT1WallTime,
+
+                webTtfbT0WallTime,
+                webTtfbT1WallTime,
+
+                tcpHandshakeT0WallTime,
+                tcpHandshakeT1WallTime,
+
+                tlsHandshakeT0WallTime,
+                tlsHandshakeT1WallTime,
+
+                t0WallTime,
+                t1WallTime,
+
+                tcpConnectionTimeMs,
+                tcpConnectionT0WallTime,
+                tcpConnectionT1WallTime,
+                tcpRetransmissionCount,
+
+                tlsHandshakeMs,
+
+                quicHandshakeMs,
+
+                lastDnsLookupMs,
+                lastDnsServerIp,
+                lastDnsDestinationIp,
+                lastDnsHostName
+        );
+    }
+
 }

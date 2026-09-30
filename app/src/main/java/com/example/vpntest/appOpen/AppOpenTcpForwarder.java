@@ -150,14 +150,28 @@ class AppOpenTcpForwarder {
 
     private volatile double tcpHandshakeMs = -1.0;
 
-    private final java.util.concurrent.atomic.AtomicBoolean
-            tcpHandshakeSynCaptured =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
+    /*
+     * Each TCP connection has its own SYN T0.
+     *
+     * Key:
+     * Source IP:Port -> Destination IP:Port
+     */
+    private final Map<String, Long> tcpHandshakeT0ByConnection =
+            new ConcurrentHashMap<>();
 
+    /*
+     * Wall-clock timestamp for displaying T0 in the UI.
+     */
+    private final Map<String, Long> tcpHandshakeT0WallTimeByConnection =
+            new ConcurrentHashMap<>();
+
+    /*
+     * Prevent later handshakes from overwriting
+     * the first selected valid handshake.
+     */
     private final java.util.concurrent.atomic.AtomicBoolean
             tcpHandshakeCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
-
     /*
      * =========================================================
      * TTFB TIMING
@@ -591,74 +605,131 @@ class AppOpenTcpForwarder {
         if (flags == 0x02) {
 
             /*
-             * =========================================================
-             * TCP HANDSHAKE T0 = TX SYN
-             * =========================================================
+             * TCP HANDSHAKE T0 - PER CONNECTION
              *
-             * T0 = First outgoing SYN
-             * TCP Flags = 0x02
+             * T0 = first outgoing SYN for this connection.
              */
 
-            if (tcpHandshakeSynCaptured
-                    .compareAndSet(false, true)) {
+            String synSourceIp = ipStr(srcIp);
+            String synDestinationIp = ipStr(dstIp);
 
-                tcpHandshakeSynSentNano =
-                        System.nanoTime();
+            long synDebugNano = System.nanoTime();
+            long synDebugWallTime = System.currentTimeMillis();
 
-                long synSentWallTime =
-                        System.currentTimeMillis();
+            String synConnectionKey =
+                    synSourceIp + ":" + srcPort
+                            + "->"
+                            + synDestinationIp + ":" + dstPort;
+
+            /*
+             * Save the first SYN only.
+             * Retransmitted SYN must not overwrite T0.
+             */
+            Long existingT0 =
+                    tcpHandshakeT0ByConnection.putIfAbsent(
+                            synConnectionKey,
+                            synDebugNano
+                    );
+
+            boolean firstSynForConnection =
+                    existingT0 == null;
+
+            long connectionT0 =
+                    firstSynForConnection
+                            ? synDebugNano
+                            : existingT0;
+
+            if (firstSynForConnection) {
+
+                tcpHandshakeT0WallTimeByConnection.put(
+                        synConnectionKey,
+                        synDebugWallTime
+                );
+            }
+
+            /*
+             * Log every SYN candidate.
+             */
+            String synDebugLog =
+                    "========== TCP CONNECTION | SYN CANDIDATE ==========\n"
+                            + "Connection Key     : " + synConnectionKey + "\n"
+                            + "Source IP          : " + synSourceIp + "\n"
+                            + "Source Port        : " + srcPort + "\n"
+                            + "Destination IP     : " + synDestinationIp + "\n"
+                            + "Destination Port   : " + dstPort + "\n"
+                            + "Sequence Number    : " + seq + "\n"
+                            + "ACK Number         : " + ack + "\n"
+                            + "TCP Flags          : 0x"
+                            + String.format(
+                            java.util.Locale.US,
+                            "%02X",
+                            flags
+                    ) + "\n"
+                            + "SYN Timestamp Nano : " + synDebugNano + " ns\n"
+                            + "Timestamp          : "
+                            + formatTimestamp(synDebugWallTime) + "\n"
+                            + "First SYN          : " + firstSynForConnection + "\n"
+                            + "Existing T0        : "
+                            + (existingT0 != null
+                            ? existingT0 + " ns"
+                            : "NONE") + "\n"
+                            + "Selected T0        : " + connectionT0 + " ns\n"
+                            + "Existing Session   : " + (session != null) + "\n"
+                            + "Session State      : "
+                            + (session != null
+                            ? session.state
+                            : "NONE") + "\n"
+                            + "====================================================";
+
+            Log.i(TAG, synDebugLog);
+            dashboard.logToFile(TAG + synDebugLog);
+
+            if (firstSynForConnection) {
 
                 String txSynLog =
                         "========== TCP HANDSHAKE | TX SYN ==========\n"
-                                + "Source IP          : "
-                                + ipStr(srcIp)
-                                + "\n"
-                                + "Destination IP     : "
-                                + ipStr(dstIp)
-                                + "\n"
-                                + "Source Port        : "
-                                + srcPort
-                                + "\n"
-                                + "Destination Port   : "
-                                + dstPort
-                                + "\n"
-                                + "Sequence Number    : "
-                                + seq
-                                + "\n"
-                                + "ACK Number         : "
-                                + ack
-                                + "\n"
-                                + "TCP Flags          : 0x"
+                                + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Source IP          : " + synSourceIp + "\n"
+                                + "Destination IP     : " + synDestinationIp + "\n"
+                                + "Source Port        : " + srcPort + "\n"
+                                + "Destination Port   : " + dstPort + "\n"
+                                + "Sequence Number    : " + seq + "\n"
+                                + "ACK Number         : " + ack + "\n"
+                                + "TCP Flags          : 0x02\n"
+                                + "Window Size        : " + windowSize + "\n"
+                                + "Checksum           : 0x"
                                 + String.format(
                                 java.util.Locale.US,
-                                "%02X",
-                                flags
-                        )
-                                + "\n"
+                                "%04X",
+                                checksum
+                        ) + "\n"
                                 + "TCP Header Length  : "
-                                + dataOffsetBytes
-                                + " bytes\n"
+                                + dataOffsetBytes + " bytes\n"
                                 + "Payload Length     : "
-                                + payloadLen
-                                + " bytes\n"
+                                + payloadLen + " bytes\n"
                                 + "Handshake T0       : "
-                                + tcpHandshakeSynSentNano
-                                + " ns\n"
+                                + connectionT0 + " ns\n"
                                 + "Timestamp          : "
-                                + formatTimestamp(
-                                synSentWallTime
-                        )
-                                + "\n"
+                                + formatTimestamp(synDebugWallTime) + "\n"
                                 + "==============================================";
 
-                Log.i(
-                        TAG,
-                        txSynLog
-                );
+                Log.i(TAG, txSynLog);
+                dashboard.logToFile(TAG + txSynLog);
 
-                dashboard.logToFile(
-                        TAG + txSynLog
-                );
+            } else {
+
+                String retransmissionLog =
+                        "========== TCP HANDSHAKE SYN RETRANSMISSION ==========\n"
+                                + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Current SYN T0     : " + synDebugNano + " ns\n"
+                                + "Original T0        : " + existingT0 + " ns\n"
+                                + "Action             : ORIGINAL T0 PRESERVED\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synDebugWallTime) + "\n"
+                                + "====================================================";
+
+                Log.d(TAG, retransmissionLog);
+                dashboard.logToFile(TAG + retransmissionLog);
             }
         }
 
@@ -767,139 +838,227 @@ class AppOpenTcpForwarder {
          * SYN-ACK 0x12 is NOT T1.
          */
 
-        if (session.state ==
-                TcpSession.State.SYN_RCVD
+        if (session.state == TcpSession.State.SYN_RCVD
                 && flags == 0x10) {
 
             /*
-             * ========================================================
-             * Capture first TX ACK as T1
-             * ========================================================
+             * TCP HANDSHAKE T1 - PER CONNECTION
              */
 
-            if (tcpHandshakeSynCaptured.get()
-                    && tcpHandshakeCaptured.compareAndSet(
-                    false,
-                    true
-            )) {
+            String t1SourceIp = ipStr(srcIp);
+            String t1DestinationIp = ipStr(dstIp);
+
+            long t1CandidateNano = System.nanoTime();
+            long t1CandidateWallTime = System.currentTimeMillis();
+
+            String t1ConnectionKey =
+                    t1SourceIp + ":" + srcPort
+                            + "->"
+                            + t1DestinationIp + ":" + dstPort;
+
+            /*
+             * Find the SYN belonging to this ACK.
+             */
+            Long connectionT0 =
+                    tcpHandshakeT0ByConnection.get(
+                            t1ConnectionKey
+                    );
+
+            /*
+             * Verify that the ACK belongs to the
+             * same TCP session.
+             */
+            boolean ackMatchesSession =
+                    session.srcIp != null
+                            && session.dstIp != null
+                            && session.srcPort == srcPort
+                            && session.dstPort == dstPort
+                            && ipStr(session.srcIp).equals(t1SourceIp)
+                            && ipStr(session.dstIp).equals(t1DestinationIp);
+
+            boolean t1MatchesT0 =
+                    connectionT0 != null
+                            && ackMatchesSession;
+
+            /*
+             * Debug logging.
+             */
+            String t1DebugLog =
+                    "========== TCP CONNECTION | T1 CANDIDATE ==========\n"
+                            + "Connection Key       : " + t1ConnectionKey + "\n"
+                            + "Source IP            : " + t1SourceIp + "\n"
+                            + "Source Port          : " + srcPort + "\n"
+                            + "Destination IP       : " + t1DestinationIp + "\n"
+                            + "Destination Port     : " + dstPort + "\n"
+                            + "Sequence Number      : " + seq + "\n"
+                            + "ACK Number           : " + ack + "\n"
+                            + "TCP Flags            : 0x"
+                            + String.format(
+                            java.util.Locale.US,
+                            "%02X",
+                            flags
+                    ) + "\n"
+                            + "T1 Candidate         : " + t1CandidateNano + " ns\n"
+                            + "Timestamp            : "
+                            + formatTimestamp(t1CandidateWallTime) + "\n"
+                            + "T0 Found             : " + (connectionT0 != null) + "\n"
+                            + "Connection T0        : "
+                            + (connectionT0 != null
+                            ? connectionT0 + " ns"
+                            : "NOT_FOUND") + "\n"
+                            + "ACK Matches Session  : " + ackMatchesSession + "\n"
+                            + "T1 Matches T0        : " + t1MatchesT0 + "\n"
+                            + "====================================================";
+
+            Log.i(TAG, t1DebugLog);
+            dashboard.logToFile(TAG + t1DebugLog);
+
+            /*
+             * T0 vs T1 comparison.
+             */
+            String comparisonLog =
+                    "========== TCP HANDSHAKE | T0 vs T1 COMPARISON ==========\n"
+                            + "Connection Key       : " + t1ConnectionKey + "\n"
+                            + "Source IP Match      : "
+                            + (connectionT0 != null && ackMatchesSession) + "\n"
+                            + "Source Port Match    : "
+                            + (connectionT0 != null && ackMatchesSession) + "\n"
+                            + "Destination IP Match : "
+                            + (connectionT0 != null && ackMatchesSession) + "\n"
+                            + "Destination Port Match: "
+                            + (connectionT0 != null && ackMatchesSession) + "\n"
+                            + "T0 Found             : " + (connectionT0 != null) + "\n"
+                            + "T1 Matches T0        : " + t1MatchesT0 + "\n"
+                            + "Comparison Result    : "
+                            + (t1MatchesT0 ? "VALID MATCH" : "NO MATCH") + "\n"
+                            + "====================================================";
+
+            dashboard.logToFile(TAG + comparisonLog);
+
+            if (!t1MatchesT0) {
+
+                dashboard.logToFile(
+                        TAG
+                                + "TCP HANDSHAKE T1 IGNORED\n"
+                                + "Connection Key : " + t1ConnectionKey + "\n"
+                                + "Reason         : No matching per-connection T0\n"
+                                + "Session        : CONTINUES"
+                );
+
+            } else if (connectionT0 <= t1CandidateNano
+                    && tcpHandshakeCaptured.compareAndSet(false, true)) {
 
                 /*
-                 * T1 = TX ACK timestamp
+                 * First valid connection selected.
                  */
-                tcpHandshakeAckNano =
-                        System.nanoTime();
+                tcpHandshakeSynSentNano = connectionT0;
 
+                tcpHandshakeAckNano = t1CandidateNano;
+
+                tcpHandshakeNano =
+                        tcpHandshakeAckNano - tcpHandshakeSynSentNano;
+
+                tcpHandshakeMs =
+                        tcpHandshakeNano / 1_000_000.0;
 
                 /*
-                 * ====================================================
-                 * Calculate TCP handshake time
-                 * ====================================================
+                 * Get the original wall-clock SYN timestamp.
                  */
+                Long handshakeT0WallTime =
+                        tcpHandshakeT0WallTimeByConnection.get(
+                                t1ConnectionKey
+                        );
 
-                if (tcpHandshakeSynSentNano > 0L) {
+                /*
+                 * Update UI.
+                 *
+                 * Uses the same 3-argument API as
+                 * your normal TcpForwarder.
+                 */
+                if (handshakeT0WallTime != null) {
 
-                    tcpHandshakeNano =
-                            tcpHandshakeAckNano
-                                    - tcpHandshakeSynSentNano;
+                    dashboard.recordTcpHandshake(
+                            tcpHandshakeNano,
+                            handshakeT0WallTime,
+                            t1CandidateWallTime
+                    );
 
-                    tcpHandshakeMs =
-                            tcpHandshakeNano
-                                    / 1_000_000.0;
+                    dashboard.logToFile(
+                            TAG
+                                    + "TCP HANDSHAKE UI UPDATE\n"
+                                    + "T0 Wall Time : "
+                                    + formatTimestamp(handshakeT0WallTime) + "\n"
+                                    + "T1 Wall Time : "
+                                    + formatTimestamp(t1CandidateWallTime) + "\n"
+                                    + "Duration     : "
+                                    + tcpHandshakeMs + " ms"
+                    );
 
+                } else {
 
                     /*
-                     * Send handshake value to dashboard
+                     * Preserve the duration even if the
+                     * wall-clock timestamp is missing.
                      */
                     dashboard.recordTcpHandshake(
                             tcpHandshakeNano
                     );
                 }
 
-
                 /*
-                 * ====================================================
-                 * T1 LOG
-                 * ====================================================
+                 * Final selected handshake log.
                  */
-
-                long ackWallTime =
-                        System.currentTimeMillis();
-
                 String txAckLog =
                         "========== TCP HANDSHAKE | TX ACK ==========\n"
-                                + "Source IP          : "
-                                + ipStr(srcIp)
-                                + "\n"
-                                + "Destination IP     : "
-                                + ipStr(dstIp)
-                                + "\n"
-                                + "Source Port        : "
-                                + srcPort
-                                + "\n"
-                                + "Destination Port   : "
-                                + dstPort
-                                + "\n"
-                                + "Sequence Number    : "
-                                + seq
-                                + "\n"
-                                + "ACK Number         : "
-                                + ack
-                                + "\n"
+                                + "Connection Key     : " + t1ConnectionKey + "\n"
+                                + "Source IP          : " + t1SourceIp + "\n"
+                                + "Destination IP     : " + t1DestinationIp + "\n"
+                                + "Source Port        : " + srcPort + "\n"
+                                + "Destination Port   : " + dstPort + "\n"
+                                + "Sequence Number    : " + seq + "\n"
+                                + "ACK Number         : " + ack + "\n"
                                 + "TCP Flags          : 0x10\n"
                                 + "Handshake T0       : "
-                                + tcpHandshakeSynSentNano
-                                + " ns\n"
+                                + tcpHandshakeSynSentNano + " ns\n"
                                 + "Handshake T1       : "
-                                + tcpHandshakeAckNano
-                                + " ns\n"
+                                + tcpHandshakeAckNano + " ns\n"
                                 + "T1 - T0            : "
-                                + tcpHandshakeNano
-                                + " ns\n"
+                                + tcpHandshakeNano + " ns\n"
                                 + "Handshake Time     : "
                                 + String.format(
                                 java.util.Locale.US,
                                 "%.3f",
                                 tcpHandshakeMs
-                        )
-                                + " ms\n"
+                        ) + " ms\n"
                                 + "Timestamp          : "
-                                + formatTimestamp(
-                                ackWallTime
-                        )
-                                + "\n"
+                                + formatTimestamp(t1CandidateWallTime) + "\n"
                                 + "==============================================";
 
+                Log.i(TAG, txAckLog);
+                dashboard.logToFile(TAG + txAckLog);
 
-                Log.i(
-                        TAG,
-                        txAckLog
-                );
+            } else {
 
                 dashboard.logToFile(
-                        TAG + txAckLog
+                        TAG
+                                + "TCP HANDSHAKE VALID BUT NOT SELECTED\n"
+                                + "Connection Key : " + t1ConnectionKey + "\n"
+                                + "Reason         : Another valid handshake already selected"
                 );
             }
 
-
             /*
-             * ========================================================
-             * TCP HANDSHAKE COMPLETE
-             * ========================================================
+             * Preserve existing session behavior.
+             * Do not stop forwarding when a measurement
+             * is rejected.
              */
-
-            Log.d(
-                    TAG,
-                    "TCP Handshake completed."
-            );
+            Log.d(TAG, "TCP Handshake completed.");
 
             dashboard.logToFile(
                     TAG + "TCP Handshake completed."
             );
 
-
-            session.state =
-                    TcpSession.State.ESTABLISHED;
-
+            session.state = TcpSession.State.ESTABLISHED;
 
             session.startRealSocketReaderThread(
                     this,
@@ -2527,27 +2686,65 @@ class AppOpenTcpForwarder {
             TcpSession session
     ) {
 
-        sessions.remove(
-                key
-        );
-
-        session.state =
-                TcpSession.State.CLOSED;
-
+        if (session == null) {
+            return;
+        }
 
         /*
-         * Reset TLS stream parsers for this TCP connection.
+         * Build the same connection key used for T0.
          */
+        String handshakeConnectionKey = null;
 
+        if (session.srcIp != null
+                && session.dstIp != null) {
+
+            handshakeConnectionKey =
+                    ipStr(session.srcIp) + ":" + session.srcPort
+                            + "->"
+                            + ipStr(session.dstIp) + ":" + session.dstPort;
+        }
+
+        /*
+         * Remove the closed connection's timestamps.
+         */
+        Long removedT0 = null;
+
+        if (handshakeConnectionKey != null) {
+
+            removedT0 =
+                    tcpHandshakeT0ByConnection.remove(
+                            handshakeConnectionKey
+                    );
+
+            tcpHandshakeT0WallTimeByConnection.remove(
+                    handshakeConnectionKey
+            );
+        }
+
+        dashboard.logToFile(
+                TAG
+                        + "TCP CONNECTION CLOSED\n"
+                        + "Session Key       : " + key + "\n"
+                        + "Handshake Key     : " + handshakeConnectionKey + "\n"
+                        + "Removed T0        : "
+                        + (removedT0 != null ? removedT0 + " ns" : "NONE") + "\n"
+                        + "Remaining T0 Map  : "
+                        + tcpHandshakeT0ByConnection.size()
+        );
+
+        sessions.remove(key, session);
+
+        session.state = TcpSession.State.CLOSED;
+
+        /*
+         * Preserve existing TLS parser cleanup.
+         */
         session.txTlsParser.reset();
-
         session.rxTlsParser.reset();
-
 
         try {
 
             if (session.realSocket != null) {
-
                 session.realSocket.close();
             }
 
@@ -2566,11 +2763,8 @@ class AppOpenTcpForwarder {
 
         shutdown = true;
 
-
-        for (
-                Map.Entry<String, TcpSession> e
-                : sessions.entrySet()
-        ) {
+        for (Map.Entry<String, TcpSession> e
+                : sessions.entrySet()) {
 
             closeSession(
                     e.getKey(),
@@ -2578,14 +2772,31 @@ class AppOpenTcpForwarder {
             );
         }
 
+        /*
+         * TCP HANDSHAKE RESET
+         */
+        tcpHandshakeSynSentNano = 0L;
+
+        tcpHandshakeAckNano = 0L;
+
+        tcpHandshakeNano = -1L;
+
+        tcpHandshakeMs = -1.0;
+
+        tcpHandshakeT0ByConnection.clear();
+
+        tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeCaptured.set(false);
+
+        dashboard.logToFile(
+                TAG + "TCP HANDSHAKE STATE RESET"
+        );
 
         /*
-         * Reset complete TTFB state.
+         * Keep ALL remaining existing shutdown code.
          */
-
-        globalTtfbCaptured.set(
-                false
-        );
+        globalTtfbCaptured.set(false);
 
         globalOutgoingIpMatchTime =
                 0L;
@@ -2766,12 +2977,33 @@ class AppOpenTcpForwarder {
 
     void resetGlobalTtfb() {
 
-        globalTtfbCaptured.set(
-                false
+        /*
+         * Reset TCP handshake for new app-open test.
+         */
+        tcpHandshakeSynSentNano = 0L;
+
+        tcpHandshakeAckNano = 0L;
+
+        tcpHandshakeNano = -1L;
+
+        tcpHandshakeMs = -1.0;
+
+        tcpHandshakeT0ByConnection.clear();
+
+        tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeCaptured.set(false);
+
+        dashboard.logToFile(
+                TAG + "TCP HANDSHAKE RESET FOR NEW APP OPEN TEST"
         );
 
-        globalOutgoingIpMatchTime =
-                0L;
+        /*
+         * Existing TTFB reset.
+         */
+        globalTtfbCaptured.set(false);
+
+        globalOutgoingIpMatchTime = 0L;
 
         globalIncomingIpMatchTime =
                 0L;

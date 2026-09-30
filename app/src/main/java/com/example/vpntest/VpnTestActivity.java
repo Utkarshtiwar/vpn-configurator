@@ -69,13 +69,37 @@ public class VpnTestActivity extends AppCompatActivity {
     private TextView tvLastTtfb;
     private TextView tvLastTtfbWeb;
 
+    // VPN TTFB wall-clock
+    private TextView tvVpnTtfbT0;
+    private TextView tvVpnTtfbT1;
+
+    // Web TTFB wall-clock
+    private TextView tvTtfbT0;
+    private TextView tvTtfbT1;
+
+    // TCP Handshake wall-clock
+    private TextView tvTcpHandshakeT0;
+    private TextView tvTcpHandshakeT1;
+
+    // TLS Handshake wall-clock
+    private TextView tvTlsHandshakeT0;
+    private TextView tvTlsHandshakeT1;
+
+    // DNS Resolution wall-clock
+    private TextView tvDnsResolutionT0;
+    private TextView tvDnsResolutionT1;
+
     private TextView tvTcpHandshake;
     private TextView tvTlsHandshake;
     private TextView tvDnsLookup;
     private TextView tvDnsServerIp;
     private TextView tvDnsDestinationIp;
     private TextView tvDnsHostName;
+
     private TextView tvTcpConnectionTime;
+    private TextView tvTcpConnectionT0;
+    private TextView tvTcpConnectionT1;
+
     private TextView tvTcpRetransmissionCount;
     private TextView tvQuicHandshake;
     private MediatorVpnService mediatorVpnService;
@@ -347,45 +371,124 @@ public class VpnTestActivity extends AppCompatActivity {
                             ? stats.lastTtfbMs + " ms"
                             : "-"
             );
-            // TCP HANDSHAKE
-            // TCP HANDSHAKE
-            if (stats.tcpHandshakeNano >= 0) {
 
-                double handshakeMs =
-                        stats.tcpHandshakeNano / 1_000_000.0;
+            tvVpnTtfbT0.setText(
+                    "T0: " + formatWallClock(stats.ttfbT0WallTime)
+            );
 
-                tvTcpHandshake.setText(
-                        String.format(
-                                Locale.US,
-                                "%.2f ms",
-                                handshakeMs
-                        )
-                );
+            tvVpnTtfbT1.setText(
+                    "T1: " + formatWallClock(stats.ttfbT1WallTime)
+            );
+            // ============================================================
+// WEB TTFB
+// ============================================================
 
-            } else {
+            tvTtfbT0.setText(
+                    "T0: " + formatWallClock(
+                            stats.webTtfbT0WallTime
+                    )
+            );
 
-                tvTcpHandshake.setText("-");
+            tvTtfbT1.setText(
+                    "T1: " + formatWallClock(
+                            stats.webTtfbT1WallTime
+                    )
+            );
+// ============================================================
+// TCP HANDSHAKE
+// ============================================================
+
+            if (tvTcpHandshake != null) {
+
+                if (stats.tcpHandshakeNano >= 0) {
+
+                    double handshakeMs =
+                            stats.tcpHandshakeNano / 1_000_000.0;
+
+                    tvTcpHandshake.setText(
+                            String.format(
+                                    Locale.US,
+                                    "%.2f ms",
+                                    handshakeMs
+                            )
+                    );
+
+                } else {
+
+                    tvTcpHandshake.setText("-");
+                }
             }
 
+            if (tvTcpHandshakeT0 != null) {
 
-// TCP CONNECTION TIME
+                tvTcpHandshakeT0.setText(
+                        "T0: " + formatWallClock(
+                                stats.tcpHandshakeT0WallTime
+                        )
+                );
+            }
+
+            if (tvTcpHandshakeT1 != null) {
+
+                tvTcpHandshakeT1.setText(
+                        "T1: " + formatWallClock(
+                                stats.tcpHandshakeT1WallTime
+                        )
+                );
+            }
+            // ============================================================
             // TCP CONNECTION TIME
-// Value is already stored in milliseconds inside VpnStats.
-            if (stats.tcpConnectionTimeMs >= 0) {
+            // ============================================================
 
-                tvTcpConnectionTime.setText(
-                        String.format(
-                                Locale.US,
-                                "%.3f ms",
-                                (double) stats.tcpConnectionTimeMs
-                        )
-                );
+            // ============================================================
+// TCP CONNECTION TIME
+// ============================================================
 
-            } else {
+            if (tvTcpConnectionTime != null) {
 
-                tvTcpConnectionTime.setText("-");
+                if (stats.tcpConnectionTimeMs >= 0) {
+
+                    tvTcpConnectionTime.setText(
+                            String.format(
+                                    Locale.US,
+                                    "%.3f ms",
+                                    (double) stats.tcpConnectionTimeMs
+                            )
+                    );
+
+                } else {
+
+                    tvTcpConnectionTime.setText("-");
+                }
             }
 
+
+// ============================================================
+// TCP CONNECTION T0
+// ============================================================
+
+            if (tvTcpConnectionT0 != null) {
+
+                tvTcpConnectionT0.setText(
+                        "T0: " + formatWallClock(
+                                stats.tcpConnectionT0WallTime
+                        )
+                );
+            }
+
+
+// ============================================================
+// TCP CONNECTION T1
+// ============================================================
+
+            if (tvTcpConnectionT1 != null) {
+
+                tvTcpConnectionT1.setText(
+                        "T1: " + formatWallClock(
+                                stats.tcpConnectionT1WallTime
+                        )
+                );
+            }
 
 // TCP RETRANSMISSION COUNT
             tvTcpRetransmissionCount.setText(
@@ -428,6 +531,18 @@ public class VpnTestActivity extends AppCompatActivity {
                 tvTlsHandshake.setText("-");
             }
 
+            tvTlsHandshakeT0.setText(
+                    "T0: " + formatWallClock(
+                            stats.tlsHandshakeT0WallTime
+                    )
+            );
+
+            tvTlsHandshakeT1.setText(
+                    "T1: " + formatWallClock(
+                            stats.tlsHandshakeT1WallTime
+                    )
+            );
+
 // DNS LOOKUP
             if (stats.lastDnsLookupMs >= 0) {
 
@@ -449,6 +564,18 @@ public class VpnTestActivity extends AppCompatActivity {
                 tvDnsServerIp.setText("Server: -");
             }
 
+            tvDnsResolutionT0.setText(
+                    "T0: " + formatWallClock(
+                            stats.dnsResolutionT0WallTime
+                    )
+            );
+
+            tvDnsResolutionT1.setText(
+                    "T1: " + formatWallClock(
+                            stats.dnsResolutionT1WallTime
+                    )
+            );
+
 // ADD: Destination IP
             if (stats.lastDestIp != null
                     && !stats.lastDestIp.isEmpty()
@@ -464,26 +591,7 @@ public class VpnTestActivity extends AppCompatActivity {
                         "Destination IP: -"
                 );
             }
-            // DNS LOOKUP
-            if (stats.lastDnsLookupMs >= 0) {
 
-                tvDnsLookup.setText(
-                        String.format(
-                                Locale.US,
-                                "%.3f ms",
-                                stats.lastDnsLookupMs
-                        )
-                );
-
-                tvDnsServerIp.setText(
-                        "Server: " + stats.lastDnsServerIp
-                );
-
-            } else {
-
-                tvDnsLookup.setText("-");
-                tvDnsServerIp.setText("Server: -");
-            }
 
 // Destination IP
             if (stats.lastDestIp != null
@@ -526,6 +634,10 @@ public class VpnTestActivity extends AppCompatActivity {
 
     private void bindDashboardViews() {
 
+        // ============================================================
+        // VPN HEALTH
+        // ============================================================
+
         tvVpnStatus =
                 findViewById(R.id.tvVpnStatus);
 
@@ -538,6 +650,11 @@ public class VpnTestActivity extends AppCompatActivity {
         tvReaderStatus =
                 findViewById(R.id.tvReaderStatus);
 
+
+        // ============================================================
+        // PACKET STATISTICS
+        // ============================================================
+
         tvTotalPackets =
                 findViewById(R.id.tvTotalPackets);
 
@@ -549,6 +666,11 @@ public class VpnTestActivity extends AppCompatActivity {
 
         tvIpv6Skipped =
                 findViewById(R.id.tvIpv6Skipped);
+
+
+        // ============================================================
+        // LAST PACKET
+        // ============================================================
 
         tvLastProtocol =
                 findViewById(R.id.tvLastProtocol);
@@ -565,36 +687,178 @@ public class VpnTestActivity extends AppCompatActivity {
         tvLastTimestamp =
                 findViewById(R.id.tvLastTimestamp);
 
+
+        // ============================================================
+        // VPN TTFB
+        // ============================================================
+
         tvLastTtfb =
                 findViewById(R.id.tvLastTtfb);
 
+        tvVpnTtfbT0 =
+                findViewById(R.id.tvVpnTtfbT0);
+
+        tvVpnTtfbT1 =
+                findViewById(R.id.tvVpnTtfbT1);
+
+
+        // ============================================================
+        // WEB TTFB
+        // ============================================================
+
         tvLastTtfbWeb =
                 findViewById(R.id.tvLastTtfbWeb);
+
+        tvTtfbT0 =
+                findViewById(R.id.tvTtfbT0);
+
+        tvTtfbT1 =
+                findViewById(R.id.tvTtfbT1);
+
+
+        // ============================================================
+        // TCP HANDSHAKE
+        // ============================================================
+
         tvTcpHandshake =
                 findViewById(R.id.tvTcpHandshake);
 
-        tvTlsHandshake =
-                findViewById(R.id.tvTlsHandshake);
+        tvTcpHandshakeT0 =
+                findViewById(R.id.tvTcpHandshakeT0);
+
+        tvTcpHandshakeT1 =
+                findViewById(R.id.tvTcpHandshakeT1);
+
+
+// ============================================================
+// TCP CONNECTION
+// ============================================================
 
         tvTcpConnectionTime =
                 findViewById(R.id.tvTcpConnectionTime);
 
+        tvTcpConnectionT0 =
+                findViewById(R.id.tvTcpConnectionT0);
+
+        tvTcpConnectionT1 =
+                findViewById(R.id.tvTcpConnectionT1);
+
+
+        // ============================================================
+        // TCP RETRANSMISSIONS
+        // ============================================================
+
         tvTcpRetransmissionCount =
                 findViewById(R.id.tvTcpRetransmissionCount);
+
+
+        // ============================================================
+        // TLS HANDSHAKE
+        // ============================================================
+
+        tvTlsHandshake =
+                findViewById(R.id.tvTlsHandshake);
+
+        tvTlsHandshakeT0 =
+                findViewById(R.id.tvTlsHandshakeT0);
+
+        tvTlsHandshakeT1 =
+                findViewById(R.id.tvTlsHandshakeT1);
+
+
+        // ============================================================
+        // DNS
+        // ============================================================
+
+        tvDnsLookup =
+                findViewById(R.id.tvDnsLookup);
+
+        tvDnsResolutionT0 =
+                findViewById(R.id.tvDnsResolutionT0);
+
+        tvDnsResolutionT1 =
+                findViewById(R.id.tvDnsResolutionT1);
+
+        tvDnsServerIp =
+                findViewById(R.id.tvDnsServerIp);
+
+        tvDnsDestinationIp =
+                findViewById(R.id.tvDnsDestinationIp);
+
+        tvDnsHostName =
+                findViewById(R.id.tvDnsHostName);
+
+
+        // ============================================================
+        // QUIC
+        // ============================================================
 
         tvQuicHandshake =
                 findViewById(R.id.tvQuicHandshake);
 
-        tvDnsLookup =
-                findViewById(R.id.tvDnsLookup);
-        tvDnsServerIp =
-                findViewById(R.id.tvDnsServerIp);
-        tvDnsDestinationIp =
-                findViewById(R.id.tvDnsDestinationIp);
-        tvDnsHostName =
-                findViewById(R.id.tvDnsHostName);
+
+        // ============================================================
+// DEBUG VALIDATION
+// ============================================================
+
+        if (tvVpnStatus == null ||
+                tvPermissionStatus == null ||
+                tvInterfaceStatus == null ||
+                tvReaderStatus == null ||
+                tvTotalPackets == null ||
+                tvTcpCount == null ||
+                tvUdpCount == null ||
+                tvIpv6Skipped == null ||
+                tvLastProtocol == null ||
+                tvLastSource == null ||
+                tvLastDest == null ||
+                tvLastSize == null ||
+                tvLastTimestamp == null ||
+                tvLastTtfb == null ||
+                tvLastTtfbWeb == null ||
+                tvVpnTtfbT0 == null ||
+                tvVpnTtfbT1 == null ||
+                tvTtfbT0 == null ||
+                tvTtfbT1 == null ||
+                tvTcpHandshake == null ||
+                tvTcpHandshakeT0 == null ||
+                tvTcpHandshakeT1 == null ||
+                tvTcpConnectionTime == null ||
+                tvTcpConnectionT0 == null ||
+                tvTcpConnectionT1 == null ||
+                tvTcpRetransmissionCount == null ||
+                tvTlsHandshake == null ||
+                tvTlsHandshakeT0 == null ||
+                tvTlsHandshakeT1 == null ||
+                tvDnsLookup == null ||
+                tvDnsResolutionT0 == null ||
+                tvDnsResolutionT1 == null ||
+                tvDnsServerIp == null ||
+                tvDnsDestinationIp == null ||
+                tvDnsHostName == null ||
+                tvQuicHandshake == null) {
+
+            Log.e(
+                    TAG,
+                    "One or more dashboard views are NULL. " +
+                            "Check activity_vpn_test.xml and layout variants."
+            );
+        }
     }
 
+    private String formatWallClock(long wallTime) {
+
+        if (wallTime <= 0L) {
+            return "-";
+        }
+
+        return new java.text.SimpleDateFormat(
+                "HH:mm:ss:SSS",
+                java.util.Locale.getDefault()
+        ).format(
+                new java.util.Date(wallTime)
+        );
+    }
     private void setupEventConsole() {
 
         rvEventConsole =
@@ -645,34 +909,179 @@ public class VpnTestActivity extends AppCompatActivity {
                 Toast.LENGTH_SHORT
         ).show();
 
-        dashboardRepo.resetDnsLookup();
-        dashboardRepo.resetDnsDestinationIp();
-        dashboardRepo.resetTlsHandshake();
+        /*
+         * ============================================================
+         * RESET ALL PREVIOUS TEST RESULTS
+         * ============================================================
+         *
+         * IMPORTANT:
+         * Every timing value is reset BEFORE the new test starts.
+         *
+         * TTFB
+         * TCP Handshake
+         * TLS Handshake
+         * DNS
+         * TCP Connection
+         * QUIC
+         *
+         * T0/T1 wall-clock values are also reset to -1.
+         * UI will therefore show "-" until the NEW measurement arrives.
+         * ============================================================
+         */
+
+// =========================
+// VPN TTFB
+// =========================
+
+        dashboardRepo.resetTtfb();
+
+// =========================
+// WEB TTFB
+// =========================
+
+        dashboardRepo.resetWebTtfb();
+
+// =========================
+// TCP HANDSHAKE
+// =========================
+
+        dashboardRepo.resetTcpHandshake();
+
+// =========================
+// TCP CONNECTION
+// =========================
 
         dashboardRepo.resetTcpConnectionTime();
+
+// =========================
+// TCP RETRANSMISSION
+// =========================
+
         dashboardRepo.resetTcpRetransmissionCount();
+
+// =========================
+// TLS HANDSHAKE
+// =========================
+
+        dashboardRepo.resetTlsHandshake();
+
+// =========================
+// DNS
+// =========================
+
+        dashboardRepo.resetDnsLookup();
+        dashboardRepo.resetDnsDestinationIp();
+        dashboardRepo.resetDnsHostName();
+
+// =========================
+// QUIC
+// =========================
+
         dashboardRepo.resetQuicHandshake();
+        /*
+         * ============================================================
+         * CLEAR OLD VALUES FROM UI IMMEDIATELY
+         * ============================================================
+         */
 
-        tvDnsDestinationIp.setText("Destination IP: -");
-
-        tvDnsHostName.setText("Host Name: -");
-
-        if (tvTlsHandshake != null) {
-            tvTlsHandshake.setText("-");
+// VPN TTFB
+        if (tvLastTtfb != null) {
+            tvLastTtfb.setText("-");
         }
 
+        if (tvVpnTtfbT0 != null) {
+            tvVpnTtfbT0.setText("T0: -");
+        }
+
+        if (tvVpnTtfbT1 != null) {
+            tvVpnTtfbT1.setText("T1: -");
+        }
+
+
+// WEB TTFB
+        if (tvLastTtfbWeb != null) {
+            tvLastTtfbWeb.setText("-");
+        }
+
+        if (tvTtfbT0 != null) {
+            tvTtfbT0.setText("T0: -");
+        }
+
+        if (tvTtfbT1 != null) {
+            tvTtfbT1.setText("T1: -");
+        }
+
+
+// TCP HANDSHAKE
+        if (tvTcpHandshake != null) {
+            tvTcpHandshake.setText("-");
+        }
+
+        if (tvTcpHandshakeT0 != null) {
+            tvTcpHandshakeT0.setText("T0: -");
+        }
+
+        if (tvTcpHandshakeT1 != null) {
+            tvTcpHandshakeT1.setText("T1: -");
+        }
+
+
+// TCP CONNECTION
         if (tvTcpConnectionTime != null) {
             tvTcpConnectionTime.setText("-");
         }
 
+
+// TCP RETRANSMISSION
         if (tvTcpRetransmissionCount != null) {
             tvTcpRetransmissionCount.setText("0");
         }
 
+
+// TLS HANDSHAKE
+        if (tvTlsHandshake != null) {
+            tvTlsHandshake.setText("-");
+        }
+
+        if (tvTlsHandshakeT0 != null) {
+            tvTlsHandshakeT0.setText("T0: -");
+        }
+
+        if (tvTlsHandshakeT1 != null) {
+            tvTlsHandshakeT1.setText("T1: -");
+        }
+
+
+// DNS
+        if (tvDnsLookup != null) {
+            tvDnsLookup.setText("-");
+        }
+
+        if (tvDnsResolutionT0 != null) {
+            tvDnsResolutionT0.setText("T0: -");
+        }
+
+        if (tvDnsResolutionT1 != null) {
+            tvDnsResolutionT1.setText("T1: -");
+        }
+
+        if (tvDnsServerIp != null) {
+            tvDnsServerIp.setText("Server: -");
+        }
+
+        if (tvDnsDestinationIp != null) {
+            tvDnsDestinationIp.setText("Destination IP: -");
+        }
+
+        if (tvDnsHostName != null) {
+            tvDnsHostName.setText("Host Name: -");
+        }
+
+
+// QUIC
         if (tvQuicHandshake != null) {
             tvQuicHandshake.setText("-");
         }
-
         updateTestButtons();
 
         updateStatus(
@@ -795,6 +1204,18 @@ public class VpnTestActivity extends AppCompatActivity {
 
         if (isServiceBound &&
                 mediatorVpnService != null) {
+
+            /*
+             * ============================================================
+             * RESOLVE SERVER HOSTNAME BEFORE STOPPING VPN
+             * ============================================================
+             *
+             * stopVpn() will shutdown TcpForwarder and close all
+             * real TCP sockets.
+             *
+             * Therefore hostname MUST be resolved first.
+             */
+            mediatorVpnService.resolveServerHostNameOnStop();
 
             mediatorVpnService.clearVpnReadyCallback();
 

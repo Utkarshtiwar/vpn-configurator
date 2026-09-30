@@ -12,17 +12,22 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
+
 public final class VpnEventRepository {
 
     private static volatile VpnEventRepository instance;
 
-    private final MutableLiveData<VpnEvent> latestEvent = new MutableLiveData<>();
-    private final MutableLiveData<VpnStats> stats = new MutableLiveData<>(new VpnStats());
+    private final MutableLiveData<VpnEvent> latestEvent =
+            new MutableLiveData<>();
 
+    private final MutableLiveData<VpnStats> stats =
+            new MutableLiveData<>(new VpnStats());
 
-    private final AtomicReference<VpnStats> currentStats = new AtomicReference<>(new VpnStats());
+    private final AtomicReference<VpnStats> currentStats =
+            new AtomicReference<>(new VpnStats());
 
-    private VpnEventRepository() { }
+    private VpnEventRepository() {
+    }
 
     public static VpnEventRepository getInstance() {
         if (instance == null) {
@@ -45,9 +50,11 @@ public final class VpnEventRepository {
         return stats;
     }
 
-    public void logEvent(String message,
-                         VpnEvent.Level level,
-                         VpnEvent.Category category) {
+    public void logEvent(
+            String message,
+            VpnEvent.Level level,
+            VpnEvent.Category category
+    ) {
 
         long eventTimestamp = System.currentTimeMillis();
 
@@ -76,13 +83,16 @@ public final class VpnEventRepository {
                 .getInstance()
                 .log(timestampedMessage);
     }
+
     private void updateStats(UnaryOperator<VpnStats> transform) {
         VpnStats updated = currentStats.updateAndGet(transform);
         stats.postValue(updated);
     }
+
     public void logToFile(String message) {
         String timestampedMessage =
                 "[" + getCurrentTimestamp() + "] " + message;
+
         com.example.vpntest.utils.VpnLogFileManager
                 .getInstance()
                 .log(timestampedMessage);
@@ -104,108 +114,299 @@ public final class VpnEventRepository {
         updateStats(s -> s.withReaderStatus(status));
     }
 
-    public void recordPacket(String protocol, String srcIp, String dstIp, int size) {
+    public void recordPacket(
+            String protocol,
+            String srcIp,
+            String dstIp,
+            int size
+    ) {
         long ts = System.currentTimeMillis();
-        updateStats(s -> s.withPacket(protocol, srcIp, dstIp, size, ts));
+
+        updateStats(s ->
+                s.withPacket(
+                        protocol,
+                        srcIp,
+                        dstIp,
+                        size,
+                        ts
+                )
+        );
     }
 
     public void recordIpv6Skipped() {
         updateStats(VpnStats::withIpv6Skipped);
     }
+
+    // ============================================================
+    // VPN TTFB
+    //
+    // ttfbMs       = calculated duration
+    // t0WallTime   = exact T0 wall-clock timestamp
+    // t1WallTime   = exact T1 wall-clock timestamp
+    //
+    // Duration calculation must happen outside this repository
+    // using monotonic time.
+    // ============================================================
+
     public void recordTtfb(long ttfbMs) {
         updateStats(s -> s.withTtfb(ttfbMs));
     }
-    public void resetTtfb() {
-        updateStats(s -> s.withTtfb(-1L));
+
+    public void recordTtfb(
+            long ttfbMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withTtfb(ttfbMs)
+                        .withTtfbWallTimes(
+                                t0WallTime,
+                                t1WallTime
+                        )
+        );
     }
+
+    public void resetTtfb() {
+        updateStats(s ->
+                s.withTtfb(-1L)
+                        .withTtfbWallTimes(
+                                -1L,
+                                -1L
+                        )
+        );
+    }
+
+    // ============================================================
+    // WEB TEST TTFB
+    //
+    // Separate from VPN TTFB.
+    // Stores exact wall-clock T0/T1 received from WebViewHelper.
+    // ============================================================
+
+    public void recordWebTtfb(
+            long ttfbMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withWebTtfbWallTimes(
+                        t0WallTime,
+                        t1WallTime
+                )
+        );
+    }
+
+    public void resetWebTtfb() {
+        updateStats(s ->
+                s.withWebTtfbWallTimes(
+                        -1L,
+                        -1L
+                )
+        );
+    }
+
+    // ============================================================
+    // TCP HANDSHAKE
+    //
+    // handshakeNano = T1 monotonic - T0 monotonic
+    // t0WallTime    = exact SYN wall-clock timestamp
+    // t1WallTime    = exact ACK wall-clock timestamp
+    // ============================================================
 
     public void recordTcpHandshake(long handshakeNano) {
         updateStats(s -> s.withTcpHandshake(handshakeNano));
     }
 
-    public void resetTcpHandshake() {
-        updateStats(s -> s.withTcpHandshake(-1L));
+    public void recordTcpHandshake(
+            long handshakeNano,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withTcpHandshake(handshakeNano)
+                        .withTcpHandshakeWallTimes(
+                                t0WallTime,
+                                t1WallTime
+                        )
+        );
     }
 
-    /*
-     * TCP Connection Time
-     *
-     * T0 = first TCP SYN packet, flags 0x02
-     * T1 = first TCP ACK packet, flags 0x10
-     *
-     * Value is stored in nanoseconds.
-     */
-    public void recordTcpConnectionTime(long connectionTimeMs) {
-        updateStats(s -> s.withTcpConnectionTime(connectionTimeMs));
+    public void resetTcpHandshake() {
+        updateStats(s ->
+                s.withTcpHandshake(-1L)
+                        .withTcpHandshakeWallTimes(
+                                -1L,
+                                -1L
+                        )
+        );
+    }
+
+    // ============================================================
+    // TCP CONNECTION TIME
+    //
+    // T0 = first TCP SYN packet, flags 0x02
+    // T1 = first TCP ACK packet, flags 0x10
+    //
+    // Existing metric retained.
+    // ============================================================
+
+    public void recordTcpConnectionTime(
+            long connectionTimeMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withTcpConnectionTime(connectionTimeMs)
+                        .withTcpConnectionWallTimes(
+                                t0WallTime,
+                                t1WallTime
+                        )
+        );
     }
 
     public void resetTcpConnectionTime() {
-        updateStats(s -> s.withTcpConnectionTime(-1L));
+        updateStats(s ->
+                s.withTcpConnectionTime(-1L)
+                        .withTcpConnectionWallTimes(
+                                -1L,
+                                -1L
+                        )
+        );
     }
 
-    /*
-     * TCP Retransmission Count
-     *
-     * Stores the cumulative number of detected TCP retransmissions.
-     */
-    public void recordTcpRetransmissionCount(long retransmissionCount) {
-        updateStats(s -> s.withTcpRetransmissionCount(retransmissionCount));
+    // ============================================================
+    // TCP RETRANSMISSION COUNT
+    // ============================================================
+
+    public void recordTcpRetransmissionCount(
+            long retransmissionCount
+    ) {
+        updateStats(s ->
+                s.withTcpRetransmissionCount(
+                        retransmissionCount
+                )
+        );
     }
 
     public void resetTcpRetransmissionCount() {
-        updateStats(s -> s.withTcpRetransmissionCount(0L));
+        updateStats(s ->
+                s.withTcpRetransmissionCount(0L)
+        );
     }
 
-    /*
-     * QUIC Handshake
-     *
-     * T0 = first QUIC Initial packet TX
-     * T1 = first QUIC Initial packet RX
-     *
-     * Value is stored in milliseconds.
-     */
+    // ============================================================
+    // QUIC HANDSHAKE
+    //
+    // Existing metric retained.
+    // ============================================================
+
     public void recordQuicHandshake(double handshakeMs) {
-        updateStats(s -> s.withQuicHandshake(handshakeMs));
+        updateStats(s ->
+                s.withQuicHandshake(handshakeMs)
+        );
     }
 
     public void resetQuicHandshake() {
-        updateStats(s -> s.withQuicHandshake(-1.0));
+        updateStats(s ->
+                s.withQuicHandshake(-1.0)
+        );
     }
 
-    /*
-     * TLS Handshake
-     *
-     * T0 = first TX TLS 0x16
-     * T1 = first RX TLS 0x17
-     *
-     * Value is stored in milliseconds.
-     */
+    // ============================================================
+    // TLS HANDSHAKE
+    //
+    // handshakeMs    = calculated monotonic duration
+    // t0WallTime     = exact TLS 0x16 timestamp
+    // t1WallTime     = exact TLS 0x17 timestamp
+    // ============================================================
+
     public void recordTlsHandshake(double handshakeMs) {
-        updateStats(s -> s.withTlsHandshake(handshakeMs));
+        updateStats(s ->
+                s.withTlsHandshake(handshakeMs)
+        );
+    }
+
+    public void recordTlsHandshake(
+            double handshakeMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withTlsHandshake(handshakeMs)
+                        .withTlsHandshakeWallTimes(
+                                t0WallTime,
+                                t1WallTime
+                        )
+        );
     }
 
     public void resetTlsHandshake() {
-        updateStats(s -> s.withTlsHandshake(-1.0));
+        updateStats(s ->
+                s.withTlsHandshake(-1.0)
+                        .withTlsHandshakeWallTimes(
+                                -1L,
+                                -1L
+                        )
+        );
+    }
+
+    // ============================================================
+    // DNS RESOLUTION
+    //
+    // dnsLookupTimeMs = calculated monotonic duration
+    // t0WallTime      = exact DNS query timestamp
+    // t1WallTime      = exact matching DNS response timestamp
+    //
+    // The caller is responsible for making sure T0/T1 belong
+    // to the SAME DNS transaction.
+    // ============================================================
+
+    public void recordDnsLookup(
+            double dnsLookupTimeMs,
+            String dnsServerIp,
+            String destinationIp
+    ) {
+
+        updateStats(s ->
+                s.withDnsLookup(
+                                dnsLookupTimeMs,
+                                dnsServerIp
+                        )
+                        .withDnsDestinationIp(
+                                destinationIp
+                        )
+        );
     }
 
     public void recordDnsLookup(
             double dnsLookupTimeMs,
             String dnsServerIp,
-            String destinationIp) {
+            String destinationIp,
+            long t0WallTime,
+            long t1WallTime
+    ) {
 
-        updateStats(s -> s
-                .withDnsLookup(
-                        dnsLookupTimeMs,
-                        dnsServerIp
-                )
-                .withDnsDestinationIp(
-                        destinationIp
-                )
+        updateStats(s ->
+                s.withDnsLookup(
+                                dnsLookupTimeMs,
+                                dnsServerIp
+                        )
+                        .withDnsDestinationIp(
+                                destinationIp
+                        )
+                        .withDnsResolutionWallTimes(
+                                t0WallTime,
+                                t1WallTime
+                        )
         );
     }
 
-    // ADD: Destination IP from [MATCH] event
+    // ============================================================
+    // DNS DESTINATION IP
+    // ============================================================
+
     public void setDnsDestinationIp(String destinationIp) {
+
         updateStats(s -> {
 
             if (s.lastDnsDestinationIp != null
@@ -219,28 +420,60 @@ public final class VpnEventRepository {
         });
     }
 
-    // ADD: Reset Destination IP for new VPN session
-    // ADD: Reset Destination IP for new VPN session
     public void resetDnsDestinationIp() {
-        updateStats(s -> s.withDnsDestinationIp("-"));
+        updateStats(s ->
+                s.withDnsDestinationIp("-")
+        );
     }
 
-    // ADD: Store hostname associated with DNS resolved IP
+    // ============================================================
+    // DNS HOSTNAME
+    // ============================================================
+
     public void setDnsHostName(String hostName) {
-        updateStats(s -> s.withDnsHostName(hostName));
+        updateStats(s ->
+                s.withDnsHostName(hostName)
+        );
     }
 
-    // ADD: Reset hostname for new VPN session
     public void resetDnsHostName() {
-        updateStats(s -> s.withDnsHostName("-"));
+        updateStats(s ->
+                s.withDnsHostName("-")
+        );
     }
+
+    // ============================================================
+    // RESET DNS
+    // ============================================================
 
     public void resetDnsLookup() {
-        updateStats(s -> s.withDnsLookup(
-                -1.0,
-                "-"
-        ));
+        updateStats(s ->
+                s.withDnsLookup(
+                                -1.0,
+                                "-"
+                        )
+                        .withDnsResolutionWallTimes(
+                                -1L,
+                                -1L
+                        )
+        );
     }
+
+    // ============================================================
+    // RESET ALL STATS
+    // ============================================================
+
+    public void resetAllStats() {
+        VpnStats freshStats = new VpnStats();
+
+        currentStats.set(freshStats);
+        stats.postValue(freshStats);
+    }
+
+    // ============================================================
+    // LOG TIMESTAMP
+    // ============================================================
+
     private String getCurrentTimestamp() {
 
         return new SimpleDateFormat(

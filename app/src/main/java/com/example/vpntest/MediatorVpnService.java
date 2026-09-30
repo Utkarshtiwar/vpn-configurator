@@ -76,6 +76,29 @@ public class MediatorVpnService extends VpnService {
     public interface VpnReadyCallback {
         void onVpnEstablished();
     }
+    /**
+     * Resolve the hostname of the active TCP server
+     * before TcpForwarder is shut down.
+     */
+    public void resolveServerHostNameOnStop() {
+
+        if (tcpForwarder == null) {
+
+            Log.d(
+                    TAG,
+                    "Cannot resolve server hostname: TcpForwarder is null."
+            );
+
+            return;
+        }
+
+        Log.d(
+                TAG,
+                "Resolving server hostname before VPN shutdown..."
+        );
+
+        tcpForwarder.resolveServerHostNameOnStop();
+    }
 
     public void setVpnReadyCallback(VpnReadyCallback callback) {
         this.vpnReadyCallback = callback;

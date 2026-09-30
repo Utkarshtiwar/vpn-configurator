@@ -117,16 +117,7 @@ public class TcpForwarder {
      * Used ONLY for accurate TTFB duration calculation.
      */
     //old ttbf logic
-//    private volatile long globalRequestSentTime = 0L;
-//
-//    private volatile long globalFirstByteReceivedTime = 0L;
-//
-//
-//    private volatile long globalRequestSentWallTime = 0L;
-//
-//    private volatile long globalFirstByteReceivedWallTime = 0L;
-//
-//    private volatile long globalTtfbMs = -1L;
+
     private volatile long tcpHandshakeSynSentNano = 0L;
 
     private volatile long tcpHandshakeAckNano = 0L;
@@ -158,6 +149,15 @@ public class TcpForwarder {
     private final Map<String, Long> tcpHandshakeT0ByConnection =
             new ConcurrentHashMap<>();
 
+    /*
+     * Exact wall-clock T0 for each TCP connection.
+     *
+     * Used only for UI display.
+     * Duration calculation still uses nanoTime().
+     */
+    private final Map<String, Long> tcpHandshakeT0WallTimeByConnection =
+            new ConcurrentHashMap<>();
+
 
     /*
      * ============================================================
@@ -173,37 +173,6 @@ public class TcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean
             tcpHandshakeCaptured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
-
-    /*
-     * ============================================================
-     * TCP CONNECTION TIME
-     * ============================================================
-     *
-     * This is separate from the existing TCP HANDSHAKE calculation.
-     *
-     * T0 = First device SYN received by VPN
-     * T1 = Real server socket.connect() completed
-     *
-     * TCP Connection Time = T1 - T0
-     */
-
-    private volatile long tcpConnectionStartNano = 0L;
-
-    private volatile long tcpConnectionEndNano = 0L;
-
-    private volatile long tcpConnectionNano = -1L;
-
-    private volatile double tcpConnectionMs = -1.0;
-
-    private final java.util.concurrent.atomic.AtomicBoolean
-            tcpConnectionStartCaptured =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
-
-    private final java.util.concurrent.atomic.AtomicBoolean
-            tcpConnectionCaptured =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
-    private volatile long globalOutgoingIpMatchTime = 0L;
-
     private static volatile long webViewT0Nano = 0L;
 
     public static void setWebViewT0(long t0Nano) {
@@ -212,9 +181,23 @@ public class TcpForwarder {
 
     private volatile long globalIncomingIpMatchTime = 0L;
 
+    private volatile long globalOutgoingIpMatchTime = 0L;
+
     private volatile long globalOutgoingIpMatchWallTime = 0L;
 
+    /*
+     * ============================================================
+     * VPN TTFB T0
+     * ============================================================
+     *
+     * T0 = EXACT matched DNS transaction start wall-clock time.
+     *
+     * This will be populated from UdpForwarder in the next step.
+     */
     private volatile long globalDnsT0Nano = 0L;
+
+    private volatile long globalDnsT0WallTime = 0L;
+
     private volatile long globalIncomingIpMatchWallTime = 0L;
 
     /*
@@ -249,6 +232,28 @@ public class TcpForwarder {
     private final java.util.concurrent.atomic.AtomicBoolean
             tlsRecordType17Captured =
             new java.util.concurrent.atomic.AtomicBoolean(false);
+
+
+    /*
+     * =====================================================
+     * REQUEST-ANCHORED TTFB T1
+     * =====================================================
+     *
+     * This is intentionally separate from the global
+     * TLS 0x17 T1 used for TLS handshake timing.
+     *
+     * TTFB T1 =
+     * First RX TLS 0x17 received AFTER the application
+     * request has been identified.
+     */
+    private volatile long globalTtfbT1Nano = 0L;
+
+    private volatile long globalTtfbT1WallTime = 0L;
+
+    private final java.util.concurrent.atomic.AtomicBoolean
+            ttfbT1Captured =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
 
     private volatile long globalTlsHandshakeNano = -1L;
     private volatile double globalTlsHandshakeMs = -1.0;
@@ -407,10 +412,26 @@ public class TcpForwarder {
                             synDebugNano
                     );
 
-            boolean firstSynForConnection = existingT0 == null;
-            long connectionT0 = firstSynForConnection
-                    ? synDebugNano
-                    : existingT0;
+            boolean firstSynForConnection =
+                    existingT0 == null;
+
+            long connectionT0 =
+                    firstSynForConnection
+                            ? synDebugNano
+                            : existingT0;
+
+
+            /*
+             * Save the EXACT wall-clock T0 only for
+             * the first SYN of this connection.
+             */
+            if (firstSynForConnection) {
+
+                tcpHandshakeT0WallTimeByConnection.put(
+                        synConnectionKey,
+                        synDebugWallTime
+                );
+            }
 
             String synDebugLog =
                     "========== TCP CONNECTION | SYN CANDIDATE ==========\n"
@@ -497,35 +518,6 @@ public class TcpForwarder {
 
                 Log.d(TAG, retransmissionLog);
                 dashboard.logToFile(TAG + retransmissionLog);
-            }
-
-            /*
-             * ============================================================
-             * TCP CONNECTION TIME - T0
-             * ============================================================
-             *
-             * This remains a separate global metric and is intentionally
-             * not used for the per-connection TCP handshake calculation.
-             */
-            if (tcpConnectionStartCaptured.compareAndSet(false, true)) {
-
-                tcpConnectionStartNano = synDebugNano;
-
-                String tcpConnectionStartLog =
-                        "========== TCP CONNECTION | T0 SYN ==========\n"
-                                + "Source IP          : " + synSourceIp + "\n"
-                                + "Destination IP     : " + synDestinationIp + "\n"
-                                + "Source Port        : " + srcPort + "\n"
-                                + "Destination Port   : " + dstPort + "\n"
-                                + "Sequence Number    : " + seq + "\n"
-                                + "TCP Flags          : 0x"
-                                + String.format(java.util.Locale.US, "%02X", flags) + "\n"
-                                + "Connection T0      : " + tcpConnectionStartNano + " ns\n"
-                                + "Timestamp          : " + formatTimestamp(synDebugWallTime) + "\n"
-                                + "==============================================";
-
-                Log.i(TAG, tcpConnectionStartLog);
-                dashboard.logToFile(TAG + tcpConnectionStartLog);
             }
         }
         if (isSyn && !isAck) {
@@ -765,10 +757,46 @@ public class TcpForwarder {
                         tcpHandshakeNano / 1_000_000.0;
 
                 if (tcpHandshakeNano >= 0L) {
-                    dashboard.recordTcpHandshake(tcpHandshakeNano);
+
+                    Long handshakeT0WallTime =
+                            tcpHandshakeT0WallTimeByConnection.get(
+                                    t1ConnectionKey
+                            );
+
+                    if (handshakeT0WallTime != null) {
+
+                        dashboard.recordTcpHandshake(
+                                tcpHandshakeNano,
+                                handshakeT0WallTime,
+                                t1CandidateWallTime
+                        );
+
+                        dashboard.logToFile(
+                                TAG
+                                        + "TCP HANDSHAKE UI UPDATE\n"
+                                        + "T0 Wall Time : "
+                                        + formatTimestamp(handshakeT0WallTime)
+                                        + "\n"
+                                        + "T1 Wall Time : "
+                                        + formatTimestamp(t1CandidateWallTime)
+                                        + "\n"
+                                        + "Duration     : "
+                                        + tcpHandshakeMs
+                                        + " ms"
+                        );
+
+                    } else {
+
+                        dashboard.logToFile(
+                                TAG
+                                        + "TCP HANDSHAKE UI UPDATE SKIPPED: "
+                                        + "T0 wall-clock not found"
+                        );
+                    }
                 }
 
                 long ackWallTime = t1CandidateWallTime;
+
 
                 String firstValidLog =
                         "========== TCP HANDSHAKE | FIRST VALID MATCH SELECTED ==========" + "\n"
@@ -1146,13 +1174,30 @@ public class TcpForwarder {
                      * Only the DNS transaction whose Answer IP matches
                      * this TCP destination IP is selected.
                      *
-                     * The returned value is that EXACT transaction's T0.
+                     * DnsTimingResult contains:
+                     *
+                     * 1. DNS T0 Nano
+                     * 2. DNS T0 Wall Time
+                     * 3. DNS T1 Nano
+                     * 4. DNS T1 Wall Time
+                     * 5. DNS Lookup Duration
+                     * 6. DNS Server IP
+                     * 7. Destination IP
+                     *
+                     * Nano timestamps are used for calculations.
+                     * Wall-clock timestamps are used for UI/log display.
                      */
-                    long matchedDnsT0 =
+                    UdpForwarder.DnsTimingResult dnsTiming =
                             UdpForwarder.recordDnsLookupForResolvedIp(
                                     destinationIp
                             );
 
+
+                    /*
+                     * =========================================================
+                     * DNS UI CORRELATION LOG
+                     * =========================================================
+                     */
                     dashboard.logToFile(
                             TAG
                                     + "DNS UI CORRELATION REQUEST\n"
@@ -1163,23 +1208,91 @@ public class TcpForwarder {
                                     + websiteResolvedIps
                                     + "\n"
                                     + "Matched DNS T0     : "
-                                    + matchedDnsT0
+                                    + (
+                                    dnsTiming != null
+                                            ? dnsTiming.t0Nano
+                                            : 0L
+                            )
                                     + " ns\n"
-                                    + "DNS UI Match       : "
-                                    + (matchedDnsT0 > 0L
-                                    ? "FOUND"
-                                    : "NOT_FOUND")
+                                    + "Matched DNS T0 Wall : "
+                                    + (
+                                    dnsTiming != null
+                                            ? formatTimestamp(
+                                            dnsTiming.t0WallTime
+                                    )
+                                            : "-"
+                            )
+                                    + "\n"
+                                    + "Matched DNS T1     : "
+                                    + (
+                                    dnsTiming != null
+                                            ? dnsTiming.t1Nano
+                                            : 0L
+                            )
+                                    + " ns\n"
+                                    + "Matched DNS T1 Wall : "
+                                    + (
+                                    dnsTiming != null
+                                            ? formatTimestamp(
+                                            dnsTiming.t1WallTime
+                                    )
+                                            : "-"
+                            )
+                                    + "\n"
+                                    + "DNS Lookup Time     : "
+                                    + (
+                                    dnsTiming != null
+                                            ? dnsTiming.dnsLookupTimeMs
+                                            : -1.0
+                            )
+                                    + " ms\n"
+                                    + "DNS Server IP       : "
+                                    + (
+                                    dnsTiming != null
+                                            ? dnsTiming.dnsServerIp
+                                            : "-"
+                            )
+                                    + "\n"
+                                    + "DNS UI Match        : "
+                                    + (
+                                    dnsTiming != null
+                                            ? "FOUND"
+                                            : "NOT_FOUND"
+                            )
                     );
+
 
                     /*
                      * =========================================================
-                     * USE ONLY MATCHED DNS TRANSACTION T0
+                     * USE ONLY MATCHED DNS TRANSACTION
                      * =========================================================
+                     *
+                     * IMPORTANT:
+                     *
+                     * T0 Nano  -> used for TTFB duration calculation
+                     * T0 Wall  -> sent to repository/UI for display
+                     *
+                     * T1 Nano  -> available for DNS timing/debugging
+                     * T1 Wall  -> sent to repository/UI through DNS record
+                     *
+                     * DO NOT use globalOutgoingIpMatchWallTime as DNS T0.
                      */
-                    if (matchedDnsT0 > 0L) {
+                    if (dnsTiming != null) {
 
+                        /*
+                         * Exact DNS T0 used for TTFB calculation.
+                         */
                         globalDnsT0Nano =
-                                matchedDnsT0;
+                                dnsTiming.t0Nano;
+
+
+                        /*
+                         * Exact DNS T0 wall-clock timestamp
+                         * used for UI display.
+                         */
+                        globalDnsT0WallTime =
+                                dnsTiming.t0WallTime;
+
 
                         Log.d(
                                 TAG,
@@ -1188,69 +1301,132 @@ public class TcpForwarder {
                                         + " ns"
                         );
 
+
+                        Log.d(
+                                TAG,
+                                "MATCHED DNS T0 WALL = "
+                                        + formatTimestamp(
+                                        globalDnsT0WallTime
+                                )
+                        );
+
+
+                        /*
+                         * =====================================================
+                         * DETAILED DNS TIMING LOG
+                         * =====================================================
+                         */
+                        dashboard.logToFile(
+                                TAG
+                                        + "========== MATCHED DNS TRANSACTION ==========\n"
+                                        + "Destination IP    : "
+                                        + dnsTiming.destinationIp
+                                        + "\n"
+                                        + "DNS Server IP     : "
+                                        + dnsTiming.dnsServerIp
+                                        + "\n"
+                                        + "\n"
+                                        + "DNS T0 Nano       : "
+                                        + dnsTiming.t0Nano
+                                        + " ns\n"
+                                        + "DNS T0 Wall       : "
+                                        + formatTimestamp(
+                                        dnsTiming.t0WallTime
+                                )
+                                        + "\n"
+                                        + "\n"
+                                        + "DNS T1 Nano       : "
+                                        + dnsTiming.t1Nano
+                                        + " ns\n"
+                                        + "DNS T1 Wall       : "
+                                        + formatTimestamp(
+                                        dnsTiming.t1WallTime
+                                )
+                                        + "\n"
+                                        + "\n"
+                                        + "DNS Lookup Time   : "
+                                        + dnsTiming.dnsLookupTimeMs
+                                        + " ms\n"
+                                        + "\n"
+                                        + "DNS T1 - T0       : "
+                                        + (
+                                        dnsTiming.t1Nano
+                                                - dnsTiming.t0Nano
+                                )
+                                        + " ns\n"
+                                        + "============================================"
+                        );
+
+
                     } else {
 
                         /*
-                         * No DNS transaction had an Answer IP matching
-                         * this TCP destination IP.
+                         * =====================================================
+                         * NO MATCHED DNS TRANSACTION
+                         * =====================================================
                          *
-                         * Therefore DO NOT use latest DNS T0.
+                         * IMPORTANT:
+                         *
+                         * Do NOT use the latest DNS transaction.
+                         * Do NOT use globalOutgoingIpMatchWallTime.
+                         *
+                         * TTFB must not use an unrelated DNS transaction.
                          */
                         globalDnsT0Nano = 0L;
+
+                        globalDnsT0WallTime = 0L;
+
 
                         Log.d(
                                 TAG,
                                 "NO MATCHED DNS TRANSACTION -> "
                                         + "DNS T0 will NOT be used for TTFB"
                         );
+
+
+                        dashboard.logToFile(
+                                TAG
+                                        + "========== DNS MATCH NOT FOUND ==========\n"
+                                        + "TCP Destination IP : "
+                                        + destinationIp
+                                        + "\n"
+                                        + "DNS T0 Nano        : NOT_AVAILABLE\n"
+                                        + "DNS T0 Wall        : NOT_AVAILABLE\n"
+                                        + "Action             : DNS T0 NOT USED FOR TTFB\n"
+                                        + "=========================================="
+                        );
                     }
 
+
+                    /*
+                     * =========================================================
+                     * TCP OUTGOING IP MATCH WALL-CLOCK TIMESTAMP
+                     * =========================================================
+                     *
+                     * This is NOT DNS T0.
+                     *
+                     * It represents the TCP IP-match event timestamp.
+                     */
                     globalOutgoingIpMatchWallTime =
                             System.currentTimeMillis();
+
 
                     globalTtfbRequestDestinationIp =
                             destinationIp;
 
+
                     globalTtfbRequestResolvedIp =
                             destinationIp;
+
 
                     globalTtfbRequestPayloadSize =
                             payloadLen;
 
+
                     globalTtfbRequestConnectionKey =
                             key;
-
-
-//                    dashboard.logToFile(
-//                            TAG +
-//                                    "OG_IP_MATCH T0_Time timestamp captured = "
-//                                    + globalOutgoingIpMatchTime
-//                                    + " ns"
-//                    );
-//                    dashboard.logToFile(
-//                            TAG +
-//                                    "OG_IP_MATCH T0_Time timestamp captured = "
-//                                    + globalOutgoingIpMatchTime
-//                                    + " ns\n"
-//                                    + "Source IP       : " + ipStr(srcIp) + "\n"
-//                                    + "Destination IP  : " + ipStr(dstIp) + "\n"
-//                                    + "Source Port     : " + srcPort + "\n"
-//                                    + "Destination Port: " + dstPort + "\n"
-//                                    + "Connection Key : " + key + "\n"
-//                                    + "Session State  : " + session.state + "\n"
-//                                    + "Match Count    : " + matchCount + "\n"
-//                                    + "Protocol        : TCP\n"
-//                                    + "Packet Length   : " + length + " bytes\n"
-//                                    + "Payload Length  : " + payloadLen + " bytes\n"
-//                                    + "Timestamp       : "
-//                                    + formatTimestamp(globalOutgoingIpMatchWallTime)
-//                                    + "\n"
-//                                    + "Timestamp Nano  : "
-//                                    + globalOutgoingIpMatchTime
-//                                    + " ns\n"
-//                                    + "============================================"
-//                    );
-                } else {
+                }
+ else {
                     String ipMatchLog =
                             "========== " + evtName + " ==========\n"
                                     + "Source IP       : " + ipStr(srcIp) + "\n"
@@ -1354,6 +1530,25 @@ public class TcpForwarder {
 
                         String tlsRecordName =
                                 record.recordTypeName();
+
+
+                        /*
+                         * =====================================================
+                         * REQUEST ANCHOR
+                         * =====================================================
+                         *
+                         * Count every TX TLS 0x17 record for this
+                         * TCP connection.
+                         *
+                         * This allows the RX side to determine whether
+                         * the application request has already been sent.
+                         */
+                        if (tlsRecordType == 0x17) {
+
+                            session.onTxAppDataRecord(
+                                    record.observedNano
+                            );
+                        }
 
 
                         /*
@@ -1591,9 +1786,9 @@ public class TcpForwarder {
                     globalTtfbRequestConnectionKey = null;
                 }
 
-                Log.w(
-                        TAG,
-                        "TCP write to real socket failed for " + key,
+                dashboard.logToFile(
+                        TAG+
+                        "TCP write to real socket failed for " + key+
                         e
                 );
 
@@ -1715,17 +1910,6 @@ public class TcpForwarder {
                 );
 
 
-                /*
-                 * ============================================================
-                 * TCP CONNECTION TIME - REAL SOCKET
-                 * ============================================================
-                 *
-                 * Capture the moment immediately before socket.connect().
-                 */
-                long realSocketConnectStartNano =
-                        System.nanoTime();
-
-
                 socket.connect(
                         new InetSocketAddress(
                                 intToInetName(dstIp),
@@ -1733,13 +1917,6 @@ public class TcpForwarder {
                         ),
                         8000
                 );
-
-
-                /*
-                 * T1 = socket.connect() completed successfully.
-                 */
-                long realSocketConnectEndNano =
-                        System.nanoTime();
 
 
                 Log.d(TAG, "Socket connected successfully.");
@@ -1756,112 +1933,36 @@ public class TcpForwarder {
                 );
 
 
-                /*
-                 * ============================================================
-                 * TCP CONNECTION TIME CALCULATION
-                 * ============================================================
-                 *
-                 * T0 = first SYN received from device
-                 * T1 = real socket.connect() completed
-                 *
-                 * Connection Time = T1 - T0
-                 */
-                if (tcpConnectionStartCaptured.get()
-                        && tcpConnectionCaptured.compareAndSet(false, true)) {
-
-                    tcpConnectionEndNano =
-                            realSocketConnectEndNano;
-
-                    tcpConnectionNano =
-                            tcpConnectionEndNano
-                                    - tcpConnectionStartNano;
-
-                    tcpConnectionMs =
-                            tcpConnectionNano / 1_000_000.0;
-
-                    String tcpConnectionLog =
-                            "========== TCP CONNECTION TIME ==========\n"
-                                    + "Connection Key     : "
-                                    + key
-                                    + "\n"
-                                    + "Server IP          : "
-                                    + intToInetName(dstIp).getHostAddress()
-                                    + "\n"
-                                    + "Server Port        : "
-                                    + dstPort
-                                    + "\n"
-                                    + "T0 SYN             : "
-                                    + tcpConnectionStartNano
-                                    + " ns\n"
-                                    + "T1 SOCKET CONNECT  : "
-                                    + tcpConnectionEndNano
-                                    + " ns\n"
-                                    + "T1 - T0            : "
-                                    + tcpConnectionNano
-                                    + " ns\n"
-                                    + "TCP Connection     : "
-                                    + String.format(
-                                    java.util.Locale.US,
-                                    "%.3f",
-                                    tcpConnectionMs
-                            )
-                                    + " ms\n"
-                                    + "==========================================";
-
-                    Log.i(
-                            TAG,
-                            tcpConnectionLog
-                    );
-//                  This is commented until client will confirm it to show in ui and log file
-//                    dashboard.logToFile(
-//                            TAG + tcpConnectionLog
-//                    );
-
-                    dashboard.recordTcpConnectionTime(
-                            Math.round(tcpConnectionMs)
-                    );
-                }
 
 
                 session.realSocket = socket;
 
+                /*
+                 * Store only the server IP here.
+                 *
+                 * IMPORTANT:
+                 * Do NOT call getCanonicalHostName() here.
+                 *
+                 * getCanonicalHostName() can perform reverse DNS lookup.
+                 * We don't want that DNS activity to happen while
+                 * measuring DNS / TCP / TLS / TTFB.
+                 */
                 String serverIp = socket.getInetAddress().getHostAddress();
-                String serverName;
 
-                try {
-                    serverName = socket.getInetAddress().getCanonicalHostName();
-                } catch (Exception e) {
-                    serverName = "Unknown";
-                    Log.e(TAG, "Exception while rsolving host name : "
-                            + intToInetName(dstIp).getHostAddress() + ":" + dstPort, e);
-                    dashboard.logEvent(TAG+
-                                    "Exception while rsolving host name : "
-                                    + intToInetName(dstIp).getHostAddress() + ":" + dstPort
-                                    + " exception is : " + e.getMessage(),
-                            VpnEvent.Level.INFO, VpnEvent.Category.TCP
-                    );
-                }
                 session.serverIp = serverIp;
-                session.serverName = serverName;
+
+                /*
+                 * Hostname will be resolved separately after
+                 * the measurement is finished.
+                 */
+                session.serverName = "Unknown";
 
                 Log.d(TAG, "Creating TCP session");
-//                dashboard.logEvent(TAG+
-//                        "========== SERVER ==========\n"
-//                                + "Server IP      : " + serverIp + "\n"
-//                                + "Server Name    : " + serverName + "\n"
-//                                + "============================",
-//                        VpnEvent.Level.INFO, VpnEvent.Category.TCP
-//                );
 
                 session.realOut = socket.getOutputStream();
                 session.realIn = socket.getInputStream();
 
-                /*
-                 * Send SYN-ACK only after the real server
-                 * connection is established.
-                 */
                 sendSynAck(session);
-
             } catch (IOException e) {
                 Log.e(TAG, "TCP connect failed for " + key + ": " + e.getMessage(), e);
                 dashboard.logEvent(TAG+"TCP socket exception " + e.getMessage(),
@@ -1875,8 +1976,158 @@ public class TcpForwarder {
     }
 
 
+
     private InetAddress intToInetName(byte[] ip) throws IOException {
         return InetAddress.getByAddress(ip);
+    }
+
+    /**
+     * ============================================================
+     * RESOLVE SERVER HOSTNAME ON STOP
+     * ============================================================
+     *
+     * Called from Activity BEFORE VPN service is stopped.
+     *
+     * IMPORTANT:
+     * We use the existing connected socket directly:
+     *
+     * socket.getInetAddress().getCanonicalHostName()
+     *
+     * This avoids creating another socket and uses the exact
+     * destination socket that was used by the TCP session.
+     */
+    public void resolveServerHostNameOnStop() {
+
+        Log.d(
+                TAG,
+                "========== RESOLVING SERVER HOSTNAME ON STOP =========="
+        );
+
+        if (sessions.isEmpty()) {
+
+            Log.d(
+                    TAG,
+                    "No active TCP sessions found."
+            );
+
+            dashboard.logToFile(
+                    TAG
+                            + "No active TCP sessions found while stopping VPN."
+            );
+
+            return;
+        }
+
+        for (Map.Entry<String, TcpSession> entry : sessions.entrySet()) {
+
+            String key = entry.getKey();
+            TcpSession session = entry.getValue();
+
+            if (session == null) {
+                continue;
+            }
+
+            Socket socket = session.realSocket;
+
+            if (socket == null) {
+
+                Log.d(
+                        TAG,
+                        "No real socket for session: " + key
+                );
+
+                continue;
+            }
+
+            try {
+
+                InetAddress inetAddress =
+                        socket.getInetAddress();
+
+                if (inetAddress == null) {
+
+                    Log.d(
+                            TAG,
+                            "Socket InetAddress is null for session: "
+                                    + key
+                    );
+
+                    continue;
+                }
+
+                /*
+                 * THIS IS THE REQUIRED CALL.
+                 */
+                String serverName =
+                        inetAddress.getCanonicalHostName();
+
+                String serverIp =
+                        inetAddress.getHostAddress();
+
+                session.serverIp = serverIp;
+                session.serverName = serverName;
+
+                String hostLog =
+                        "========== SERVER HOSTNAME ==========\n"
+                                + "Connection Key : "
+                                + key
+                                + "\n"
+                                + "Server IP      : "
+                                + serverIp
+                                + "\n"
+                                + "Server Name    : "
+                                + serverName
+                                + "\n"
+                                + "=====================================";
+
+                Log.i(
+                        TAG,
+                        hostLog
+                );
+
+                dashboard.logToFile(
+                        TAG + hostLog
+                );
+
+                /*
+                 * Send hostname to repository so the UI can display it.
+                 */
+                dashboard.setDnsHostName(
+                        serverName
+                );
+
+            } catch (Exception e) {
+
+                session.serverName = "Unknown";
+
+                Log.e(
+                        TAG,
+                        "Failed to resolve server hostname for "
+                                + key,
+                        e
+                );
+
+                dashboard.logToFile(
+                        TAG
+                                + "Failed to resolve server hostname"
+                                + "\nConnection Key : "
+                                + key
+                                + "\nServer IP      : "
+                                + session.serverIp
+                                + "\nError          : "
+                                + e.getMessage()
+                );
+
+                dashboard.setDnsHostName(
+                        "Unknown"
+                );
+            }
+        }
+
+        Log.d(
+                TAG,
+                "========== SERVER HOSTNAME RESOLUTION COMPLETE =========="
+        );
     }
 
 
@@ -1967,18 +2218,217 @@ public class TcpForwarder {
     }
 
 
-    void reportTtfb(TcpSession s, long ttfbMs, String key) {
 
-        Log.d(TAG, "Reporting TTFB = " + ttfbMs + " ms");
 
-        dashboard.logEvent(TAG+"TTFB : " + ttfbMs + " ms  (" + key + ")",
-                VpnEvent.Level.SUCCESS, VpnEvent.Category.TCP);
+    void completeTtfb(
+            TcpSession s,
+            String key,
+            long requestRecordNano) {
 
-        dashboard.recordTtfb(ttfbMs);
+        long t0 =
+                globalDnsT0Nano;
 
-        Log.d(TAG, "Dashboard updated with TTFB.");
+        long t1 =
+                globalTtfbT1Nano;
+
+
+        /*
+         * DNS T0 and request-anchored T1
+         * must both exist.
+         */
+        if (t0 <= 0L || t1 <= 0L) {
+
+            dashboard.logToFile(
+                    TAG
+                            + "========== TTFB NOT CALCULATED ==========\n"
+                            + "Reason : DNS T0 or TTFB T1 not available\n"
+                            + "DNS T0 : " + t0 + " ns\n"
+                            + "TTFB T1: " + t1 + " ns\n"
+                            + "Connection Key : " + key + "\n"
+                            + "=========================================="
+            );
+
+            return;
+        }
+
+
+        long ttfbNano =
+                t1 - t0;
+
+
+        if (ttfbNano < 0L) {
+
+            dashboard.logToFile(
+                    TAG
+                            + "========== INVALID TTFB ==========\n"
+                            + "Reason : TTFB T1 is earlier than DNS T0\n"
+                            + "DNS T0 : " + t0 + " ns\n"
+                            + "TTFB T1: " + t1 + " ns\n"
+                            + "=================================="
+            );
+
+            return;
+        }
+
+
+        double ttfbMsExact =
+                ttfbNano / 1_000_000.0;
+
+
+        globalTtfbMs =
+                TimeUnit.NANOSECONDS.toMillis(
+                        ttfbNano
+                );
+
+
+        String ttfbLog =
+                "========== T2_TTFB ==========\n"
+                        + "Connection Key   : " + key + "\n"
+                        + "Request Conn Key : "
+                        + globalTtfbRequestConnectionKey
+                        + "\n"
+                        + "Destination IP   : "
+                        + globalTtfbRequestDestinationIp
+                        + "\n"
+                        + "Resolved IP      : "
+                        + globalTtfbRequestResolvedIp
+                        + "\n"
+                        + "Payload Length   : "
+                        + globalTtfbRequestPayloadSize
+                        + "\n"
+                        + "\n"
+                        + "DNS T0 Nano         : "
+                        + t0 + " ns\n"
+                        + "Outgoing match Nano : "
+                        + globalOutgoingIpMatchTime
+                        + " ns\n"
+                        + "TLS 0x16 T0 Nano    : "
+                        + globalTlsRecordType16T0Nano
+                        + " ns\n"
+                        + "Request record Nano : "
+                        + requestRecordNano
+                        + " ns\n"
+                        + "TTFB T1 Nano        : "
+                        + t1 + " ns\n"
+                        + "\n"
+                        + "DNS -> request record: "
+                        + String.format(
+                        java.util.Locale.US,
+                        "%.3f",
+                        (requestRecordNano - t0)
+                                / 1_000_000.0
+                )
+                        + " ms\n"
+                        + "Request -> TTFB T1   : "
+                        + String.format(
+                        java.util.Locale.US,
+                        "%.3f",
+                        (t1 - requestRecordNano)
+                                / 1_000_000.0
+                )
+                        + " ms\n"
+                        + "\n"
+                        + "TTFB = TTFB T1 - DNS T0\n"
+                        + "     = " + t1
+                        + " - " + t0
+                        + "\n"
+                        + "     = " + ttfbNano
+                        + " ns\n"
+                        + "     = "
+                        + String.format(
+                        java.util.Locale.US,
+                        "%.3f",
+                        ttfbMsExact
+                )
+                        + " ms\n"
+                        + "==========================";
+
+
+        Log.i(
+                TAG,
+                ttfbLog
+        );
+
+
+        dashboard.logEvent(
+                TAG + ttfbLog,
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.TCP
+        );
+
+
+        /*
+         * IMPORTANT:
+         *
+         * Your CURRENT reportTtfb() requires:
+         *
+         * 1. TcpSession
+         * 2. TTFB ms
+         * 3. T0 wall time
+         * 4. T1 wall time
+         * 5. connection key
+         */
+        reportTtfb(
+                s,
+                Math.round(ttfbMsExact),
+                globalDnsT0WallTime,
+                globalTtfbT1WallTime,
+                key
+        );
     }
 
+
+    void reportTtfb(
+            TcpSession s,
+            long ttfbMs,
+            long t0WallTime,
+            long t1WallTime,
+            String key) {
+
+        Log.d(
+                TAG,
+                "Reporting VPN TTFB = "
+                        + ttfbMs
+                        + " ms"
+        );
+
+        dashboard.logEvent(
+                TAG
+                        + "VPN TTFB : "
+                        + ttfbMs
+                        + " ms"
+                        + " ("
+                        + key
+                        + ")",
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.TCP
+        );
+
+        dashboard.recordTtfb(
+                ttfbMs,
+                t0WallTime,
+                t1WallTime
+        );
+
+        dashboard.logToFile(
+                TAG
+                        + "VPN TTFB UI UPDATE\n"
+                        + "T0 Wall Time : "
+                        + t0WallTime
+                        + "\n"
+                        + "T1 Wall Time : "
+                        + t1WallTime
+                        + "\n"
+                        + "TTFB         : "
+                        + ttfbMs
+                        + " ms"
+        );
+
+        Log.d(
+                TAG,
+                "Dashboard updated with VPN TTFB."
+        );
+    }
 
     private void sendRst(byte[] fromIp, int fromPort, byte[] toIp, int toPort, long seq, long ack) {
 
@@ -2018,7 +2468,7 @@ public class TcpForwarder {
             try {
                 tunOut.write(buf.array(), 0, total);
             } catch (IOException e) {
-                Log.w(TAG, "Failed writing TCP packet back to TUN", e);
+                dashboard.logToFile(TAG+ "Failed writing TCP packet back to TUN "+e);
             }
         }
     }
@@ -2089,6 +2539,8 @@ public class TcpForwarder {
         globalIncomingIpMatchTime = 0L;
 
         globalDnsT0Nano = 0L;
+        globalDnsT0WallTime = 0L;
+
         globalOutgoingIpMatchWallTime = 0L;
         globalIncomingIpMatchWallTime = 0L;
 
@@ -2101,10 +2553,18 @@ public class TcpForwarder {
         globalTlsRecordType16T0Nano = 0L;
         globalTlsRecordType16T0WallTime = 0L;
         tlsRecordType16Captured.set(false);
-
         globalTlsRecordType17T1Nano = 0L;
         globalTlsRecordType17T1WallTime = 0L;
         tlsRecordType17Captured.set(false);
+
+
+        /*
+         * Reset request-anchored TTFB T1 state.
+         */
+        globalTtfbT1Nano = 0L;
+        globalTtfbT1WallTime = 0L;
+        ttfbT1Captured.set(false);
+
 
         globalTlsHandshakeNano = -1L;
         globalTlsHandshakeMs = -1.0;
@@ -2126,16 +2586,7 @@ public class TcpForwarder {
         tcpHandshakeCaptured.set(false);
 
 
-        /*
-         * Reset TCP connection timing state.
-         */
-        tcpConnectionStartNano = 0L;
-        tcpConnectionEndNano = 0L;
-        tcpConnectionNano = -1L;
-        tcpConnectionMs = -1.0;
 
-        tcpConnectionStartCaptured.set(false);
-        tcpConnectionCaptured.set(false);
 
 
         /*
@@ -2175,6 +2626,8 @@ public class TcpForwarder {
         globalIncomingIpMatchTime = 0L;
 
         globalDnsT0Nano = 0L;
+        globalDnsT0WallTime = 0L;
+
         globalOutgoingIpMatchWallTime = 0L;
         globalIncomingIpMatchWallTime = 0L;
 
@@ -2191,6 +2644,15 @@ public class TcpForwarder {
         globalTlsRecordType17T1Nano = 0L;
         globalTlsRecordType17T1WallTime = 0L;
         tlsRecordType17Captured.set(false);
+
+
+        /*
+         * Reset request-anchored TTFB T1 state.
+         */
+        globalTtfbT1Nano = 0L;
+        globalTtfbT1WallTime = 0L;
+        ttfbT1Captured.set(false);
+
 
         globalTlsHandshakeNano = -1L;
         globalTlsHandshakeMs = -1.0;
@@ -2210,16 +2672,6 @@ public class TcpForwarder {
         tcpHandshakeCaptured.set(false);
 
 
-        /*
-         * Reset TCP connection timing state.
-         */
-        tcpConnectionStartNano = 0L;
-        tcpConnectionEndNano = 0L;
-        tcpConnectionNano = -1L;
-        tcpConnectionMs = -1.0;
-
-        tcpConnectionStartCaptured.set(false);
-        tcpConnectionCaptured.set(false);
 
 
         /*
@@ -2969,6 +3421,70 @@ public class TcpForwarder {
         volatile long firstByteReceivedTime = 0L;
 
         volatile long ttfbMs = -1L;
+        /*
+         * ============================================================
+         * REQUEST ANCHOR STATE
+         * ============================================================
+         *
+         * TLS 1.3:
+         *
+         * Server handshake flight can arrive as RX 0x17 BEFORE
+         * the client sends any TX 0x17.
+         *
+         * Therefore:
+         *
+         * TX 0x17 #1 = Client Finished
+         * TX 0x17 #2 = Application request
+         *
+         * TLS 1.2:
+         *
+         * First TX 0x17 is treated as the request.
+         */
+        private int txAppDataRecords = 0;
+
+        private boolean rxAppDataBeforeTxAppData = false;
+
+        volatile long requestRecordNano = 0L;
+
+
+        /*
+         * Called for EVERY TX TLS 0x17 record.
+         */
+        synchronized void onTxAppDataRecord(long observedNano) {
+
+            txAppDataRecords++;
+
+            int requestIndex =
+                    rxAppDataBeforeTxAppData
+                            ? 2
+                            : 1;
+
+            if (requestRecordNano == 0L
+                    && txAppDataRecords >= requestIndex) {
+
+                requestRecordNano =
+                        observedNano;
+            }
+        }
+
+
+        /*
+         * Called for EVERY RX TLS 0x17 record.
+         *
+         * Returns TRUE only after the application request
+         * has already been identified.
+         */
+        synchronized boolean isRxAfterRequest() {
+
+            if (txAppDataRecords == 0) {
+
+                rxAppDataBeforeTxAppData = true;
+
+                return false;
+            }
+
+            return requestRecordNano > 0L;
+        }
 
 
         void startRealSocketReaderThread(
@@ -3235,6 +3751,41 @@ public class TcpForwarder {
 
                                                 /*
                                                  * =================================================
+                                                 * REQUEST-ANCHORED TTFB T1
+                                                 * =================================================
+                                                 *
+                                                 * First RX TLS 0x17 record on the request's
+                                                 * TCP connection received AFTER the request
+                                                 * record was sent.
+                                                 *
+                                                 * This prevents a TLS 1.3 server handshake
+                                                 * 0x17 record from being incorrectly selected
+                                                 * as TTFB T1.
+                                                 */
+                                                if (tlsRecordType == 0x17
+                                                        && isRxAfterRequest()
+                                                        && !forwarder.ttfbT1Captured.get()
+                                                        && key.equals(
+                                                        forwarder.globalTtfbRequestConnectionKey)
+                                                        && forwarder.ttfbT1Captured
+                                                        .compareAndSet(false, true)) {
+
+                                                    forwarder.globalTtfbT1Nano =
+                                                            record.observedNano;
+
+                                                    forwarder.globalTtfbT1WallTime =
+                                                            record.observedWallTime;
+
+                                                    forwarder.completeTtfb(
+                                                            this,
+                                                            key,
+                                                            requestRecordNano
+                                                    );
+                                                }
+
+
+                                                /*
+                                                 * =================================================
                                                  * T1 = FIRST RX TLS 0x17
                                                  * =================================================
                                                  *
@@ -3373,8 +3924,9 @@ public class TcpForwarder {
                                                          */
                                                         forwarder.dashboard
                                                                 .recordTlsHandshake(
-                                                                        forwarder
-                                                                                .globalTlsHandshakeMs
+                                                                        forwarder.globalTlsHandshakeMs,
+                                                                        forwarder.globalTlsRecordType16T0WallTime,
+                                                                        forwarder.globalTlsRecordType17T1WallTime
                                                                 );
 
 
@@ -3567,16 +4119,18 @@ public class TcpForwarder {
                                                         );
 
 
-                                                        forwarder.dashboard.logEvent(
-                                                                TAG + ttfbLog,
-                                                                VpnEvent.Level.SUCCESS,
-                                                                VpnEvent.Category.TCP
-                                                        );
+//                                                        forwarder.dashboard.logEvent(
+//                                                                TAG + ttfbLog,
+//                                                                VpnEvent.Level.SUCCESS,
+//                                                                VpnEvent.Category.TCP
+//                                                        );
 
 
                                                         forwarder.reportTtfb(
                                                                 this,
                                                                 Math.round(ttfbMs),
+                                                                forwarder.globalDnsT0WallTime,
+                                                                forwarder.globalTlsRecordType17T1WallTime,
                                                                 key
                                                         );
 
@@ -3781,12 +4335,10 @@ public class TcpForwarder {
                                                      * =====================================================
                                                      */
                                                     if (
-                                                            forwarder
-                                                                    .globalDnsT0Nano
-                                                                    > 0L
-                                                                    && forwarder
-                                                                    .globalTlsRecordType17T1Nano
-                                                                    > 0L
+                                                            forwarder.globalDnsT0Nano > 0L
+                                                                    && forwarder.globalTlsRecordType17T1Nano > 0L
+                                                                    && forwarder.globalTlsRecordType17T1Nano
+                                                                    >= forwarder.globalDnsT0Nano
                                                     ) {
 
                                                         long ttfbNano =
@@ -3876,7 +4428,9 @@ public class TcpForwarder {
 
                                                         forwarder.reportTtfb(
                                                                 this,
-                                                                forwarder.globalTtfbMs,
+                                                                Math.round(ttfbMs),
+                                                                forwarder.globalDnsT0WallTime,
+                                                                forwarder.globalTlsRecordType17T1WallTime,
                                                                 key
                                                         );
                                                     }

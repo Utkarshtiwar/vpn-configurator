@@ -222,7 +222,7 @@ public class UdpForwarder {
             );
 
         } catch (IOException e) {
-            Log.w(TAG, "UDP send failed for " + key + ": " + e.getMessage());
+            dashboard.logToFile(TAG+ "UDP send failed for " + key + ": " + e.getMessage());
             closeSession(key, session);
         }
     }
@@ -238,7 +238,11 @@ public class UdpForwarder {
             startReplyListener(key, session);
             return session;
         } catch (IOException e) {
-            Log.e(TAG, "Could not create UDP session for " + key, e);
+            dashboard.logToFile(
+                    TAG + " Could not create UDP session for " + key
+                            + "\nException: " + e.toString()
+                            + "\nStack trace:\n" + Log.getStackTraceString(e)
+            );
             return null;
         }
     }
@@ -431,7 +435,11 @@ public class UdpForwarder {
                     );
 
                 } catch (IOException e) {
-                    break; // socket closed or errored
+                    dashboard.logToFile(
+                            TAG + " IOException: " + e.toString()
+                                    + "\nStackTrace: " + Log.getStackTraceString(e)
+                    );
+                    break;
                 }
             }
         }, "UdpReply-" + key);
@@ -572,6 +580,34 @@ public class UdpForwarder {
 
                 Log.d(TAG, dnsTimingLog);
             }
+        }else {
+
+            // =====================================================
+            // NOT DNS RESPONSE
+            // =====================================================
+
+            String nonDnsResponseLog =
+                    "========== [UDP RX] NOT DNS RESPONSE ==========\n" +
+                            "Source IP          : " + ipStr(session.dstIp) + "\n" +
+                            "Destination IP     : " + ipStr(session.srcIp) + "\n" +
+                            "Source Port        : " + session.dstPort + "\n" +
+                            "Destination Port   : " + session.srcPort + "\n" +
+                            "Data Length        : " + dataLength + "\n" +
+                            "DNS Condition      : FALSE\n" +
+                            "Reason             : " +
+                            (session.dstPort != 53
+                                    ? "session.dstPort is not 53"
+                                    : "session.dstPort is 53 but dataLength < 2") +
+                            "\n" +
+                            "===============================================";
+
+            Log.d(TAG, nonDnsResponseLog);
+
+            dashboard.logEvent(
+                    TAG + nonDnsResponseLog,
+                    VpnEvent.Level.INFO,
+                    VpnEvent.Category.UDP
+            );
         }
 
         boolean ipv6 = session.dstIp.length == 16;
@@ -621,7 +657,7 @@ public class UdpForwarder {
             try {
                 tunOut.write(packet.array(), 0, totalLen);
             } catch (IOException e) {
-                Log.w(TAG, "Failed writing UDP reply back to TUN", e);
+                dashboard.logToFile(TAG+"Failed writing UDP reply back to TUN "+e);
             }
         }
     }
@@ -832,7 +868,47 @@ public class UdpForwarder {
      *
      * All DNS transactions are calculated and logged separately.
      */
-    static long recordDnsLookupForResolvedIp(String resolvedIp) {
+    /**
+     * Exact timing information of the DNS transaction
+     * whose Answer IP matched the TCP destination IP.
+     *
+     * Nano timestamps are used for duration calculation.
+     * Wall-clock timestamps are used for UI display.
+     */
+    public static class DnsTimingResult {
+
+        public final long t0Nano;
+        public final long t0WallTime;
+
+        public final long t1Nano;
+        public final long t1WallTime;
+
+        public final double dnsLookupTimeMs;
+
+        public final String dnsServerIp;
+        public final String destinationIp;
+
+        DnsTimingResult(
+                long t0Nano,
+                long t0WallTime,
+                long t1Nano,
+                long t1WallTime,
+                double dnsLookupTimeMs,
+                String dnsServerIp,
+                String destinationIp
+        ) {
+            this.t0Nano = t0Nano;
+            this.t0WallTime = t0WallTime;
+            this.t1Nano = t1Nano;
+            this.t1WallTime = t1WallTime;
+            this.dnsLookupTimeMs = dnsLookupTimeMs;
+            this.dnsServerIp = dnsServerIp;
+            this.destinationIp = destinationIp;
+        }
+    }
+    static DnsTimingResult recordDnsLookupForResolvedIp(
+            String resolvedIp
+    ) {
 
         if (resolvedIp == null || resolvedIp.trim().isEmpty()) {
 
@@ -841,7 +917,7 @@ public class UdpForwarder {
                     "DNS UI MATCH -> invalid resolved IP: " + resolvedIp
             );
 
-            return 0L;
+            return null;
         }
 
         String normalizedResolvedIp =
@@ -892,6 +968,12 @@ public class UdpForwarder {
                     long matchedDnsT1 =
                             transaction.endTime;
 
+                    long matchedDnsT0WallTime =
+                            transaction.startClockMillis;
+
+                    long matchedDnsT1WallTime =
+                            transaction.endClockMillis;
+
                     Log.d(
                             TAG,
                             "DNS TRANSACTION MATCH FOUND"
@@ -918,7 +1000,9 @@ public class UdpForwarder {
                             .recordDnsLookup(
                                     transaction.dnsLookupTimeMs,
                                     transaction.dnsServerIp,
-                                    normalizedResolvedIp
+                                    normalizedResolvedIp,
+                                    matchedDnsT0WallTime,
+                                    matchedDnsT1WallTime
                             );
 
                     /*
@@ -954,11 +1038,24 @@ public class UdpForwarder {
                                             + "DNS Server IP      : "
                                             + transaction.dnsServerIp
                                             + "\n"
-                                            + "DNS T0             : "
+                                            + "DNS T0 Nano        : "
                                             + matchedDnsT0
                                             + " ns\n"
-                                            + "DNS T1             : "
+                                            + "DNS T0 Wall        : "
+                                            + formatTimestamp(matchedDnsT0WallTime)
+                                            + "\n"
+                                            + "DNS T1 Nano        : "
                                             + matchedDnsT1
+                                            + " ns\n"
+                                            + "DNS T1 Wall        : "
+                                            + formatTimestamp(matchedDnsT1WallTime)
+                                            + "\n"
+                                            + "DNS T0/T1 Compare  : "
+                                            + matchedDnsT1
+                                            + " - "
+                                            + matchedDnsT0
+                                            + " = "
+                                            + (matchedDnsT1 - matchedDnsT0)
                                             + " ns\n"
                                             + "DNS Resolution     : "
                                             + String.format(
@@ -979,7 +1076,28 @@ public class UdpForwarder {
                      * IMPORTANT:
                      * Return the T0 of THIS matched DNS transaction.
                      */
-                    return matchedDnsT0;
+                    /*
+                     * IMPORTANT:
+                     *
+                     * Return the COMPLETE timing information of THIS
+                     * matched DNS transaction.
+                     *
+                     * TcpForwarder will use:
+                     *
+                     * t0Nano     -> VPN TTFB duration calculation
+                     * t0WallTime -> VPN TTFB UI T0
+                     *
+                     * DNS T1 values remain available for DNS UI.
+                     */
+                    return new DnsTimingResult(
+                            matchedDnsT0,
+                            matchedDnsT0WallTime,
+                            matchedDnsT1,
+                            matchedDnsT1WallTime,
+                            transaction.dnsLookupTimeMs,
+                            transaction.dnsServerIp,
+                            normalizedResolvedIp
+                    );
                 }
             }
         }
@@ -1008,7 +1126,7 @@ public class UdpForwarder {
         /*
          * 0 means no matching DNS transaction.
          */
-        return 0L;
+        return null;
     }
     /**
      * Remove DNS transactions older than the allowed matching window.
@@ -1313,4 +1431,22 @@ public class UdpForwarder {
             lastActivity = System.currentTimeMillis();
         }
     }
+    // ============================================================
+    // FORMATTED WALL-CLOCK TIMESTAMP
+    // ============================================================
+
+    private static String formatTimestamp(long wallTimeMillis) {
+
+        if (wallTimeMillis <= 0L) {
+            return "-";
+        }
+
+        return new SimpleDateFormat(
+                "HH:mm:ss:SSS",
+                Locale.getDefault()
+        ).format(
+                new Date(wallTimeMillis)
+        );
+    }
+
 }

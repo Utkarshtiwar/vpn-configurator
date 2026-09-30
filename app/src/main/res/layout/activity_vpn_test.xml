@@ -359,6 +359,19 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvVpnTtfbT0"
+                        style="@style/FieldCaption"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="T0: -" />
+
+                    <TextView
+                        android:id="@+id/tvVpnTtfbT1"
+                        style="@style/FieldCaption"
+                        android:fontFamily="monospace"
+                        android:text="T1: -" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="Tunnel response latency" />
 
@@ -397,6 +410,19 @@
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_info"
                         android:text="-" />
+
+                    <TextView
+                        android:id="@+id/tvTtfbT0"
+                        style="@style/FieldCaption"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="T0: -" />
+
+                    <TextView
+                        android:id="@+id/tvTtfbT1"
+                        style="@style/FieldCaption"
+                        android:fontFamily="monospace"
+                        android:text="T1: -" />
 
                     <TextView
                         style="@style/FieldCaption"
@@ -451,6 +477,19 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvTcpHandshakeT0"
+                        style="@style/FieldCaption"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="T0: -" />
+
+                    <TextView
+                        android:id="@+id/tvTcpHandshakeT1"
+                        style="@style/FieldCaption"
+                        android:fontFamily="monospace"
+                        android:text="T1: -" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="SYN -> SYN-ACK -> ACK" />
 
@@ -493,6 +532,19 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvTlsHandshakeT0"
+                        style="@style/FieldCaption"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="T0: -" />
+
+                    <TextView
+                        android:id="@+id/tvTlsHandshakeT1"
+                        style="@style/FieldCaption"
+                        android:fontFamily="monospace"
+                        android:text="T1: -" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="Cryptographic negotiation" />
 
@@ -513,7 +565,6 @@
 
             <!-- TCP CONNECTION TIME -->
             <com.google.android.material.card.MaterialCardView
-                android:visibility="gone"
                 style="@style/DashboardCard">
 
                 <LinearLayout style="@style/DashboardCardContent">
@@ -546,13 +597,25 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvTcpConnectionT0"
+                        style="@style/FieldCaption"
+                        android:layout_marginTop="2dp"
+                        android:fontFamily="monospace"
+                        android:text="T0: -" />
+
+                    <TextView
+                        android:id="@+id/tvTcpConnectionT1"
+                        style="@style/FieldCaption"
+                        android:fontFamily="monospace"
+                        android:text="T1: -" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="TCP connection establishment" />
 
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
-
 
             <!-- TCP RETRANSMISSION COUNT -->
             <com.google.android.material.card.MaterialCardView
@@ -677,6 +740,19 @@
                             style="@style/DashboardCardValueLarge"
                             android:textColor="@color/accent_cyan"
                             android:text="-" />
+
+                        <TextView
+                            android:id="@+id/tvDnsResolutionT0"
+                            style="@style/FieldCaption"
+                            android:layout_marginTop="2dp"
+                            android:fontFamily="monospace"
+                            android:text="T0: -" />
+
+                        <TextView
+                            android:id="@+id/tvDnsResolutionT1"
+                            style="@style/FieldCaption"
+                            android:fontFamily="monospace"
+                            android:text="T1: -" />
 
                     </LinearLayout>
 

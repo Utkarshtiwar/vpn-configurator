@@ -243,23 +243,103 @@ public class WebViewHelper {
 
 
             // =========================================================
-            // RESPONSE CODE / T2
-            // =========================================================
+// RESPONSE CODE / WEB TTFB
+// =========================================================
 
             int responseCode =
                     urlConnection.getResponseCode();
+
             dashboard.logToFile(
                     TAG
                             + "T1_RESPONSE_CODE_RXD\n"
                             + responseCode
             );
 
-            long ttfb =
+
+// =========================================================
+// WEB TTFB T1
+// =========================================================
+//
+// T0 = connectStart
+// T1 = time when response code is received
+//
+// Web TTFB = T1 - T0
+// =========================================================
+
+            long ttfbT1WallTime =
                     System.currentTimeMillis();
 
-            ttfbTime =
-                    ttfb - connectStart;
 
+// =========================================================
+// WEB TTFB CALCULATION
+// =========================================================
+
+            ttfbTime =
+                    ttfbT1WallTime - connectStart;
+
+
+// =========================================================
+// SAVE WEB TTFB T0 / T1 TO REPOSITORY
+// =========================================================
+
+            dashboard.recordWebTtfb(
+                    ttfbTime,
+                    connectStart,
+                    ttfbT1WallTime
+            );
+
+
+// =========================================================
+// LOG WEB TTFB T0
+// =========================================================
+
+            dashboard.logToFile(
+                    TAG
+                            + "WEB TTFB T0: "
+                            + connectStart
+            );
+
+
+// =========================================================
+// LOG WEB TTFB T1
+// =========================================================
+
+            dashboard.logToFile(
+                    TAG
+                            + "WEB TTFB T1: "
+                            + ttfbT1WallTime
+            );
+
+
+// =========================================================
+// LOG WEB TTFB VALUE
+// =========================================================
+
+            dashboard.logToFile(
+                    TAG
+                            + "WEB TTFB: "
+                            + ttfbTime
+                            + " ms"
+            );
+
+
+// =========================================================
+// T0 / T1 COMPARISON
+// =========================================================
+
+            dashboard.logToFile(
+                    TAG
+                            + "WEB TTFB COMPARISON: T1("
+                            + ttfbT1WallTime
+                            + ") - T0("
+                            + connectStart
+                            + ") = "
+                            + ttfbTime
+                            + " ms"
+            );
+
+
+// Existing log
             dashboard.logToFile(
                     TAG
                             + "ELOG_WEB_TEST: web test response code is "
