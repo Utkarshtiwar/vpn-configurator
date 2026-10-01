@@ -730,18 +730,6 @@ public class VpnTestActivity extends AppCompatActivity {
                 findViewById(R.id.tvTcpHandshakeT1);
 
 
-// ============================================================
-// TCP CONNECTION
-// ============================================================
-
-        tvTcpConnectionTime =
-                findViewById(R.id.tvTcpConnectionTime);
-
-        tvTcpConnectionT0 =
-                findViewById(R.id.tvTcpConnectionT0);
-
-        tvTcpConnectionT1 =
-                findViewById(R.id.tvTcpConnectionT1);
 
 
         // ============================================================

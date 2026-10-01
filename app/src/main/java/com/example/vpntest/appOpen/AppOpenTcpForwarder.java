@@ -195,6 +195,8 @@ class AppOpenTcpForwarder {
 
     private volatile long globalDnsT0Nano = 0L;
 
+    private volatile long globalDnsT0WallTime = 0L;
+
     /*
      * =========================================================
      * TLS HANDSHAKE TIMING
@@ -977,7 +979,7 @@ class AppOpenTcpForwarder {
                  */
                 if (handshakeT0WallTime != null) {
 
-                    dashboard.recordTcpHandshake(
+                    dashboard.recordAppOpenTcpHandshake(
                             tcpHandshakeNano,
                             handshakeT0WallTime,
                             t1CandidateWallTime
@@ -1000,8 +1002,10 @@ class AppOpenTcpForwarder {
                      * Preserve the duration even if the
                      * wall-clock timestamp is missing.
                      */
-                    dashboard.recordTcpHandshake(
-                            tcpHandshakeNano
+                    dashboard.recordAppOpenTcpHandshake(
+                            tcpHandshakeNano,
+                            -1L,
+                            -1L
                     );
                 }
 
@@ -1426,6 +1430,12 @@ class AppOpenTcpForwarder {
                 globalDnsT0Nano =
                         matchedDnsT0 > 0L
                                 ? matchedDnsT0
+                                : 0L;
+
+                globalDnsT0WallTime =
+                        matchedDnsT0 > 0L
+                                ? AppOpenUdpForwarder
+                                .getLatestMatchedDnsT0WallTime()
                                 : 0L;
 
 
@@ -2512,8 +2522,10 @@ class AppOpenTcpForwarder {
         );
 
 
-        dashboard.recordTtfb(
-                ttfbMs
+        dashboard.recordAppOpenTtfb(
+                ttfbMs,
+                globalDnsT0WallTime,
+                globalTlsRecordType17T1WallTime
         );
 
 
@@ -2813,6 +2825,9 @@ class AppOpenTcpForwarder {
         globalDnsT0Nano =
                 0L;
 
+        globalDnsT0WallTime =
+                0L;
+
         globalTlsRecordType17T1Nano =
                 0L;
 
@@ -3015,6 +3030,9 @@ class AppOpenTcpForwarder {
                 0L;
 
         globalDnsT0Nano =
+                0L;
+
+        globalDnsT0WallTime =
                 0L;
 
 
@@ -4032,9 +4050,13 @@ class AppOpenTcpForwarder {
 
 
                                                             forwarder.dashboard
-                                                                    .recordTlsHandshake(
+                                                                    .recordAppOpenTlsHandshake(
                                                                             forwarder
-                                                                                    .globalTlsHandshakeMs
+                                                                                    .globalTlsHandshakeMs,
+                                                                            forwarder
+                                                                                    .globalTlsRecordType16T0WallTime,
+                                                                            forwarder
+                                                                                    .globalTlsRecordType17T1WallTime
                                                                     );
 
 
@@ -4236,7 +4258,7 @@ class AppOpenTcpForwarder {
 
 
 
-                                                                          }
+                                        }
 
 
                                         /*

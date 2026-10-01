@@ -90,8 +90,13 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
             tvPerformanceSourceIp,
             tvPerformanceDestinationIp;
 
+    private TextView tvAppOpenTtfbTime;
+    private TextView tvAppOpenDnsTime;
+
     private TextView tvAppOpenTcpHandshake;
+    private TextView tvAppOpenTcpHandshakeTime;
     private TextView tvAppOpenTlsHandshake;
+    private TextView tvAppOpenTlsHandshakeTime;
     private TextView tvAppOpenTcpRetransmissionCount;
     private TextView tvAppOpenQuicHandshake;
 
@@ -414,9 +419,18 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                     );
 
                     tvPerformanceTtfb.setText(
-                            stats.lastTtfbMs >= 0
-                                    ? stats.lastTtfbMs + " ms"
+                            stats.appOpenTtfbMs >= 0
+                                    ? stats.appOpenTtfbMs + " ms"
                                     : "-"
+                    );
+
+                    tvAppOpenTtfbTime.setText(
+                            "T0: " + formatAppOpenWallClock(
+                                    stats.appOpenTtfbT0WallTime
+                            )
+                                    + "\nT1: " + formatAppOpenWallClock(
+                                    stats.appOpenTtfbT1WallTime
+                            )
                     );
 
                     tvPerformanceSourceIp.setText(
@@ -426,31 +440,39 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                     );
 
                     tvPerformanceDestinationIp.setText(
-                            stats.lastDnsDestinationIp != null
-                                    && !stats.lastDnsDestinationIp.isEmpty()
-                                    && !stats.lastDnsDestinationIp.equals("-")
-                                    ? stats.lastDnsDestinationIp
+                            stats.appOpenDnsDestinationIp != null
+                                    && !stats.appOpenDnsDestinationIp.isEmpty()
+                                    && !stats.appOpenDnsDestinationIp.equals("-")
+                                    ? stats.appOpenDnsDestinationIp
                                     : "-"
                     );
 
                     tvPerformanceDnsLookup.setText(
-                            stats.lastDnsLookupMs >= 0
+                            stats.appOpenDnsLookupMs >= 0
                                     ? String.format(
                                     Locale.US,
                                     "%.3f ms",
-                                    stats.lastDnsLookupMs
+                                    stats.appOpenDnsLookupMs
                             )
                                     : "-"
                     );
 
-                    tvPerformanceDnsServerIp.setText(
-                            stats.lastDnsServerIp != null
-                                    && !stats.lastDnsServerIp.isEmpty()
-                                    && !stats.lastDnsServerIp.equals("-")
-                                    ? "Server: " + stats.lastDnsServerIp
-                                    : "Server: -"
+                    tvAppOpenDnsTime.setText(
+                            "T0: " + formatAppOpenWallClock(
+                                    stats.appOpenDnsLookupT0WallTime
+                            )
+                                    + "\nT1: " + formatAppOpenWallClock(
+                                    stats.appOpenDnsLookupT1WallTime
+                            )
                     );
 
+                    tvPerformanceDnsServerIp.setText(
+                            stats.appOpenDnsServerIp != null
+                                    && !stats.appOpenDnsServerIp.isEmpty()
+                                    && !stats.appOpenDnsServerIp.equals("-")
+                                    ? "DNS Server: " + stats.appOpenDnsServerIp
+                                    : "DNS Server: -"
+                    );
 
 // =====================================================
 // TCP HANDSHAKE
@@ -461,10 +483,10 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 // APP OPEN TCP HANDSHAKE
 // =====================================================
 
-                    if (stats.tcpHandshakeNano >= 0) {
+                    if (stats.appOpenTcpHandshakeNano >= 0) {
 
                         double handshakeMs =
-                                stats.tcpHandshakeNano / 1_000_000.0;
+                                stats.appOpenTcpHandshakeNano / 1_000_000.0;
 
                         tvAppOpenTcpHandshake.setText(
                                 String.format(
@@ -479,18 +501,27 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                         tvAppOpenTcpHandshake.setText("-");
                     }
 
+                    tvAppOpenTcpHandshakeTime.setText(
+                            "T0: " + formatAppOpenWallClock(
+                                    stats.appOpenTcpHandshakeT0WallTime
+                            )
+                                    + "\nT1: " + formatAppOpenWallClock(
+                                    stats.appOpenTcpHandshakeT1WallTime
+                            )
+                    );
+
 
 // =====================================================
 // APP OPEN TLS HANDSHAKE
 // =====================================================
 
-                    if (stats.tlsHandshakeMs >= 0) {
+                    if (stats.appOpenTlsHandshakeMs >= 0) {
 
                         tvAppOpenTlsHandshake.setText(
                                 String.format(
                                         Locale.US,
                                         "%.3f ms",
-                                        stats.tlsHandshakeMs
+                                        stats.appOpenTlsHandshakeMs
                                 )
                         );
 
@@ -498,6 +529,15 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
                         tvAppOpenTlsHandshake.setText("-");
                     }
+
+                    tvAppOpenTlsHandshakeTime.setText(
+                            "T0: " + formatAppOpenWallClock(
+                                    stats.appOpenTlsHandshakeT0WallTime
+                            )
+                                    + "\nT1: " + formatAppOpenWallClock(
+                                    stats.appOpenTlsHandshakeT1WallTime
+                            )
+                    );
 
 
 // =====================================================
@@ -533,6 +573,21 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
         // Initial UI state.
         updateTestButtons();
+    }
+
+    private String formatAppOpenWallClock(
+            long timestamp
+    ) {
+        if (timestamp <= 0L) {
+            return "-";
+        }
+
+        return new java.text.SimpleDateFormat(
+                "HH:mm:ss.SSS",
+                Locale.US
+        ).format(
+                new java.util.Date(timestamp)
+        );
     }
 
     private void bindDashboardViews() {
@@ -596,16 +651,32 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
         tvPerformanceDestinationIp =
                 findViewById(R.id.tvPerformanceDestinationIp);
 
+        tvAppOpenTtfbTime =
+                findViewById(R.id.tvAppOpenTtfbTime);
+
+        tvAppOpenDnsTime =
+                findViewById(R.id.tvAppOpenDnsTime);
+
 // APP OPEN TCP HANDSHAKE
         tvAppOpenTcpHandshake =
                 findViewById(
                         R.id.tvAppOpenTcpHandshake
                 );
 
+        tvAppOpenTcpHandshakeTime =
+                findViewById(
+                        R.id.tvAppOpenTcpHandshakeTime
+                );
+
 // APP OPEN TLS HANDSHAKE
         tvAppOpenTlsHandshake =
                 findViewById(
                         R.id.tvAppOpenTlsHandshake
+                );
+
+        tvAppOpenTlsHandshakeTime =
+                findViewById(
+                        R.id.tvAppOpenTlsHandshakeTime
                 );
 
 // APP OPEN TCP RETRANSMISSIONS
@@ -983,11 +1054,11 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 // Same repository reset pattern as Web Test
 // =====================================================
 
-        dashboardRepo.resetDnsLookup();
+        dashboardRepo.resetAppOpenTtfb();
 
-        dashboardRepo.resetDnsDestinationIp();
+        dashboardRepo.resetAppOpenTlsHandshake();
 
-        dashboardRepo.resetTlsHandshake();
+        dashboardRepo.resetAppOpenTcpHandshake();
 
         dashboardRepo.resetTcpConnectionTime();
 
@@ -1006,6 +1077,14 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
             tvPerformanceDnsLookup.setText("-");
         }
 
+        if (tvAppOpenTtfbTime != null) {
+            tvAppOpenTtfbTime.setText("T0: -\nT1: -");
+        }
+
+        if (tvAppOpenDnsTime != null) {
+            tvAppOpenDnsTime.setText("T0: -\nT1: -");
+        }
+
         if (tvPerformanceDnsServerIp != null) {
             tvPerformanceDnsServerIp.setText("Server: -");
         }
@@ -1022,8 +1101,16 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
             tvAppOpenTcpHandshake.setText("-");
         }
 
+        if (tvAppOpenTcpHandshakeTime != null) {
+            tvAppOpenTcpHandshakeTime.setText("T0: -\nT1: -");
+        }
+
         if (tvAppOpenTlsHandshake != null) {
             tvAppOpenTlsHandshake.setText("-");
+        }
+
+        if (tvAppOpenTlsHandshakeTime != null) {
+            tvAppOpenTlsHandshakeTime.setText("T0: -\nT1: -");
         }
 
         if (tvAppOpenTcpRetransmissionCount != null) {

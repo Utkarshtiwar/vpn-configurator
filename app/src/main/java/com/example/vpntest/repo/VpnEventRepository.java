@@ -250,19 +250,7 @@ public final class VpnEventRepository {
     // Existing metric retained.
     // ============================================================
 
-    public void recordTcpConnectionTime(
-            long connectionTimeMs,
-            long t0WallTime,
-            long t1WallTime
-    ) {
-        updateStats(s ->
-                s.withTcpConnectionTime(connectionTimeMs)
-                        .withTcpConnectionWallTimes(
-                                t0WallTime,
-                                t1WallTime
-                        )
-        );
-    }
+
 
     public void resetTcpConnectionTime() {
         updateStats(s ->
@@ -481,4 +469,111 @@ public final class VpnEventRepository {
                 Locale.getDefault()
         ).format(new Date());
     }
+    // ============================================================
+    // APP OPEN TTFB
+    // ============================================================
+
+    public void recordAppOpenTtfb(
+            long ttfbMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withAppOpenTtfb(
+                        ttfbMs,
+                        t0WallTime,
+                        t1WallTime
+                )
+        );
+    }
+
+    public void resetAppOpenTtfb() {
+        updateStats(s ->
+                s.withAppOpenTtfb(
+                        -1L,
+                        -1L,
+                        -1L
+                )
+        );
+    }
+
+    // ============================================================
+    // APP OPEN TCP HANDSHAKE
+    // ============================================================
+
+    public void recordAppOpenTcpHandshake(
+            long handshakeNano,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withAppOpenTcpHandshake(
+                        handshakeNano,
+                        t0WallTime,
+                        t1WallTime
+                )
+        );
+    }
+
+    public void resetAppOpenTcpHandshake() {
+        updateStats(s ->
+                s.withAppOpenTcpHandshake(
+                        -1L,
+                        -1L,
+                        -1L
+                )
+        );
+    }
+
+    // ============================================================
+    // APP OPEN TLS HANDSHAKE
+    // ============================================================
+
+    public void recordAppOpenTlsHandshake(
+            double handshakeMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withAppOpenTlsHandshake(
+                        handshakeMs,
+                        t0WallTime,
+                        t1WallTime
+                )
+        );
+    }
+
+    public void resetAppOpenTlsHandshake() {
+        updateStats(s ->
+                s.withAppOpenTlsHandshake(
+                        -1.0,
+                        -1L,
+                        -1L
+                )
+        );
+    }
+
+    // ============================================================
+    // APP OPEN DNS LOOKUP
+    // ============================================================
+
+    public void recordAppOpenDnsLookup(
+            double lookupMs,
+            long t0WallTime,
+            long t1WallTime,
+            String serverIp,
+            String destinationIp
+    ) {
+        updateStats(s ->
+                s.withAppOpenDnsLookup(
+                        lookupMs,
+                        t0WallTime,
+                        t1WallTime,
+                        serverIp,
+                        destinationIp
+                )
+        );
+    }
+
+
 }

@@ -3551,10 +3551,14 @@ id transition_position
 id transition_scene_layoutid_cache
 id transition_transform
 id triangle
+id tvAppOpenDnsTime
 id tvAppOpenQuicHandshake
 id tvAppOpenTcpHandshake
+id tvAppOpenTcpHandshakeTime
 id tvAppOpenTcpRetransmissionCount
 id tvAppOpenTlsHandshake
+id tvAppOpenTlsHandshakeTime
+id tvAppOpenTtfbTime
 id tvDnsDestinationIp
 id tvDnsHostName
 id tvDnsLookup
@@ -3581,9 +3585,6 @@ id tvPermissionStatus
 id tvQuicHandshake
 id tvReaderStatus
 id tvStatus
-id tvTcpConnectionT0
-id tvTcpConnectionT1
-id tvTcpConnectionTime
 id tvTcpCount
 id tvTcpHandshake
 id tvTcpHandshakeT0

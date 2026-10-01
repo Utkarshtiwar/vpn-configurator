@@ -563,59 +563,7 @@
             android:paddingStart="@dimen/spacing_12"
             android:paddingEnd="@dimen/spacing_12">
 
-            <!-- TCP CONNECTION TIME -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/DashboardCard">
 
-                <LinearLayout style="@style/DashboardCardContent">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            style="@style/DashboardCardLabel"
-                            android:layout_width="0dp"
-                            android:layout_weight="1"
-                            android:text="TCP Connection" />
-
-                        <ImageView
-                            android:layout_width="14dp"
-                            android:layout_height="14dp"
-                            android:contentDescription="@null"
-                            android:src="@drawable/ic_tcp"
-                            app:tint="@color/status_success" />
-
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvTcpConnectionTime"
-                        style="@style/DashboardCardValueLarge"
-                        android:textColor="@color/status_success"
-                        android:text="-" />
-
-                    <TextView
-                        android:id="@+id/tvTcpConnectionT0"
-                        style="@style/FieldCaption"
-                        android:layout_marginTop="2dp"
-                        android:fontFamily="monospace"
-                        android:text="T0: -" />
-
-                    <TextView
-                        android:id="@+id/tvTcpConnectionT1"
-                        style="@style/FieldCaption"
-                        android:fontFamily="monospace"
-                        android:text="T1: -" />
-
-                    <TextView
-                        style="@style/FieldCaption"
-                        android:text="TCP connection establishment" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- TCP RETRANSMISSION COUNT -->
             <com.google.android.material.card.MaterialCardView

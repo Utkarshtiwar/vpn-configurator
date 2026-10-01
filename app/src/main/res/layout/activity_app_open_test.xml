@@ -303,6 +303,16 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvAppOpenTtfbTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="T0: -&#10;T1: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="Time To First Byte" />
 
@@ -342,6 +352,16 @@
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/status_info"
                         android:text="-" />
+
+                    <TextView
+                        android:id="@+id/tvAppOpenDnsTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="T0: -&#10;T1: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
 
                     <TextView
                         android:id="@+id/tvPerformanceDnsServerIp"
@@ -463,6 +483,16 @@
                         android:text="-" />
 
                     <TextView
+                        android:id="@+id/tvAppOpenTcpHandshakeTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="T0: -&#10;T1: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
                         style="@style/FieldCaption"
                         android:text="SYN → SYN-ACK → ACK" />
 
@@ -503,6 +533,16 @@
                         style="@style/DashboardCardValueLarge"
                         android:textColor="@color/primary_light"
                         android:text="-" />
+
+                    <TextView
+                        android:id="@+id/tvAppOpenTlsHandshakeTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="T0: -&#10;T1: -"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
 
                     <TextView
                         style="@style/FieldCaption"

@@ -33,6 +33,8 @@ class AppOpenUdpForwarder {
 
     private static volatile long latestDnsStartTimeNano = 0L;
 
+    private static volatile long latestMatchedDnsT0WallTime = 0L;
+
     private static final ConcurrentLinkedDeque<DnsTransactionInfo>
             completedDnsTransactions =
             new ConcurrentLinkedDeque<>();
@@ -1657,8 +1659,11 @@ class AppOpenUdpForwarder {
                     long matchedDnsT1 =
                             transaction.endTime;
 
-                    Log.d(
-                            TAG,
+                    latestMatchedDnsT0WallTime =
+                            transaction.startClockMillis;
+
+                    VpnEventRepository.getInstance().logToFile(
+                            TAG+
                             "FIRST DNS TRANSACTION MATCHED"
                                     + " | Resolved IP = "
                                     + normalizedResolvedIp
@@ -1682,8 +1687,10 @@ class AppOpenUdpForwarder {
                      */
                     VpnEventRepository
                             .getInstance()
-                            .recordDnsLookup(
+                            .recordAppOpenDnsLookup(
                                     transaction.dnsLookupTimeMs,
+                                    transaction.startClockMillis,
+                                    transaction.endClockMillis,
                                     transaction.dnsServerIp,
                                     normalizedResolvedIp
                             );
@@ -1775,13 +1782,18 @@ class AppOpenUdpForwarder {
          */
         VpnEventRepository.getInstance().logToFile(
                 TAG+
-                "NO DNS TRANSACTION MATCH FOUND"
+                        "NO DNS TRANSACTION MATCH FOUND"
                         + " | Resolved IP = "
                         + normalizedResolvedIp
         );
 
         return 0L;
 
+    }
+
+
+    static long getLatestMatchedDnsT0WallTime() {
+        return latestMatchedDnsT0WallTime;
     }
 
 
@@ -1954,6 +1966,8 @@ class AppOpenUdpForwarder {
 
 
         completedDnsTransactions.clear();
+
+        latestMatchedDnsT0WallTime = 0L;
     }
 
 

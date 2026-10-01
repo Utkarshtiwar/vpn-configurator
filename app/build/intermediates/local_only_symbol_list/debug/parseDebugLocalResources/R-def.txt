@@ -108,10 +108,14 @@ id etTargetUrl
 id ivEventIcon
 id rvEventConsole
 id spinnerAppSelect
+id tvAppOpenDnsTime
 id tvAppOpenQuicHandshake
 id tvAppOpenTcpHandshake
+id tvAppOpenTcpHandshakeTime
 id tvAppOpenTcpRetransmissionCount
 id tvAppOpenTlsHandshake
+id tvAppOpenTlsHandshakeTime
+id tvAppOpenTtfbTime
 id tvDnsDestinationIp
 id tvDnsHostName
 id tvDnsLookup
@@ -138,9 +142,6 @@ id tvPermissionStatus
 id tvQuicHandshake
 id tvReaderStatus
 id tvStatus
-id tvTcpConnectionT0
-id tvTcpConnectionT1
-id tvTcpConnectionTime
 id tvTcpCount
 id tvTcpHandshake
 id tvTcpHandshakeT0
