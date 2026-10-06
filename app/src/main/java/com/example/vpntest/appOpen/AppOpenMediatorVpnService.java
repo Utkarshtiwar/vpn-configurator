@@ -1,10 +1,14 @@
 package com.example.vpntest.appOpen;
 
+import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.usage.UsageEvents;
+import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import android.os.Process;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
@@ -74,11 +78,35 @@ public class AppOpenMediatorVpnService extends VpnService {
      * before establishVpn() runs.
      */
     private volatile String selectedPackageName;
+    /*
+     * =========================================================
+     * APP OPEN MEASUREMENT
+     * =========================================================
+     */
+
+    private android.os.Handler appOpenHandler =
+            new android.os.Handler(
+                    android.os.Looper.getMainLooper()
+            );
+
+    private boolean appOpenT1Captured = false;
+
+    private static final long APP_OPEN_T1_POLL_INTERVAL_MS = 50L;
+
+    private String appOpenTargetPackage = null;
+
+    private long appOpenT0Nano = -1L;
+
+    private long appOpenT0WallTime = -1L;
+
+    private Runnable appOpenT1MonitorRunnable;
+
 
     private final Map<String, ConnectionInfo> activeConnections =
             new ConcurrentHashMap<>();
 
     private final IBinder binder = new LocalBinder();
+
 
     private VpnReadyCallback vpnReadyCallback;
 
@@ -992,6 +1020,460 @@ public class AppOpenMediatorVpnService extends VpnService {
         }
     }
 
+    private boolean hasUsageStatsAccess() {
+
+        try {
+
+            AppOpsManager appOpsManager =
+                    (AppOpsManager)
+                            getSystemService(
+                                    Context.APP_OPS_SERVICE
+                            );
+
+            if (appOpsManager == null) {
+
+                return false;
+            }
+
+            int mode =
+                    appOpsManager.checkOpNoThrow(
+                            AppOpsManager.OPSTR_GET_USAGE_STATS,
+                            Process.myUid(),
+                            getPackageName()
+                    );
+
+            return mode == AppOpsManager.MODE_ALLOWED;
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Usage Stats access check failed",
+                    e
+            );
+
+            dashboard.logToFile(
+                    TAG +
+                            "Usage Stats access check failed: "
+                            + e
+            );
+
+            return false;
+        }
+    }
+
+    /**
+     * Starts monitoring the selected application for ACTIVITY_RESUMED.
+     *
+     * T0 is captured immediately before startActivity().
+     * T1 is captured when the selected application's activity
+     * is observed as resumed by UsageStatsManager.
+     */
+    public void startAppOpenT1Monitoring(
+            String targetPackage,
+            long t0Nano,
+            long t0WallTime
+    ) {
+
+        appOpenTargetPackage = targetPackage;
+        appOpenT0Nano = t0Nano;
+        appOpenT0WallTime = t0WallTime;
+        appOpenT1Captured = false;
+
+        Log.d(
+                TAG,
+                "========== APP OPEN T1 MONITOR STARTED =========="
+                        + "\nTarget Package : "
+                        + appOpenTargetPackage
+                        + "\nT0 Nano        : "
+                        + appOpenT0Nano
+                        + "\nT0 Wall Time   : "
+                        + appOpenT0WallTime
+                        + "\n==============================================="
+        );
+
+        dashboard.logToFile(
+                TAG +
+                        "========== APP OPEN T1 MONITOR STARTED ==========\n"
+                        + "Target Package : "
+                        + appOpenTargetPackage + "\n"
+                        + "T0 Nano        : "
+                        + appOpenT0Nano + "\n"
+                        + "T0 Wall Time   : "
+                        + appOpenT0WallTime + "\n"
+                        + "==============================================="
+        );
+
+        if (appOpenHandler == null) {
+
+            appOpenHandler =
+                    new android.os.Handler(
+                            android.os.Looper.getMainLooper()
+                    );
+        }
+
+        if (appOpenT1MonitorRunnable != null) {
+
+            appOpenHandler.removeCallbacks(
+                    appOpenT1MonitorRunnable
+            );
+        }
+
+        appOpenT1MonitorRunnable =
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        if (appOpenT1Captured) {
+                            return;
+                        }
+
+                        if (appOpenTargetPackage == null
+                                || appOpenTargetPackage.isEmpty()) {
+
+                            Log.e(
+                                    TAG,
+                                    "APP OPEN T1 FAILED: target package is empty"
+                            );
+
+                            return;
+                        }
+
+                        try {
+
+                            /*
+                             * =================================================
+                             * STEP 1: CHECK USAGE ACCESS
+                             * =================================================
+                             */
+
+                            if (!hasUsageStatsAccess()) {
+
+                                Log.e(
+                                        TAG,
+                                        "APP OPEN T1 FAILED: "
+                                                + "Usage Access is NOT granted"
+                                );
+
+                                dashboard.logToFile(
+                                        TAG +
+                                                "APP OPEN T1 FAILED: "
+                                                + "Usage Access is NOT granted. "
+                                                + "Enable Usage Access for this app."
+                                );
+
+                                /*
+                                 * Keep polling because the user may enable
+                                 * Usage Access while the test is running.
+                                 */
+                                appOpenHandler.postDelayed(
+                                        this,
+                                        APP_OPEN_T1_POLL_INTERVAL_MS
+                                );
+
+                                return;
+                            }
+
+                            /*
+                             * =================================================
+                             * STEP 2: GET USAGE STATS MANAGER
+                             * =================================================
+                             */
+
+                            UsageStatsManager usageStatsManager =
+                                    (UsageStatsManager)
+                                            getSystemService(
+                                                    Context.USAGE_STATS_SERVICE
+                                            );
+
+                            if (usageStatsManager == null) {
+
+                                Log.e(
+                                        TAG,
+                                        "APP OPEN T1 FAILED: "
+                                                + "UsageStatsManager is null"
+                                );
+
+                                appOpenHandler.postDelayed(
+                                        this,
+                                        APP_OPEN_T1_POLL_INTERVAL_MS
+                                );
+
+                                return;
+                            }
+
+                            /*
+                             * =================================================
+                             * STEP 3: QUERY EVENTS AFTER T0
+                             * =================================================
+                             */
+
+                            long now =
+                                    System.currentTimeMillis();
+
+                            long startTime =
+                                    appOpenT0WallTime;
+
+                            UsageEvents usageEvents =
+                                    usageStatsManager.queryEvents(
+                                            startTime,
+                                            now
+                                    );
+
+                            if (usageEvents == null) {
+
+                                Log.w(
+                                        TAG,
+                                        "APP OPEN T1: queryEvents() returned null"
+                                );
+
+                                appOpenHandler.postDelayed(
+                                        this,
+                                        APP_OPEN_T1_POLL_INTERVAL_MS
+                                );
+
+                                return;
+                            }
+
+                            /*
+                             * =================================================
+                             * STEP 4: SEARCH FOR TARGET ACTIVITY_RESUMED
+                             * =================================================
+                             */
+
+                            UsageEvents.Event event =
+                                    new UsageEvents.Event();
+
+                            boolean foundAnyEvent =
+                                    false;
+
+                            while (usageEvents.hasNextEvent()) {
+
+                                usageEvents.getNextEvent(event);
+
+                                foundAnyEvent = true;
+
+                                String eventPackage =
+                                        event.getPackageName();
+
+                                long eventTime =
+                                        event.getTimeStamp();
+
+                                int eventType =
+                                        event.getEventType();
+
+                                /*
+                                 * Ignore events before T0.
+                                 */
+                                if (eventTime < appOpenT0WallTime) {
+
+                                    continue;
+                                }
+
+                                /*
+                                 * We only care about the selected package.
+                                 */
+                                if (eventPackage == null
+                                        || !appOpenTargetPackage.equals(
+                                        eventPackage
+                                )) {
+
+                                    continue;
+                                }
+
+                                Log.d(
+                                        TAG,
+                                        "APP OPEN USAGE EVENT"
+                                                + " | Package="
+                                                + eventPackage
+                                                + " | EventType="
+                                                + eventType
+                                                + " | EventTime="
+                                                + eventTime
+                                );
+
+                                /*
+                                 * =================================================
+                                 * TARGET APP RESUMED
+                                 * =================================================
+                                 */
+
+                                if (eventType
+                                        == UsageEvents.Event.ACTIVITY_RESUMED) {
+
+                                    Log.d(
+                                            TAG,
+                                            "========== APP OPEN T1 DETECTED =========="
+                                                    + "\nPackage : "
+                                                    + eventPackage
+                                                    + "\nEvent Time : "
+                                                    + eventTime
+                                                    + "\nT0 Wall Time : "
+                                                    + appOpenT0WallTime
+                                                    + "\n========================================="
+                                    );
+
+                                    captureAppOpenT1();
+
+                                    return;
+                                }
+                            }
+
+                            if (!foundAnyEvent) {
+
+                                Log.d(
+                                        TAG,
+                                        "APP OPEN T1: "
+                                                + "No UsageEvents returned yet"
+                                );
+                            }
+
+                        } catch (Exception e) {
+
+                            Log.e(
+                                    TAG,
+                                    "APP OPEN T1 MONITORING FAILED",
+                                    e
+                            );
+
+                            dashboard.logToFile(
+                                    TAG +
+                                            "APP OPEN T1 MONITORING FAILED: "
+                                            + e
+                            );
+                        }
+
+                        /*
+                         * Continue polling until T1 is captured.
+                         */
+                        if (!appOpenT1Captured) {
+
+                            appOpenHandler.postDelayed(
+                                    this,
+                                    APP_OPEN_T1_POLL_INTERVAL_MS
+                            );
+                        }
+                    }
+                };
+
+        /*
+         * Start monitoring immediately.
+         */
+        appOpenHandler.post(
+                appOpenT1MonitorRunnable
+        );
+    }
+    private void captureAppOpenT1() {
+
+        if (appOpenT1Captured) {
+            return;
+        }
+
+        appOpenT1Captured = true;
+
+        long appOpenT1Nano =
+                android.os.SystemClock.elapsedRealtimeNanos();
+
+        long appOpenT1WallTime =
+                System.currentTimeMillis();
+
+        String appOpenT1Timestamp =
+                new java.text.SimpleDateFormat(
+                        "HH:mm:ss:SSS",
+                        java.util.Locale.US
+                ).format(
+                        new java.util.Date(
+                                appOpenT1WallTime
+                        )
+                );
+
+        long appOpenDurationNano =
+                appOpenT1Nano - appOpenT0Nano;
+
+        double appOpenDurationMs =
+                appOpenDurationNano / 1_000_000.0;
+
+        String appOpenLog =
+                "========== TIME TO OPEN APP ==========\n"
+                        + "T0 Event          : START_ACTIVITY\n"
+                        + "Package           : "
+                        + appOpenTargetPackage
+                        + "\n"
+                        + "T0 Nano            : "
+                        + appOpenT0Nano
+                        + " ns\n"
+                        + "T0 Timestamp      : "
+                        + new java.text.SimpleDateFormat(
+                        "HH:mm:ss:SSS",
+                        java.util.Locale.US
+                ).format(
+                        new java.util.Date(
+                                appOpenT0WallTime
+                        )
+                )
+                        + "\n\n"
+
+                        + "T1 Event          : ACTIVITY_RESUMED\n"
+                        + "Package           : "
+                        + appOpenTargetPackage
+                        + "\n"
+                        + "T1 Nano            : "
+                        + appOpenT1Nano
+                        + " ns\n"
+                        + "T1 Timestamp      : "
+                        + appOpenT1Timestamp
+                        + "\n\n"
+
+                        + "App Open Time = T1 - T0\n"
+                        + "              = "
+                        + appOpenT1Nano
+                        + " - "
+                        + appOpenT0Nano
+                        + "\n"
+                        + "              = "
+                        + appOpenDurationNano
+                        + " ns\n"
+                        + "              = "
+                        + String.format(
+                        java.util.Locale.US,
+                        "%.3f",
+                        appOpenDurationMs
+                )
+                        + " ms\n\n"
+
+                        + "===================================";
+
+        Log.d(
+                TAG,
+                appOpenLog
+        );
+
+
+        dashboard.logEvent(
+                TAG + appOpenLog,
+                VpnEvent.Level.SUCCESS,
+                VpnEvent.Category.GENERAL
+        );
+
+// =========================================================
+// SAVE APP OPEN TIME TO DASHBOARD
+// =========================================================
+
+        dashboard.recordAppOpenTime(
+                appOpenDurationNano / 1_000_000L,
+                appOpenT0WallTime,
+                appOpenT1WallTime
+        );
+
+        if (appOpenHandler != null
+                && appOpenT1MonitorRunnable != null) {
+
+            appOpenHandler.removeCallbacks(
+                    appOpenT1MonitorRunnable
+            );
+        }
+    }
     private Notification buildNotification() {
 
         if (Build.VERSION.SDK_INT >=
@@ -1099,10 +1581,24 @@ public class AppOpenMediatorVpnService extends VpnService {
 
         isRunning = false;
 
+        if (appOpenHandler != null
+                && appOpenT1MonitorRunnable != null) {
+
+            appOpenHandler.removeCallbacks(
+                    appOpenT1MonitorRunnable
+            );
+
+            appOpenT1MonitorRunnable = null;
+        }
+
+        appOpenT1Captured = false;
+        appOpenTargetPackage = null;
+        appOpenT0Nano = -1L;
+        appOpenT0WallTime = -1L;
+
         closeQuietly(
                 tunIn
         );
-
         tunIn = null;
 
         if (packetReaderThread != null) {

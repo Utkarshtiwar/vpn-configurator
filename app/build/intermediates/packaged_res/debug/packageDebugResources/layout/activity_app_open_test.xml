@@ -553,10 +553,82 @@
             </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
+        <!-- ===================================================== -->
+        <!-- Performance Row 4: APP OPEN TIME -->
+        <!-- ===================================================== -->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/spacing_12"
+            android:paddingEnd="@dimen/spacing_12">
+
+            <!-- APP OPEN TIME -->
+            <com.google.android.material.card.MaterialCardView
+                android:visibility="gone"
+                style="@style/DashboardCard">
+
+                <LinearLayout style="@style/DashboardCardContent">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <!-- LEFT: APP OPEN TIME -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:text="APP OPEN TIME" />
+
+                            <TextView
+                                android:id="@+id/tvAppOpenTime"
+                                style="@style/DashboardCardValueLarge"
+                                android:textColor="@color/status_success"
+                                android:text="-" />
+
+                        </LinearLayout>
+
+                        <!-- RIGHT: T1 - T0 -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/DashboardCardLabel"
+                                android:text="T1 - T0" />
+
+                            <TextView
+                                android:id="@+id/tvAppOpenTimeDetails"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="T0: -&#10;T1: -"
+                                android:textColor="@color/on_surface_secondary"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
 
 
         <!-- ===================================================== -->
-        <!-- Performance Row 4: TCP Retransmissions -->
+        <!-- Performance Row 5: TCP Retransmissions -->
         <!-- ===================================================== -->
 
         <LinearLayout
@@ -611,7 +683,7 @@
 
 
         <!-- ===================================================== -->
-        <!-- Performance Row 5: QUIC Handshake -->
+        <!-- Performance Row 6: QUIC Handshake -->
         <!-- ===================================================== -->
 
         <LinearLayout

@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.vpntest"
     android:versionCode="1"
-    android:versionName="1.1.16" >
+    android:versionName="1.1.17" >
 
     <uses-sdk
         android:minSdkVersion="24"
@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
     <!-- Required so Android can resolve the apps used by App Open Test -->
     <queries>

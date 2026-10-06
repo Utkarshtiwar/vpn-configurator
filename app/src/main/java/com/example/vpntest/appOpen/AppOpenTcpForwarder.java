@@ -165,6 +165,10 @@ class AppOpenTcpForwarder {
     private final Map<String, Long> tcpHandshakeT0WallTimeByConnection =
             new ConcurrentHashMap<>();
 
+    private final Map<String, Long>
+            tcpHandshakeSynSeqByConnection =
+            new ConcurrentHashMap<>();
+
     /*
      * Prevent later handshakes from overwriting
      * the first selected valid handshake.
@@ -633,9 +637,19 @@ class AppOpenTcpForwarder {
                             synDebugNano
                     );
 
+            Long existingSynSeq =
+                    tcpHandshakeSynSeqByConnection.putIfAbsent(
+                            synConnectionKey,
+                            seq
+                    );
+
             boolean firstSynForConnection =
                     existingT0 == null;
 
+            boolean isSynRetransmission =
+                    !firstSynForConnection
+                            && existingSynSeq != null
+                            && existingSynSeq == seq;
             long connectionT0 =
                     firstSynForConnection
                             ? synDebugNano
@@ -718,20 +732,40 @@ class AppOpenTcpForwarder {
                 Log.i(TAG, txSynLog);
                 dashboard.logToFile(TAG + txSynLog);
 
-            } else {
+            } else if (isSynRetransmission) {
 
                 String retransmissionLog =
                         "========== TCP HANDSHAKE SYN RETRANSMISSION ==========\n"
                                 + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Original SYN SEQ   : " + existingSynSeq + "\n"
+                                + "Current SYN SEQ    : " + seq + "\n"
                                 + "Current SYN T0     : " + synDebugNano + " ns\n"
                                 + "Original T0        : " + existingT0 + " ns\n"
                                 + "Action             : ORIGINAL T0 PRESERVED\n"
+                                + "TCP Retransmission Counter: "
+                                + totalTcpRetransmissions.get() + "\n"
                                 + "Timestamp          : "
                                 + formatTimestamp(synDebugWallTime) + "\n"
                                 + "====================================================";
 
                 Log.d(TAG, retransmissionLog);
                 dashboard.logToFile(TAG + retransmissionLog);
+
+            } else {
+
+                String newSynLog =
+                        "========== TCP SYN WITH NEW SEQUENCE ==========\n"
+                                + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Previous SYN SEQ   : " + existingSynSeq + "\n"
+                                + "Current SYN SEQ    : " + seq + "\n"
+                                + "Original T0        : " + existingT0 + " ns\n"
+                                + "Action             : NOT COUNTED AS RETRANSMISSION\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synDebugWallTime) + "\n"
+                                + "==============================================";
+
+                Log.d(TAG, newSynLog);
+                dashboard.logToFile(TAG + newSynLog);
             }
         }
 
@@ -1204,20 +1238,48 @@ class AppOpenTcpForwarder {
 
             if (!isRetransmission) {
 
-                Log.i(
-                        TAG,
-                        "TCP Retransmission Count: 0"
-                );
+                long currentRetransmissionCount =
+                        totalTcpRetransmissions.get();
+
+                String transmissionLog =
+                        "========== TCP TRANSMISSION ==========\n"
+                                + "Direction          : TX / DEVICE -> SERVER\n"
+                                + "Connection Key     : "
+                                + key
+                                + "\n"
+                                + "Sequence Number    : "
+                                + seq
+                                + "\n"
+                                + "Sequence End       : "
+                                + currentSeqEnd
+                                + "\n"
+                                + "Payload Length     : "
+                                + payloadLen
+                                + " bytes\n"
+                                + "TCP Retransmission Count: "
+                                + currentRetransmissionCount
+                                + "\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(packetTimestampWall)
+                                + "\n"
+                                + "==============================================";
+
+                Log.i(TAG, transmissionLog);
 
                 dashboard.logToFile(
-                        TAG
-                                + "TCP Retransmission Count: 0"
+                        TAG + transmissionLog
                 );
             }
 
 
             if (isRetransmission) {
 
+                /*
+                 * This counter represents TCP DATA retransmissions.
+                 *
+                 * SYN retransmissions are handled separately and must
+                 * not modify this UI metric.
+                 */
                 long retransmissionCount =
                         totalTcpRetransmissions
                                 .incrementAndGet();
@@ -1228,6 +1290,13 @@ class AppOpenTcpForwarder {
                                         retransmittedBytes
                                 );
 
+                /*
+                 * IMPORTANT:
+                 * Push the actual DATA retransmission count to UI.
+                 */
+                dashboard.recordTcpRetransmissionCount(
+                        retransmissionCount
+                );
 
                 String retransmissionLog =
                         "========== TCP RETRANSMISSION COUNT AND DATA ==========\n"
@@ -2731,6 +2800,10 @@ class AppOpenTcpForwarder {
             tcpHandshakeT0WallTimeByConnection.remove(
                     handshakeConnectionKey
             );
+
+            tcpHandshakeSynSeqByConnection.remove(
+                    handshakeConnectionKey
+            );
         }
 
         dashboard.logToFile(
@@ -2798,6 +2871,8 @@ class AppOpenTcpForwarder {
         tcpHandshakeT0ByConnection.clear();
 
         tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeSynSeqByConnection.clear();
 
         tcpHandshakeCaptured.set(false);
 
@@ -3006,6 +3081,8 @@ class AppOpenTcpForwarder {
         tcpHandshakeT0ByConnection.clear();
 
         tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeSynSeqByConnection.clear();
 
         tcpHandshakeCaptured.set(false);
 

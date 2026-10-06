@@ -71,6 +71,11 @@ public final class VpnStats {
      */
     public final String appOpenDnsDestinationIp;
 
+    // APP OPEN TIME - separate from App Open TTFB
+    public final long appOpenTimeMs;
+    public final long appOpenT0WallTime;
+    public final long appOpenT1WallTime;
+
     /*
      * TCP Connection Time
      *
@@ -181,6 +186,10 @@ public final class VpnStats {
                 -1L,
                 -1L,
                 -1L,
+
+                -1L,
+                -1L,
+                -1L,
                 0L,
 
                 -1.0,
@@ -248,6 +257,10 @@ public final class VpnStats {
             String appOpenDnsServerIp,
             String appOpenDnsDestinationIp,
 
+            long appOpenTimeMs,
+            long appOpenT0WallTime,
+            long appOpenT1WallTime,
+
             long tcpConnectionTimeMs,
             long tcpConnectionT0WallTime,
             long tcpConnectionT1WallTime,
@@ -314,6 +327,10 @@ public final class VpnStats {
         this.appOpenDnsLookupT1WallTime = appOpenDnsLookupT1WallTime;
         this.appOpenDnsServerIp = appOpenDnsServerIp;
         this.appOpenDnsDestinationIp = appOpenDnsDestinationIp;
+
+        this.appOpenTimeMs = appOpenTimeMs;
+        this.appOpenT0WallTime = appOpenT0WallTime;
+        this.appOpenT1WallTime = appOpenT1WallTime;
 
         this.tcpConnectionTimeMs =
                 tcpConnectionTimeMs;
@@ -394,6 +411,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -465,6 +486,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -538,6 +563,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -609,6 +638,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -699,6 +732,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -770,6 +807,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -843,6 +884,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -914,6 +959,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -996,6 +1045,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 connectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1076,6 +1129,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 t0WallTime,
                 t1WallTime,
@@ -1152,6 +1209,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -1234,6 +1295,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1307,6 +1372,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -1383,6 +1452,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1457,6 +1530,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1530,6 +1607,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -1609,6 +1690,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1681,6 +1766,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -1755,6 +1844,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1827,6 +1920,10 @@ public final class VpnStats {
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
+
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
 
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
@@ -1901,6 +1998,10 @@ public final class VpnStats {
                 appOpenDnsServerIp,
                 appOpenDnsDestinationIp,
 
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -1935,7 +2036,10 @@ public final class VpnStats {
             long newAppOpenDnsLookupT0WallTime,
             long newAppOpenDnsLookupT1WallTime,
             String newAppOpenDnsServerIp,
-            String newAppOpenDnsDestinationIp
+            String newAppOpenDnsDestinationIp,
+            long newAppOpenTimeMs,
+            long newAppOpenT0WallTime,
+            long newAppOpenT1WallTime
     ) {
         return new VpnStats(
                 vpnStatus,
@@ -1990,6 +2094,10 @@ public final class VpnStats {
                 newAppOpenDnsServerIp,
                 newAppOpenDnsDestinationIp,
 
+                newAppOpenTimeMs,
+                newAppOpenT0WallTime,
+                newAppOpenT1WallTime,
+
                 tcpConnectionTimeMs,
                 tcpConnectionT0WallTime,
                 tcpConnectionT1WallTime,
@@ -2025,7 +2133,10 @@ public final class VpnStats {
                 appOpenDnsLookupT0WallTime,
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
-                appOpenDnsDestinationIp
+                appOpenDnsDestinationIp,
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime
         );
     }
 
@@ -2048,7 +2159,10 @@ public final class VpnStats {
                 appOpenDnsLookupT0WallTime,
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
-                appOpenDnsDestinationIp
+                appOpenDnsDestinationIp,
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime
         );
     }
 
@@ -2071,7 +2185,10 @@ public final class VpnStats {
                 appOpenDnsLookupT0WallTime,
                 appOpenDnsLookupT1WallTime,
                 appOpenDnsServerIp,
-                appOpenDnsDestinationIp
+                appOpenDnsDestinationIp,
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime
         );
     }
 
@@ -2096,8 +2213,44 @@ public final class VpnStats {
                 t0WallTime,
                 t1WallTime,
                 serverIp,
-                destinationIp
+                destinationIp,
+                appOpenTimeMs,
+                appOpenT0WallTime,
+                appOpenT1WallTime
+        );
+    }
+
+
+    // ============================================================
+    // APP OPEN TIME
+    // Completely separate from App Open TTFB.
+    // ============================================================
+    public VpnStats withAppOpenTime(
+            long appOpenTimeMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+
+        return copyWithAppOpenMetrics(
+                appOpenTtfbMs,
+                appOpenTtfbT0WallTime,
+                appOpenTtfbT1WallTime,
+                appOpenTcpHandshakeNano,
+                appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeT1WallTime,
+                appOpenTlsHandshakeMs,
+                appOpenTlsHandshakeT0WallTime,
+                appOpenTlsHandshakeT1WallTime,
+                appOpenDnsLookupMs,
+                appOpenDnsLookupT0WallTime,
+                appOpenDnsLookupT1WallTime,
+                appOpenDnsServerIp,
+                appOpenDnsDestinationIp,
+                appOpenTimeMs,
+                t0WallTime,
+                t1WallTime
         );
     }
 
 }
+

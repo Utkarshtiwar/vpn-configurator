@@ -149,13 +149,21 @@ public class TcpForwarder {
     private final Map<String, Long> tcpHandshakeT0ByConnection =
             new ConcurrentHashMap<>();
 
-    /*
-     * Exact wall-clock T0 for each TCP connection.
-     *
-     * Used only for UI display.
-     * Duration calculation still uses nanoTime().
-     */
     private final Map<String, Long> tcpHandshakeT0WallTimeByConnection =
+            new ConcurrentHashMap<>();
+
+    /*
+     * Stores the original SYN sequence number for each TCP connection.
+     *
+     * Used to distinguish:
+     *
+     * 1. Same SYN sequence again
+     *    -> actual SYN retransmission
+     *
+     * 2. Same 4-tuple but different SYN sequence
+     *    -> new TCP connection attempt
+     */
+    private final Map<String, Long> tcpHandshakeSynSeqByConnection =
             new ConcurrentHashMap<>();
 
 
@@ -406,14 +414,32 @@ public class TcpForwarder {
                             + "->"
                             + synDestinationIp + ":" + dstPort;
 
-            Long existingT0 =
+
+                    Long existingT0 =
                     tcpHandshakeT0ByConnection.putIfAbsent(
                             synConnectionKey,
                             synDebugNano
                     );
 
+            /*
+             * Store the original SYN sequence number.
+             *
+             * putIfAbsent() ensures that the original sequence
+             * is preserved for the lifetime of this connection.
+             */
+            Long existingSynSeq =
+                    tcpHandshakeSynSeqByConnection.putIfAbsent(
+                            synConnectionKey,
+                            seq
+                    );
+
             boolean firstSynForConnection =
                     existingT0 == null;
+
+            boolean isSynRetransmission =
+                    !firstSynForConnection
+                            && existingSynSeq != null
+                            && existingSynSeq == seq;
 
             long connectionT0 =
                     firstSynForConnection
@@ -474,8 +500,9 @@ public class TcpForwarder {
                                 + "\nDestination IP     : " + synDestinationIp
                                 + "\nDestination Port   : " + dstPort
                                 + "\nT0                  : " + connectionT0 + " ns"
-                                + "\nTimestamp           : " + formatTimestamp(synDebugWallTime)
-                                + "\nMap Size            : " + tcpHandshakeT0ByConnection.size()
+                                + "\nSYN Sequence       : " + seq
+                                + "\nTimestamp           : "
+                                + formatTimestamp(synDebugWallTime)
                                 + "\n============================================================";
 
                 Log.i(TAG, t0SavedLog);
@@ -490,34 +517,67 @@ public class TcpForwarder {
                                 + "Sequence Number    : " + seq + "\n"
                                 + "ACK Number         : " + ack + "\n"
                                 + "TCP Flags          : 0x"
-                                + String.format(java.util.Locale.US, "%02X", flags) + "\n"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%02X",
+                                flags
+                        ) + "\n"
                                 + "Window Size        : " + windowSize + "\n"
                                 + "Checksum           : 0x"
-                                + String.format(java.util.Locale.US, "%04X", checksum) + "\n"
-                                + "TCP Header Length  : " + dataOffsetBytes + " bytes\n"
-                                + "Payload Length     : " + payloadLen + " bytes\n"
-                                + "Handshake T0       : " + connectionT0 + " ns\n"
-                                + "Timestamp          : " + formatTimestamp(synDebugWallTime) + "\n"
-                                + "Connection Key     : " + synConnectionKey + "\n"
+                                + String.format(
+                                java.util.Locale.US,
+                                "%04X",
+                                checksum
+                        ) + "\n"
+                                + "TCP Header Length  : "
+                                + dataOffsetBytes + " bytes\n"
+                                + "Payload Length     : "
+                                + payloadLen + " bytes\n"
+                                + "Handshake T0       : "
+                                + connectionT0 + " ns\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synDebugWallTime) + "\n"
+                                + "Connection Key     : "
+                                + synConnectionKey + "\n"
                                 + "==============================================";
 
                 Log.i(TAG, txSynLog);
                 dashboard.logToFile(TAG + txSynLog);
 
-            } else {
+            } else if (isSynRetransmission) {
 
                 String retransmissionLog =
-                        "========== TCP HANDSHAKE SYN RETRANSMISSION ==========" + "\n"
+                        "========== TCP HANDSHAKE SYN RETRANSMISSION ==========\n"
                                 + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Original SYN SEQ   : " + existingSynSeq + "\n"
+                                + "Current SYN SEQ    : " + seq + "\n"
                                 + "Current SYN T0     : " + synDebugNano + " ns\n"
                                 + "Original T0        : " + existingT0 + " ns\n"
-                                + "Action              : ORIGINAL T0 PRESERVED\n"
-                                + "Reason              : Same 4-tuple already has T0\n"
-                                + "Timestamp           : " + formatTimestamp(synDebugWallTime) + "\n"
-                                + "========================================================";
+                                + "Action             : ORIGINAL T0 PRESERVED\n"
+                                + "TCP Retransmission Count : "
+                                + totalTcpRetransmissions.get() + "\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synDebugWallTime) + "\n"
+                                + "=======================================================";
 
                 Log.d(TAG, retransmissionLog);
                 dashboard.logToFile(TAG + retransmissionLog);
+
+            } else {
+
+                String newSynLog =
+                        "========== TCP SYN WITH NEW SEQUENCE ==========\n"
+                                + "Connection Key     : " + synConnectionKey + "\n"
+                                + "Previous SYN SEQ   : " + existingSynSeq + "\n"
+                                + "Current SYN SEQ    : " + seq + "\n"
+                                + "Original T0        : " + existingT0 + " ns\n"
+                                + "Action             : NOT COUNTED AS RETRANSMISSION\n"
+                                + "Timestamp          : "
+                                + formatTimestamp(synDebugWallTime) + "\n"
+                                + "==============================================";
+
+                Log.d(TAG, newSynLog);
+                dashboard.logToFile(TAG + newSynLog);
             }
         }
         if (isSyn && !isAck) {
@@ -986,10 +1046,20 @@ public class TcpForwarder {
 
 
             if (!isRetransmission) {
-                Log.i(TAG, "TCP Retransmission Count: 0");
+
+                long currentRetransmissionCount =
+                        totalTcpRetransmissions.get();
+
+                Log.i(
+                        TAG,
+                        "TCP Retransmission Count: "
+                                + currentRetransmissionCount
+                );
 
                 dashboard.logToFile(
-                        TAG + "TCP Retransmission Count: 0"
+                        TAG
+                                + "TCP Retransmission Count: "
+                                + currentRetransmissionCount
                 );
             }
 
@@ -2487,8 +2557,21 @@ public class TcpForwarder {
         }
 
         Long removedT0 = handshakeConnectionKey != null
-                ? tcpHandshakeT0ByConnection.remove(handshakeConnectionKey)
+                ? tcpHandshakeT0ByConnection.remove(
+                handshakeConnectionKey
+        )
                 : null;
+
+        if (handshakeConnectionKey != null) {
+
+            tcpHandshakeT0WallTimeByConnection.remove(
+                    handshakeConnectionKey
+            );
+
+            tcpHandshakeSynSeqByConnection.remove(
+                    handshakeConnectionKey
+            );
+        }
 
         Log.d(
                 TAG,
@@ -2583,6 +2666,11 @@ public class TcpForwarder {
          * Every connection gets a fresh T0 map when the VPN session stops.
          */
         tcpHandshakeT0ByConnection.clear();
+
+        tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeSynSeqByConnection.clear();
+
         tcpHandshakeCaptured.set(false);
 
 
@@ -2669,6 +2757,11 @@ public class TcpForwarder {
          * Reset per-connection TCP handshake T0 state.
          */
         tcpHandshakeT0ByConnection.clear();
+
+        tcpHandshakeT0WallTimeByConnection.clear();
+
+        tcpHandshakeSynSeqByConnection.clear();
+
         tcpHandshakeCaptured.set(false);
 
 

@@ -3556,6 +3556,8 @@ id tvAppOpenQuicHandshake
 id tvAppOpenTcpHandshake
 id tvAppOpenTcpHandshakeTime
 id tvAppOpenTcpRetransmissionCount
+id tvAppOpenTime
+id tvAppOpenTimeDetails
 id tvAppOpenTlsHandshake
 id tvAppOpenTlsHandshakeTime
 id tvAppOpenTtfbTime

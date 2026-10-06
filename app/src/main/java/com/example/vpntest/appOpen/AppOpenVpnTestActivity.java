@@ -93,6 +93,10 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
     private TextView tvAppOpenTtfbTime;
     private TextView tvAppOpenDnsTime;
 
+    // APP OPEN TIME
+    private TextView tvAppOpenTime;
+    private TextView tvAppOpenTimeDetails;
+
     private TextView tvAppOpenTcpHandshake;
     private TextView tvAppOpenTcpHandshakeTime;
     private TextView tvAppOpenTlsHandshake;
@@ -433,6 +437,33 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                             )
                     );
 
+                    // =====================================================
+                    // APP OPEN TIME
+                    // Separate from APP OPEN TTFB
+                    // =====================================================
+
+                    if (stats.appOpenTimeMs >= 0) {
+
+                        tvAppOpenTime.setText(
+                                stats.appOpenTimeMs + " ms"
+                        );
+
+                    } else {
+
+                        tvAppOpenTime.setText(
+                                "-"
+                        );
+                    }
+
+                    tvAppOpenTimeDetails.setText(
+                            "T0: " + formatAppOpenWallClock(
+                                    stats.appOpenT0WallTime
+                            )
+                                    + "\nT1: " + formatAppOpenWallClock(
+                                    stats.appOpenT1WallTime
+                            )
+                    );
+
                     tvPerformanceSourceIp.setText(
                             stats.lastSourceIp != null
                                     ? stats.lastSourceIp
@@ -656,6 +687,13 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
         tvAppOpenDnsTime =
                 findViewById(R.id.tvAppOpenDnsTime);
+
+// APP OPEN TIME
+        tvAppOpenTime =
+                findViewById(R.id.tvAppOpenTime);
+
+        tvAppOpenTimeDetails =
+                findViewById(R.id.tvAppOpenTimeDetails);
 
 // APP OPEN TCP HANDSHAKE
         tvAppOpenTcpHandshake =
@@ -1056,6 +1094,8 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
         dashboardRepo.resetAppOpenTtfb();
 
+        dashboardRepo.resetAppOpenTime();
+
         dashboardRepo.resetAppOpenTlsHandshake();
 
         dashboardRepo.resetAppOpenTcpHandshake();
@@ -1079,6 +1119,16 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
         if (tvAppOpenTtfbTime != null) {
             tvAppOpenTtfbTime.setText("T0: -\nT1: -");
+        }
+
+        if (tvAppOpenTime != null) {
+            tvAppOpenTime.setText("-");
+        }
+
+        if (tvAppOpenTimeDetails != null) {
+            tvAppOpenTimeDetails.setText(
+                    "T0: -\nT1: -"
+            );
         }
 
         if (tvAppOpenDnsTime != null) {
@@ -1296,6 +1346,65 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                 VpnEvent.Level.SUCCESS,
                 VpnEvent.Category.GENERAL
         );
+
+        /*
+         * =========================================================
+         * APP OPEN T0
+         * =========================================================
+         *
+         * T0 = immediately before startActivity().
+         *
+         * elapsedRealtimeNano is used for accurate duration calculation.
+         * currentTimeMillis is used only for readable wall-clock logging.
+         */
+        long appOpenT0Nano =
+                android.os.SystemClock.elapsedRealtimeNanos();
+
+        long appOpenT0WallTime =
+                System.currentTimeMillis();
+
+        String appOpenT0Timestamp =
+                new java.text.SimpleDateFormat(
+                        "HH:mm:ss:SSS",
+                        Locale.US
+                ).format(
+                        new java.util.Date(appOpenT0WallTime)
+                );
+
+        String appOpenT0Log =
+                "========== APP OPEN ==========\n"
+                        + "T0 Event          : START_ACTIVITY\n"
+                        + "Package           : "
+                        + selectedPackageName
+                        + "\n"
+                        + "T0 Nano            : "
+                        + appOpenT0Nano
+                        + " ns\n"
+                        + "T0 Timestamp      : "
+                        + appOpenT0Timestamp
+                        + "\n";
+
+        dashboardRepo.logEvent(
+                TAG + appOpenT0Log,
+                VpnEvent.Level.INFO,
+                VpnEvent.Category.GENERAL
+        );
+
+        VpnLogFileManager
+                .getInstance()
+                .log(
+                        appOpenT0Log
+                );
+
+        if (appOpenMediatorVpnService != null) {
+
+            appOpenMediatorVpnService
+                    .startAppOpenT1Monitoring(
+                            selectedPackageName,
+                            appOpenT0Nano,
+                            appOpenT0WallTime
+                    );
+        }
 
         startActivity(
                 launchIntent

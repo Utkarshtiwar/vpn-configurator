@@ -496,6 +496,34 @@ public final class VpnEventRepository {
                 )
         );
     }
+    // ============================================================
+    // APP OPEN TIME
+    // Separate from APP OPEN TTFB
+    // ============================================================
+
+    public void recordAppOpenTime(
+            long appOpenTimeMs,
+            long t0WallTime,
+            long t1WallTime
+    ) {
+        updateStats(s ->
+                s.withAppOpenTime(
+                        appOpenTimeMs,
+                        t0WallTime,
+                        t1WallTime
+                )
+        );
+    }
+
+    public void resetAppOpenTime() {
+        updateStats(s ->
+                s.withAppOpenTime(
+                        -1L,
+                        -1L,
+                        -1L
+                )
+        );
+    }
 
     // ============================================================
     // APP OPEN TCP HANDSHAKE
