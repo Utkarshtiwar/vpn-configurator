@@ -1,5 +1,5 @@
 package com.example.vpntest.appOpen;
-
+import com.example.vpntest.model.VpnStats;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -533,10 +533,16 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
                     }
 
                     tvAppOpenTcpHandshakeTime.setText(
-                            "T0: " + formatAppOpenWallClock(
+                            "T0: "
+                                    + formatAppOpenWallClock(
                                     stats.appOpenTcpHandshakeT0WallTime
                             )
-                                    + "\nT1: " + formatAppOpenWallClock(
+                                    + "\nSYN-ACK: "
+                                    + formatAppOpenWallClock(
+                                    stats.appOpenTcpHandshakeSynAckWallTime
+                            )
+                                    + "\nT1: "
+                                    + formatAppOpenWallClock(
                                     stats.appOpenTcpHandshakeT1WallTime
                             )
                     );
@@ -1446,6 +1452,37 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
     private void onStopVpnClicked() {
 
+        // =====================================================
+        // SHOW DESTINATION IP BEFORE STOPPING VPN
+        // =====================================================
+
+        VpnStats currentStats =
+                dashboardRepo.getStats().getValue();
+
+        if (currentStats != null
+                && currentStats.appOpenDnsDestinationIp != null
+                && !currentStats.appOpenDnsDestinationIp.isEmpty()
+                && !currentStats.appOpenDnsDestinationIp.equals("-")) {
+
+            tvPerformanceDestinationIp.setText(
+                    currentStats.appOpenDnsDestinationIp
+            );
+
+            dashboardRepo.logToFile(
+                    TAG
+                            + "DESTINATION IP SHOWN ON STOP = "
+                            + currentStats.appOpenDnsDestinationIp
+            );
+
+        } else {
+
+            tvPerformanceDestinationIp.setText("-");
+
+            dashboardRepo.logToFile(
+                    TAG
+                            + "DESTINATION IP SHOWN ON STOP = -"
+            );
+        }
         updateStatus(
                 "Stopping VPN..."
         );
@@ -1464,6 +1501,8 @@ public class AppOpenVpnTestActivity extends AppCompatActivity {
 
             appOpenMediatorVpnService
                     .clearVpnReadyCallback();
+            appOpenMediatorVpnService
+                    .resolveServerHostnamesOnStop();
 
             appOpenMediatorVpnService.stopVpn();
 

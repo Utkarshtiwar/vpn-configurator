@@ -843,7 +843,7 @@ class AppOpenUdpForwarder {
                                         dnsLookupTimeMs
                                 ) + " ms\n" +
 
-                                "UI Match Status     : WAITING_FOR_IP_MATCH\n" +
+                                "UI Selection Status : WAITING_FOR_FIRST_DNS_TRANSACTION\n" +
 
                                 "======================================";
 
@@ -1554,243 +1554,227 @@ class AppOpenUdpForwarder {
 
     /**
      * ================================================================
-     * DNS -> TCP DESTINATION IP CORRELATION
+     * FIRST DNS TRANSACTION -> UI
      * ================================================================
      *
      * Called by AppOpenTcpForwarder.
      *
-     * Example:
+     * NEW LOGIC:
      *
-     * DNS:
+     *     FIRST COMPLETED DNS TRANSACTION
+     *                  ↓
+     *               SELECT
+     *                  ↓
+     *             SEND TO UI
+     *                  ↓
+     *       IGNORE ALL LATER TRANSACTIONS
      *
-     *     Query = youtube.com
-     *     Answer = 142.250.1.1
-     *     T0 = 1000000000 ns
+     * IMPORTANT:
      *
-     * TCP:
+     * There is NO comparison between:
      *
-     *     destination IP = 142.250.1.1
+     *     DNS Answer IP
+     *              and
+     *     TCP destination IP
      *
-     * Result:
+     * The resolvedIp parameter is intentionally kept in the method
+     * signature so the existing caller does not need to change.
      *
-     *     returns DNS T0 = 1000000000 ns
-     *
-     * That T0 is then used for:
-     *
-     *     TTFB = TLS 0x17 T1 - DNS T0
+     * resolvedIp is NOT used for selecting the DNS transaction.
      */
     static long recordDnsLookupForResolvedIp(
             String resolvedIp) {
 
-        if (
-                resolvedIp == null
-                        || resolvedIp.trim().isEmpty()
-        ) {
-            return 0L;
-        }
-
         /*
-         * IMPORTANT:
-         * Keep normalizedResolvedIp INSIDE this method,
-         * before iterating DNS transactions.
+         * ============================================================
+         * CLEAN OLD DNS TRANSACTIONS
+         * ============================================================
+         *
+         * Keep the existing cleanup mechanism.
          */
-        String normalizedResolvedIp =
-                resolvedIp.trim();
-
         cleanupOldDnsTransactions();
 
         /*
          * ============================================================
-         * FIRST MATCH ONLY
+         * SELECT FIRST COMPLETED DNS TRANSACTION
          * ============================================================
          *
-         * DNS transactions are inserted using addLast().
+         * DNS transactions are inserted using:
          *
-         * Therefore normal iteration through completedDnsTransactions
-         * starts from the OLDEST / FIRST DNS transaction.
+         *     completedDnsTransactions.addLast(transaction);
          *
-         * Requirement:
+         * Therefore:
          *
-         *     FIRST DNS transaction
-         *             ↓
-         *     Answer IP == TCP destination IP
-         *             ↓
-         *     SELECT THIS TRANSACTION
-         *             ↓
-         *     IGNORE ALL LATER TRANSACTIONS
+         *     peekFirst()
+         *
+         * returns the OLDEST / FIRST completed DNS transaction.
+         *
+         * No Answer IP comparison is performed.
+         *
+         * No TCP destination IP comparison is performed.
          */
-        for (
-                DnsTransactionInfo transaction
-                : completedDnsTransactions
-        ) {
+        DnsTransactionInfo transaction =
+                completedDnsTransactions.peekFirst();
 
-            if (
-                    transaction.answerIps == null
-                            || transaction.answerIps.isEmpty()
-            ) {
-                continue;
-            }
+        /*
+         * ============================================================
+         * NO DNS TRANSACTION AVAILABLE
+         * ============================================================
+         */
+        if (transaction == null) {
 
-            String[] answerIpArray =
-                    transaction.answerIps.split(",");
-
-            for (String answerIp : answerIpArray) {
-
-                String normalizedAnswerIp =
-                        answerIp.trim();
-
-                /*
-                 * ========================================================
-                 * FIRST MATCH
-                 * ========================================================
-                 */
-                if (
-                        normalizedResolvedIp.equals(
-                                normalizedAnswerIp
-                        )
-                ) {
-
-                    /*
-                     * DNS T0 of the FIRST matching transaction.
-                     */
-                    long matchedDnsT0 =
-                            transaction.startTime;
-
-                    long matchedDnsT1 =
-                            transaction.endTime;
-
-                    latestMatchedDnsT0WallTime =
-                            transaction.startClockMillis;
-
-                    VpnEventRepository.getInstance().logToFile(
-                            TAG+
-                            "FIRST DNS TRANSACTION MATCHED"
-                                    + " | Resolved IP = "
-                                    + normalizedResolvedIp
-                                    + " | Answer IP = "
-                                    + normalizedAnswerIp
-                                    + " | Transaction ID = 0x"
-                                    + String.format(
-                                    Locale.US,
-                                    "%04X",
-                                    transaction.transactionId
-                            )
-                                    + " | DNS T0 = "
-                                    + matchedDnsT0
-                                    + " ns"
+            VpnEventRepository
+                    .getInstance()
+                    .logToFile(
+                            TAG
+                                    + "NO DNS TRANSACTION AVAILABLE"
+                                    + " | Selection Rule = FIRST DNS TRANSACTION ONLY"
                     );
 
-                    /*
-                     * ====================================================
-                     * UPDATE DNS UI
-                     * ====================================================
-                     */
-                    VpnEventRepository
-                            .getInstance()
-                            .recordAppOpenDnsLookup(
-                                    transaction.dnsLookupTimeMs,
-                                    transaction.startClockMillis,
-                                    transaction.endClockMillis,
-                                    transaction.dnsServerIp,
-                                    normalizedResolvedIp
-                            );
-
-                    /*
-                     * ====================================================
-                     * LOG FIRST MATCH
-                     * ====================================================
-                     */
-                    String matchLog =
-                            "========== FIRST DNS TRANSACTION MATCHED ==========\n"
-                                    + "Resolved IP        : "
-                                    + normalizedResolvedIp
-                                    + "\n"
-                                    + "DNS Transaction ID : 0x"
-                                    + String.format(
-                                    Locale.US,
-                                    "%04X",
-                                    transaction.transactionId
-                            )
-                                    + "\n"
-                                    + "Query Name         : "
-                                    + transaction.queryName
-                                    + "\n"
-                                    + "Query Type         : "
-                                    + transaction.queryType
-                                    + "\n"
-                                    + "Answer IPs         : "
-                                    + transaction.answerIps
-                                    + "\n"
-                                    + "Matched Answer IP  : "
-                                    + normalizedAnswerIp
-                                    + "\n"
-                                    + "DNS T0             : "
-                                    + matchedDnsT0
-                                    + " ns\n"
-                                    + "DNS T1             : "
-                                    + matchedDnsT1
-                                    + " ns\n"
-                                    + "DNS Lookup Time    : "
-                                    + String.format(
-                                    Locale.US,
-                                    "%.3f",
-                                    transaction.dnsLookupTimeMs
-                            )
-                                    + " ms\n"
-                                    + "Selection Rule     : FIRST MATCH ONLY\n"
-                                    + "==============================================";
-
-                    VpnEventRepository
-                            .getInstance()
-                            .logEvent(
-                                    TAG + matchLog,
-                                    VpnEvent.Level.INFO,
-                                    VpnEvent.Category.UDP
-                            );
-
-                    /*
-                     * ====================================================
-                     * REMOVE THE SELECTED TRANSACTION
-                     * ====================================================
-                     *
-                     * This prevents this DNS transaction from being
-                     * selected again.
-                     */
-                    completedDnsTransactions.remove(
-                            transaction
-                    );
-
-                    /*
-                     * ====================================================
-                     * CRITICAL
-                     * ====================================================
-                     *
-                     * RETURN IMMEDIATELY.
-                     *
-                     * This means:
-                     *
-                     * FIRST MATCH → SELECT
-                     * ALL LATER MATCHES → NEVER CHECKED
-                     */
-                    return matchedDnsT0;
-                }
-            }
+            return 0L;
         }
 
         /*
-         * No matching DNS transaction exists.
+         * ============================================================
+         * DNS T0
+         * ============================================================
+         *
+         * T0 = DNS request start timestamp.
          */
-        VpnEventRepository.getInstance().logToFile(
-                TAG+
-                        "NO DNS TRANSACTION MATCH FOUND"
-                        + " | Resolved IP = "
-                        + normalizedResolvedIp
+        long dnsT0 =
+                transaction.startTime;
+
+        /*
+         * ============================================================
+         * DNS T1
+         * ============================================================
+         *
+         * T1 = DNS response timestamp.
+         */
+        long dnsT1 =
+                transaction.endTime;
+
+        /*
+         * ============================================================
+         * STORE DNS T0 WALL CLOCK
+         * ============================================================
+         *
+         * Existing TTFB flow reads this value through:
+         *
+         *     getLatestMatchedDnsT0WallTime()
+         *
+         * Keep the existing variable name so no other file needs
+         * to be modified for this change.
+         */
+        latestMatchedDnsT0WallTime =
+                transaction.startClockMillis;
+
+        /*
+         * ============================================================
+         * UPDATE DNS UI
+         * ============================================================
+         *
+         * FIRST completed DNS transaction is sent directly to UI.
+         *
+         * No IP matching.
+         *
+         * DNS lookup time:
+         *
+         *     transaction.dnsLookupTimeMs
+         */
+        VpnEventRepository
+                .getInstance()
+                .recordAppOpenDnsLookup(
+                        transaction.dnsLookupTimeMs,
+                        transaction.startClockMillis,
+                        transaction.endClockMillis,
+                        transaction.dnsServerIp,
+                        resolvedIp
+                );
+
+        /*
+         * ============================================================
+         * LOG SELECTED DNS TRANSACTION
+         * ============================================================
+         */
+        String firstDnsLog =
+                "========== FIRST DNS TRANSACTION SELECTED ==========\n"
+                        + "DNS Transaction ID : 0x"
+                        + String.format(
+                        Locale.US,
+                        "%04X",
+                        transaction.transactionId
+                )
+                        + "\n"
+                        + "Query Name         : "
+                        + transaction.queryName
+                        + "\n"
+                        + "Query Type         : "
+                        + transaction.queryType
+                        + "\n"
+                        + "Answer IPs         : "
+                        + transaction.answerIps
+                        + "\n"
+                        + "Resolved IP        : "
+                        + (
+                        resolvedIp == null
+                                ? "NOT USED"
+                                : resolvedIp
+                )
+                        + "\n"
+                        + "DNS T0             : "
+                        + dnsT0
+                        + " ns\n"
+                        + "DNS T1             : "
+                        + dnsT1
+                        + " ns\n"
+                        + "DNS Lookup Time    : "
+                        + String.format(
+                        Locale.US,
+                        "%.3f",
+                        transaction.dnsLookupTimeMs
+                )
+                        + " ms\n"
+                        + "Selection Rule     : FIRST DNS TRANSACTION ONLY\n"
+                        + "IP MATCHING        : DISABLED\n"
+                        + "====================================================";
+
+        VpnEventRepository
+                .getInstance()
+                .logEvent(
+                        TAG + firstDnsLog,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.UDP
+                );
+
+        /*
+         * ============================================================
+         * REMOVE SELECTED DNS TRANSACTION
+         * ============================================================
+         *
+         * Example:
+         *
+         *     DNS #1 -> SELECTED -> REMOVED
+         *     DNS #2 -> remains
+         *     DNS #3 -> remains
+         *
+         * Therefore DNS #1 cannot be selected again.
+         */
+        completedDnsTransactions.remove(
+                transaction
         );
 
-        return 0L;
-
+        /*
+         * ============================================================
+         * RETURN DNS T0
+         * ============================================================
+         *
+         * This value is used later for App Open TTFB:
+         *
+         *     TLS 0x17 T1 - DNS T0
+         */
+        return dnsT0;
     }
-
 
     static long getLatestMatchedDnsT0WallTime() {
         return latestMatchedDnsT0WallTime;
@@ -1806,28 +1790,7 @@ class AppOpenUdpForwarder {
      *
      * 11.1.1.10
      */
-    private static boolean containsIp(
-            String answerIps,
-            String resolvedIp) {
 
-        String[] values =
-                answerIps.split(",");
-
-
-        for (String value : values) {
-
-            if (
-                    resolvedIp.equals(
-                            value.trim()
-                    )
-            ) {
-                return true;
-            }
-        }
-
-
-        return false;
-    }
 
 
     /**

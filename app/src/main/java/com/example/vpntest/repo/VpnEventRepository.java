@@ -525,19 +525,21 @@ public final class VpnEventRepository {
         );
     }
 
-    // ============================================================
-    // APP OPEN TCP HANDSHAKE
-    // ============================================================
+    /// ============================================================
+// APP OPEN TCP HANDSHAKE
+// ============================================================
 
     public void recordAppOpenTcpHandshake(
             long handshakeNano,
             long t0WallTime,
+            long synAckWallTime,
             long t1WallTime
     ) {
         updateStats(s ->
                 s.withAppOpenTcpHandshake(
                         handshakeNano,
                         t0WallTime,
+                        synAckWallTime,
                         t1WallTime
                 )
         );
@@ -546,6 +548,7 @@ public final class VpnEventRepository {
     public void resetAppOpenTcpHandshake() {
         updateStats(s ->
                 s.withAppOpenTcpHandshake(
+                        -1L,
                         -1L,
                         -1L,
                         -1L

@@ -1474,6 +1474,11 @@ public class AppOpenMediatorVpnService extends VpnService {
             );
         }
     }
+    public void resolveServerHostnamesOnStop() {
+        if (tcpForwarder != null) {
+            tcpForwarder.resolveServerHostnamesOnStop();
+        }
+    }
     private Notification buildNotification() {
 
         if (Build.VERSION.SDK_INT >=

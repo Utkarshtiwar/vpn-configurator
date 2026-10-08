@@ -917,39 +917,6 @@ class AppOpenTcpForwarder {
                             && ackMatchesSession;
 
             /*
-             * Debug logging.
-             */
-            String t1DebugLog =
-                    "========== TCP CONNECTION | T1 CANDIDATE ==========\n"
-                            + "Connection Key       : " + t1ConnectionKey + "\n"
-                            + "Source IP            : " + t1SourceIp + "\n"
-                            + "Source Port          : " + srcPort + "\n"
-                            + "Destination IP       : " + t1DestinationIp + "\n"
-                            + "Destination Port     : " + dstPort + "\n"
-                            + "Sequence Number      : " + seq + "\n"
-                            + "ACK Number           : " + ack + "\n"
-                            + "TCP Flags            : 0x"
-                            + String.format(
-                            java.util.Locale.US,
-                            "%02X",
-                            flags
-                    ) + "\n"
-                            + "T1 Candidate         : " + t1CandidateNano + " ns\n"
-                            + "Timestamp            : "
-                            + formatTimestamp(t1CandidateWallTime) + "\n"
-                            + "T0 Found             : " + (connectionT0 != null) + "\n"
-                            + "Connection T0        : "
-                            + (connectionT0 != null
-                            ? connectionT0 + " ns"
-                            : "NOT_FOUND") + "\n"
-                            + "ACK Matches Session  : " + ackMatchesSession + "\n"
-                            + "T1 Matches T0        : " + t1MatchesT0 + "\n"
-                            + "====================================================";
-
-            Log.i(TAG, t1DebugLog);
-            dashboard.logToFile(TAG + t1DebugLog);
-
-            /*
              * T0 vs T1 comparison.
              */
             String comparisonLog =
@@ -1016,17 +983,23 @@ class AppOpenTcpForwarder {
                     dashboard.recordAppOpenTcpHandshake(
                             tcpHandshakeNano,
                             handshakeT0WallTime,
+                            session.synAckReceiveWallTime,
                             t1CandidateWallTime
                     );
+
 
                     dashboard.logToFile(
                             TAG
                                     + "TCP HANDSHAKE UI UPDATE\n"
-                                    + "T0 Wall Time : "
+                                    + "T0 Wall Time       : "
                                     + formatTimestamp(handshakeT0WallTime) + "\n"
-                                    + "T1 Wall Time : "
+                                    + "SYN-ACK Wall Time  : "
+                                    + formatTimestamp(
+                                    session.synAckReceiveWallTime
+                            ) + "\n"
+                                    + "T1 Wall Time       : "
                                     + formatTimestamp(t1CandidateWallTime) + "\n"
-                                    + "Duration     : "
+                                    + "Duration            : "
                                     + tcpHandshakeMs + " ms"
                     );
 
@@ -1039,7 +1012,8 @@ class AppOpenTcpForwarder {
                     dashboard.recordAppOpenTcpHandshake(
                             tcpHandshakeNano,
                             -1L,
-                            -1L
+                            session.synAckReceiveWallTime,
+                            t1CandidateWallTime
                     );
                 }
 
@@ -1056,6 +1030,18 @@ class AppOpenTcpForwarder {
                                 + "Sequence Number    : " + seq + "\n"
                                 + "ACK Number         : " + ack + "\n"
                                 + "TCP Flags          : 0x10\n"
+                                + "T0 Wall Clock      : "
+                                + formatTimestamp(
+                                handshakeT0WallTime
+                        ) + "\n"
+                                + "SYN-ACK Wall Clock : "
+                                + formatTimestamp(
+                                session.synAckReceiveWallTime
+                        ) + "\n"
+                                + "T1 Wall Clock      : "
+                                + formatTimestamp(
+                                t1CandidateWallTime
+                        ) + "\n"
                                 + "Handshake T0       : "
                                 + tcpHandshakeSynSentNano + " ns\n"
                                 + "Handshake T1       : "
@@ -2256,12 +2242,41 @@ class AppOpenTcpForwarder {
                                 8000
                         );
 
+                        /*
+                         * The underlying TCP connect has completed.
+                         *
+                         * Store the wall-clock timestamp here so it can be
+                         * displayed as the SYN-ACK receive / connection-completion
+                         * timestamp.
+                         *
+                         * This timestamp is ONLY for display/logging.
+                         * It does NOT change TCP handshake T0/T1 calculation.
+                         */
+                        session.synAckReceiveWallTime =
+                                System.currentTimeMillis();
 
                         Log.d(
                                 TAG,
                                 "Socket connected successfully."
                         );
 
+                        Log.d(
+                                TAG,
+                                "SYN-ACK Receive Wall Time : "
+                                        + formatTimestamp(
+                                        session.synAckReceiveWallTime
+                                )
+                        );
+
+                        dashboard.logToFile(
+                                TAG
+                                        + "TCP SYN-ACK RECEIVE\n"
+                                        + "Connection Key      : " + key + "\n"
+                                        + "SYN-ACK Wall Time   : "
+                                        + formatTimestamp(
+                                        session.synAckReceiveWallTime
+                                )
+                        );
 
                         dashboard.logEvent(
                                 TAG
@@ -2274,7 +2289,6 @@ class AppOpenTcpForwarder {
                                 VpnEvent.Category.TCP
                         );
 
-
                         session.realSocket =
                                 socket;
 
@@ -2284,55 +2298,12 @@ class AppOpenTcpForwarder {
                                         .getInetAddress()
                                         .getHostAddress();
 
-
-                        String serverName;
-
-
-                        try {
-
-                            serverName =
-                                    socket
-                                            .getInetAddress()
-                                            .getCanonicalHostName();
-
-                        } catch (Exception e) {
-
-                            serverName =
-                                    "Unknown";
-
-                            Log.e(
-                                    TAG,
-                                    "Exception while resolving host name : "
-                                            + intToInetName(
-                                            dstIp
-                                    ).getHostAddress()
-                                            + ":"
-                                            + dstPort,
-                                    e
-                            );
-
-                            dashboard.logEvent(
-                                    TAG
-                                            + "Exception while resolving host name : "
-                                            + intToInetName(
-                                            dstIp
-                                    ).getHostAddress()
-                                            + ":"
-                                            + dstPort
-                                            + " exception is : "
-                                            + e.getMessage(),
-                                    VpnEvent.Level.INFO,
-                                    VpnEvent.Category.TCP
-                            );
-                        }
-
-
                         session.serverIp =
                                 serverIp;
 
-                        session.serverName =
-                                serverName;
 
+                        session.serverName =
+                                "Unknown";
 
                         Log.d(
                                 TAG,
@@ -2602,6 +2573,62 @@ class AppOpenTcpForwarder {
                 TAG,
                 "Dashboard updated with TTFB."
         );
+    }
+    public void resolveServerHostnamesOnStop() {
+
+        for (TcpSession session : sessions.values()) {
+
+            if (session == null || session.realSocket == null) {
+                continue;
+            }
+
+            try {
+
+                InetAddress address =
+                        session.realSocket.getInetAddress();
+
+                if (address == null) {
+                    session.serverName = "Unknown";
+                    continue;
+                }
+
+                String serverName =
+                        address.getCanonicalHostName();
+
+                session.serverName =
+                        serverName;
+
+                Log.d(
+                        TAG,
+                        "Stop-time hostname resolved: "
+                                + session.serverIp
+                                + " -> "
+                                + serverName
+                );
+
+                dashboard.logEvent(
+                        TAG
+                                + "Stop-time hostname resolved: "
+                                + session.serverIp
+                                + " -> "
+                                + serverName,
+                        VpnEvent.Level.INFO,
+                        VpnEvent.Category.TCP
+                );
+
+            } catch (Exception e) {
+
+                session.serverName =
+                        "Unknown";
+
+                Log.e(
+                        TAG,
+                        "Stop-time hostname resolution failed for "
+                                + session.serverIp,
+                        e
+                );
+            }
+        }
     }
 
 
@@ -3742,6 +3769,7 @@ class AppOpenTcpForwarder {
         final java.util.concurrent.atomic.AtomicBoolean
                 synAckSent =
                 new java.util.concurrent.atomic.AtomicBoolean(false);
+        volatile long synAckReceiveWallTime = -1L;
 
         volatile long requestSentTime =
                 0L;

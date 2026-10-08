@@ -52,6 +52,7 @@ public final class VpnStats {
 
     public final long appOpenTcpHandshakeNano;
     public final long appOpenTcpHandshakeT0WallTime;
+    public final long appOpenTcpHandshakeSynAckWallTime;
     public final long appOpenTcpHandshakeT1WallTime;
 
     public final double appOpenTlsHandshakeMs;
@@ -172,6 +173,7 @@ public final class VpnStats {
                 -1L,
                 -1L,
                 -1L,
+                -1L,
 
                 -1.0,
                 -1L,
@@ -245,6 +247,7 @@ public final class VpnStats {
 
             long appOpenTcpHandshakeNano,
             long appOpenTcpHandshakeT0WallTime,
+            long appOpenTcpHandshakeSynAckWallTime,
             long appOpenTcpHandshakeT1WallTime,
 
             double appOpenTlsHandshakeMs,
@@ -316,6 +319,7 @@ public final class VpnStats {
 
         this.appOpenTcpHandshakeNano = appOpenTcpHandshakeNano;
         this.appOpenTcpHandshakeT0WallTime = appOpenTcpHandshakeT0WallTime;
+        this.appOpenTcpHandshakeSynAckWallTime = appOpenTcpHandshakeSynAckWallTime;
         this.appOpenTcpHandshakeT1WallTime = appOpenTcpHandshakeT1WallTime;
 
         this.appOpenTlsHandshakeMs = appOpenTlsHandshakeMs;
@@ -399,6 +403,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -475,6 +480,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -551,6 +557,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -627,6 +634,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -720,6 +728,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -796,6 +805,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -872,6 +882,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -948,6 +959,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1033,6 +1045,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1117,6 +1130,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1198,6 +1212,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1283,6 +1298,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1361,6 +1377,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1440,6 +1457,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1518,6 +1536,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1596,6 +1615,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1678,6 +1698,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1755,6 +1776,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1832,6 +1854,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1909,6 +1932,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -1986,6 +2010,7 @@ public final class VpnStats {
 
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
 
                 appOpenTlsHandshakeMs,
@@ -2028,6 +2053,7 @@ public final class VpnStats {
             long newAppOpenTtfbT1WallTime,
             long newAppOpenTcpHandshakeNano,
             long newAppOpenTcpHandshakeT0WallTime,
+            long newAppOpenTcpHandshakeSynAckWallTime,
             long newAppOpenTcpHandshakeT1WallTime,
             double newAppOpenTlsHandshakeMs,
             long newAppOpenTlsHandshakeT0WallTime,
@@ -2082,6 +2108,7 @@ public final class VpnStats {
 
                 newAppOpenTcpHandshakeNano,
                 newAppOpenTcpHandshakeT0WallTime,
+                newAppOpenTcpHandshakeSynAckWallTime,
                 newAppOpenTcpHandshakeT1WallTime,
 
                 newAppOpenTlsHandshakeMs,
@@ -2125,6 +2152,7 @@ public final class VpnStats {
                 t1WallTime,
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
                 appOpenTlsHandshakeMs,
                 appOpenTlsHandshakeT0WallTime,
@@ -2143,6 +2171,7 @@ public final class VpnStats {
     public VpnStats withAppOpenTcpHandshake(
             long handshakeNano,
             long t0WallTime,
+            long synAckWallTime,
             long t1WallTime
     ) {
         return copyWithAppOpenMetrics(
@@ -2151,6 +2180,7 @@ public final class VpnStats {
                 appOpenTtfbT1WallTime,
                 handshakeNano,
                 t0WallTime,
+                synAckWallTime,
                 t1WallTime,
                 appOpenTlsHandshakeMs,
                 appOpenTlsHandshakeT0WallTime,
@@ -2177,6 +2207,7 @@ public final class VpnStats {
                 appOpenTtfbT1WallTime,
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
                 handshakeMs,
                 t0WallTime,
@@ -2205,6 +2236,7 @@ public final class VpnStats {
                 appOpenTtfbT1WallTime,
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
                 appOpenTlsHandshakeMs,
                 appOpenTlsHandshakeT0WallTime,
@@ -2237,6 +2269,7 @@ public final class VpnStats {
                 appOpenTtfbT1WallTime,
                 appOpenTcpHandshakeNano,
                 appOpenTcpHandshakeT0WallTime,
+                appOpenTcpHandshakeSynAckWallTime,
                 appOpenTcpHandshakeT1WallTime,
                 appOpenTlsHandshakeMs,
                 appOpenTlsHandshakeT0WallTime,
